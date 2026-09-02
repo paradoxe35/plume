@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Plume">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            The two text-selection toolbar entries. Android inserts one menu item per activity that
+            declares ACTION_PROCESS_TEXT, in every app that uses the standard selection toolbar.
+
+            android:label is what the user reads in that toolbar — it must stay one short word,
+            because the framework truncates it hard and shows only a few actions inline.
+
+            Deliberately NOT noHistory or taskAffinity="": both activities return their result with
+            setResult(RESULT_OK), and anything that lets the system finish them out from under us,
+            or moves them out of the caller's task, risks that result never reaching the host app —
+            which is the entire feature. They run in the default launch mode and finish themselves.
+        -->
+        <activity
+            android:name=".process.ReviseActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/action_revise"
+            android:theme="@style/Theme.Plume.Overlay"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".process.TranslateActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/action_translate"
+            android:theme="@style/Theme.Plume.Overlay"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

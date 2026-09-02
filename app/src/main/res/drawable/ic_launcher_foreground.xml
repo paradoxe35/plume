@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    A quill nib: the diagonal barb of a feather with the slit and shoulder of a pen nib.
+    Flat fills only, drawn inside the 72dp adaptive-icon safe zone.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Feather body, sweeping from lower-left to upper-right. -->
+    <path
+        android:fillColor="#F7F6F3"
+        android:pathData="M32,76 C32,54 44,36 74,28 C70,54 58,70 38,76 Z" />
+
+    <!-- Nib shoulder, the darker under-side of the vane. -->
+    <path
+        android:fillColor="#7FD1C4"
+        android:pathData="M32,76 C40,60 54,44 74,28 C58,50 44,64 38,76 Z" />
+
+    <!-- Shaft running down to the writing tip. -->
+    <path
+        android:fillColor="#F7F6F3"
+        android:pathData="M31,79 L74,28 L76,30 L34,80 Z" />
+
+    <!-- The ink point. -->
+    <path
+        android:fillColor="#E8A87C"
+        android:pathData="M28,84 L34,77 L36,79 Z" />
+</vector>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Plume</string>
+
+    <!--
+        These two appear in the system text-selection toolbar next to Cut / Copy / Paste.
+        Keep them to a single short word: Android truncates aggressively and shows only a few
+        actions inline before pushing the rest into the overflow menu.
+    -->
+    <string name="action_revise">Revise</string>
+    <string name="action_translate">Translate</string>
+</resources>

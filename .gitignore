@@ -1,0 +1,19 @@
+*.iml
+.gradle/
+.kotlin/
+.idea/
+.DS_Store
+
+# Build output — matches every module, not just the root project.
+build/
+captures/
+.externalNativeBuild
+.cxx
+
+# Machine-local SDK path.
+local.properties
+
+# Signing material stays on the machine that builds releases.
+keystore.properties
+*.keystore
+*.jks

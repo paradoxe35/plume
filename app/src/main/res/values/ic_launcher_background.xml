@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Deep teal ink, matching the app's primary. Flat — no gradient. -->
+    <color name="ic_launcher_background">#1E4D4A</color>
+</resources>
