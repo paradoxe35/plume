@@ -58,6 +58,12 @@ analytics. API keys are encrypted with Google Tink using a master key held in th
 and are stored separately from the rest of your settings so they cannot leak through a settings
 export.
 
+## Install
+
+A signed release build is committed at the repository root as `Plume.apk` — download it and
+install. It is signed with a local key, so Android will ask you to allow installing from an
+unknown source.
+
 ## Building
 
 Requires JDK 17 and an Android SDK with API 36.
@@ -69,6 +75,12 @@ Requires JDK 17 and an Android SDK with API 36.
 ```
 
 `keystore.properties` and `local.properties` are machine-local and not committed.
+
+To refresh the APK at the root after a release build:
+
+```bash
+cp app/build/outputs/apk/release/app-release.apk Plume.apk
+```
 
 ## Stack
 

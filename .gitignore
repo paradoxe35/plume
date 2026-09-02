@@ -17,3 +17,8 @@ local.properties
 keystore.properties
 *.keystore
 *.jks
+
+# Build artefacts are not committed, except the signed release kept at the root
+# so it can be downloaded straight from the repository.
+*.apk
+!/Plume.apk
