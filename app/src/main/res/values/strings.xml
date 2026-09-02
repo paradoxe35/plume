@@ -4,9 +4,9 @@
 
     <!--
         These two appear in the system text-selection toolbar next to Cut / Copy / Paste.
-        Keep them to a single short word: Android truncates aggressively and shows only a few
-        actions inline before pushing the rest into the overflow menu.
+        Keep them short: Android truncates aggressively and shows only a few actions inline before
+        pushing the rest into the overflow menu.
     -->
-    <string name="action_revise">Revise</string>
-    <string name="action_translate">Translate</string>
+    <string name="action_revise">Plume Revise</string>
+    <string name="action_translate">Plume Translate</string>
 </resources>
