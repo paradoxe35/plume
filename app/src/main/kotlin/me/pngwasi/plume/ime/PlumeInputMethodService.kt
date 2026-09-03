@@ -190,9 +190,10 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             switchToPreviousInputMethod()
         } else {
-            @Suppress("DEPRECATION")
             val token = window?.window?.attributes?.token
             val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            // The pre-28 equivalent, and the only one those versions have.
+            @Suppress("DEPRECATION")
             token != null && imm?.switchToLastInputMethod(token) == true
         }
     }.getOrDefault(false)

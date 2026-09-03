@@ -80,6 +80,14 @@ class DesktopController(
         service.start()
     }
 
+    /**
+     * False when running from a build rather than an install: there is no launcher to register,
+     * and offering the toggle anyway would promise something that cannot happen.
+     */
+    val launchAtLoginAvailable: Boolean by lazy {
+        System.getProperty("jpackage.app-path") != null
+    }
+
     /** Used by the history screen so the user can recover an original Plume replaced. */
     fun copyToClipboard(text: String) {
         systemInput?.setClipboardText(text)

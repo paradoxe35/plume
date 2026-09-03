@@ -6,6 +6,7 @@ import android.util.Base64
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import java.security.GeneralSecurityException
@@ -67,7 +68,8 @@ class AndroidSecretStore(context: Context) : SecretStore {
             .withMasterKeyUri(MASTER_KEY_URI)
             .build()
             .keysetHandle
-        return handle.getPrimitive(Aead::class.java)
+        // getPrimitive(Class) is deprecated; the configuration argument replaces the global registry.
+        return handle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
     }
 
     private companion object {

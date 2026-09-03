@@ -41,6 +41,8 @@ fun HotkeysScreen(
     defaults: me.pngwasi.plume.data.HotkeyDefaults,
     availability: HotkeyAvailability,
     rejectedBindings: List<String>,
+    launchAtLoginAvailable: Boolean,
+    onSetLaunchAtLogin: (Boolean) -> Boolean,
     onChange: (DesktopSettings) -> Unit,
 ) {
     Column(
@@ -106,12 +108,23 @@ fun HotkeysScreen(
         SettingsCard {
             SettingsRow(
                 title = "Start with the system",
-                subtitle = "Plume needs to be running for the shortcuts to work.",
+                subtitle = if (launchAtLoginAvailable) {
+                    "Plume needs to be running for the shortcuts to work."
+                } else {
+                    "Available once Plume is installed, not when run from a build."
+                },
                 icon = PlumeIcons.Refresh,
                 trailing = {
                     Switch(
                         checked = settings.startOnLogin,
-                        onCheckedChange = { onChange(settings.copy(startOnLogin = it)) },
+                        enabled = launchAtLoginAvailable,
+                        onCheckedChange = { wanted ->
+                            // Only record what actually happened: a switch that flips without the
+                            // entry being written would be a straightforward lie.
+                            if (onSetLaunchAtLogin(wanted)) {
+                                onChange(settings.copy(startOnLogin = wanted))
+                            }
+                        },
                     )
                 },
             )

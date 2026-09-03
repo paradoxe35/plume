@@ -65,6 +65,8 @@ fun DesktopSettingsWindow(
                     defaults = hotkeyDefaultsFor(),
                     availability = controller.availability,
                     rejectedBindings = controller.rejectedBindings,
+                    launchAtLoginAvailable = controller.launchAtLoginAvailable,
+                    onSetLaunchAtLogin = LaunchAtLogin::setEnabled,
                     onChange = { updated ->
                         scope.launch {
                             controller.repository.update { it.copy(desktop = updated) }
