@@ -112,22 +112,7 @@ private fun Header(
             color = MaterialTheme.colorScheme.primary,
         )
 
-        // Two icons and the Keyboard button leave little room here; without a hard single-line
-        // constraint the scope label wraps and pushes the header to two rows.
-        Box(modifier = Modifier.weight(1f)) {
-            val scopeLabel = (state as? ImeState.Ready)?.scope?.let {
-                if (it == ActionScope.Selection) "selection" else "message"
-            }
-            if (scopeLabel != null) {
-                Text(
-                    text = "· $scopeLabel",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        Box(modifier = Modifier.weight(1f))
 
         TextButton(onClick = onClearField, enabled = canClear, contentPadding = TightPadding) {
             Icon(
@@ -171,7 +156,16 @@ private fun ReadyBody(
                 "Type with your usual keyboard, then switch back here to fix or translate it.",
                 Modifier.weight(1f),
             )
-            else -> Preview(state.preview, Modifier.weight(1f))
+            else -> {
+                if (state.scope == ActionScope.Selection) {
+                    Text(
+                        text = "YOUR SELECTION",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Preview(state.preview, Modifier.weight(1f))
+            }
         }
 
         Row(
@@ -198,10 +192,10 @@ private fun ReadyBody(
 
         // Kept visible but disabled when nothing is copied. Hiding it would make the panel jump and
         // would never teach anyone the feature exists; a greyed button with a reason does both.
-        TextButton(
+        OutlinedButton(
             onClick = onReadClipboard,
             enabled = state.hasClipboard,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(44.dp),
         ) {
             Icon(
                 Icons.Outlined.ContentPaste,
@@ -210,11 +204,11 @@ private fun ReadyBody(
             )
             Text(
                 text = if (state.hasClipboard) {
-                    "  Translate copied message"
+                    "  Translate copied text"
                 } else {
-                    "  Copy a message to translate it here"
+                    "  No copied text"
                 },
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelLarge,
             )
         }
     }
@@ -234,7 +228,7 @@ private fun ReadingBody(
 ) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "IN ${state.language.uppercase()}",
+            text = "COPIED TEXT IN ${state.language.uppercase()}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -341,7 +335,7 @@ private fun PickerBody(
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = if (state.subject == TranslationSubject.Clipboard) {
-                "Read the copied message in"
+                "Read the copied text in"
             } else {
                 "Translate into"
             },

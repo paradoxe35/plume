@@ -152,7 +152,7 @@ class ImePanelController(
     fun startReadClipboard() {
         val copied = runCatching { clipboard?.read() }.getOrNull()
         if (copied.isNullOrBlank()) {
-            _state.value = ImeState.Failed("Nothing is copied yet.", settingsFix = false, retry = null)
+            _state.value = ImeState.Failed("There is no copied text yet.", settingsFix = false, retry = null)
             return
         }
         running?.cancel()
@@ -183,7 +183,7 @@ class ImePanelController(
         running = scope.launch {
             val copied = runCatching { clipboard?.read() }.getOrNull()
             if (copied.isNullOrBlank()) {
-                _state.value = ImeState.Failed("Nothing is copied yet.", settingsFix = false, retry = null)
+                _state.value = ImeState.Failed("There is no copied text yet.", settingsFix = false, retry = null)
                 return@launch
             }
 
