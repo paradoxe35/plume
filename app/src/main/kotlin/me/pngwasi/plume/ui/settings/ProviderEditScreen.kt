@@ -43,8 +43,11 @@ import kotlinx.coroutines.delay
 import me.pngwasi.plume.data.BuiltInProviders
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ProviderKind
+import me.pngwasi.plume.data.ReasoningDialect
 import me.pngwasi.plume.data.ReasoningMode
 import me.pngwasi.plume.data.isLocalEndpoint
+import me.pngwasi.plume.ai.Reasoning
+import me.pngwasi.plume.ai.ReasoningStyle
 import me.pngwasi.plume.data.validateProvider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
@@ -83,6 +86,7 @@ fun ProviderEditScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var reasoning by remember { mutableStateOf(initial.reasoning) }
     var authRequired by remember { mutableStateOf(initial.authRequired) }
+    var dialect by remember { mutableStateOf(initial.reasoningDialect) }
 
     val builtIn = BuiltInProviders.isBuiltIn(providerId)
 
@@ -93,6 +97,7 @@ fun ProviderEditScreen(
         model = model.trim(),
         temperature = temperature,
         reasoning = reasoning,
+        reasoningDialect = dialect,
         authRequired = authRequired,
     )
 
@@ -268,6 +273,16 @@ fun ProviderEditScreen(
             modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 4.dp),
         )
 
+        // Auto is right for the built-ins and for gateways on a recognisable domain. A self-hosted
+        // proxy can speak a dialect its hostname gives no hint of, so custom providers get to say.
+        if (!builtIn && reasoning == ReasoningMode.Low) {
+            DialectSelector(
+                selected = dialect,
+                detected = Reasoning.detect(kind, baseUrl.trim()),
+                onSelect = { dialect = it; commit() },
+            )
+        }
+
         SectionLabel("Check")
         SettingsCard {
             SettingsRow(
@@ -346,6 +361,60 @@ private fun DefaultBanner(isDefault: Boolean, enabled: Boolean, onSetDefault: ()
             Text("Make this the default provider")
         }
     }
+}
+
+@Composable
+private fun DialectSelector(
+    selected: ReasoningDialect,
+    detected: ReasoningStyle,
+    onSelect: (ReasoningDialect) -> Unit,
+) {
+    Column(modifier = Modifier.padding(top = 12.dp)) {
+        Text(
+            text = "Reasoning parameter",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReasoningDialect.entries.forEach { option ->
+                FilterChip(
+                    selected = option == selected,
+                    onClick = { onSelect(option) },
+                    label = { Text(dialectLabel(option), style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+        Text(
+            text = if (selected == ReasoningDialect.Auto) {
+                "Detected: ${styleLabel(detected)}. Set it yourself if this endpoint speaks another."
+            } else {
+                "Sending ${styleLabel(dialectStyle(selected))} regardless of the URL."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
+private fun dialectLabel(dialect: ReasoningDialect) = when (dialect) {
+    ReasoningDialect.Auto -> "Auto"
+    ReasoningDialect.OpenAi -> "OpenAI"
+    ReasoningDialect.OpenRouter -> "OpenRouter"
+    ReasoningDialect.Gemini -> "Gemini"
+}
+
+private fun dialectStyle(dialect: ReasoningDialect) = when (dialect) {
+    ReasoningDialect.OpenRouter -> ReasoningStyle.OpenRouterReasoning
+    ReasoningDialect.Gemini -> ReasoningStyle.GeminiBudget
+    else -> ReasoningStyle.OpenAiEffort
+}
+
+private fun styleLabel(style: ReasoningStyle) = when (style) {
+    ReasoningStyle.OpenAiEffort -> "reasoning_effort"
+    ReasoningStyle.OpenRouterReasoning -> "reasoning object"
+    ReasoningStyle.GeminiBudget -> "thinkingBudget"
 }
 
 @Composable

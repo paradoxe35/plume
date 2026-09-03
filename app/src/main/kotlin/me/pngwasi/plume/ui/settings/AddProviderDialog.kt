@@ -26,6 +26,8 @@ private data class Preset(
     val name: String,
     val baseUrl: String,
     val model: String,
+    /** Local runtimes accept anything or nothing, so they start with auth switched off. */
+    val authRequired: Boolean = true,
 )
 
 private val Presets = listOf(
@@ -33,7 +35,8 @@ private val Presets = listOf(
     Preset("Mistral", "https://api.mistral.ai/v1", "mistral-small-latest"),
     Preset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"),
     Preset("Together", "https://api.together.xyz/v1", ""),
-    Preset("Ollama", "http://localhost:11434/v1", ""),
+    Preset("Ollama", "http://localhost:11434/v1", "", authRequired = false),
+    Preset("LM Studio", "http://localhost:1234/v1", "", authRequired = false),
 )
 
 @Composable
@@ -93,6 +96,10 @@ fun AddProviderDialog(
                             model = chosen?.model.orEmpty(),
                             temperature = 1f,
                             isCustom = true,
+                            // A local address means a runtime that wants no key; anything else is
+                            // assumed to need one until the user says otherwise.
+                            authRequired = chosen?.authRequired
+                                ?: !me.pngwasi.plume.data.isLocalEndpoint(chosen?.baseUrl.orEmpty()),
                         ),
                     )
                 },

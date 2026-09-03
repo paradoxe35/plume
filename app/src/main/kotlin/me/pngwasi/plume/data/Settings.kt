@@ -26,6 +26,18 @@ enum class ThemeMode { System, Light, Dark }
 @Serializable
 enum class ReasoningMode { Low, ProviderDefault }
 
+/**
+ * Which reasoning parameter a provider understands.
+ *
+ * [Auto] infers it from the provider kind and host, which is right for the built-ins and for
+ * gateways served from a recognisable domain. It cannot be right for everything: a self-hosted
+ * proxy — LiteLLM, Helicone, an internal gateway — may speak OpenRouter's dialect from a domain
+ * that says nothing about it. Without an override such a provider silently loses reasoning control,
+ * because the request is rejected once and then permanently sent without the parameter.
+ */
+@Serializable
+enum class ReasoningDialect { Auto, OpenAi, OpenRouter, Gemini }
+
 /** The two things Plume can do. Each may run on its own provider. */
 enum class Action { Revise, Translate }
 
@@ -38,6 +50,8 @@ data class ProviderConfig(
     val temperature: Float = 1f,
     val isCustom: Boolean = false,
     val reasoning: ReasoningMode = ReasoningMode.Low,
+    /** Only meaningful for custom providers; the built-ins are always correctly detected. */
+    val reasoningDialect: ReasoningDialect = ReasoningDialect.Auto,
     /**
      * Whether this endpoint needs credentials at all. Local runtimes — Ollama, LM Studio, llama.cpp
      * — accept anything or nothing, and demanding a key would block a perfectly valid setup.
@@ -181,17 +195,6 @@ object BuiltInProviders {
         ),
     )
 
-    /** Shown while the live model list is loading, or when the provider has no /models endpoint. */
-    fun fallbackModels(id: String, kind: ProviderKind): List<String> = when {
-        id == OPENROUTER -> listOf(
-            "openai/gpt-4o-mini",
-            "google/gemini-2.5-flash",
-            "anthropic/claude-haiku-4.5",
-            "meta-llama/llama-3.3-70b-instruct",
-        )
-        kind == ProviderKind.Gemini -> listOf("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro")
-        else -> listOf("gpt-4o-mini", "gpt-4o", "gpt-4.1-mini")
-    }
 }
 
 /** Names double as DataStore and secret-store keys, so they stay on a safe character set. */

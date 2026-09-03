@@ -8,6 +8,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import me.pngwasi.plume.data.ReasoningDialect
 import me.pngwasi.plume.data.ReasoningMode
 
 /**
@@ -24,10 +25,15 @@ class OpenAiCompatibleProvider(
     private val temperature: Float,
     private val timeoutSeconds: Int,
     private val reasoning: ReasoningMode = ReasoningMode.ProviderDefault,
+    private val dialect: ReasoningDialect = ReasoningDialect.Auto,
 ) : AiProvider {
 
     private val endpoint = "${baseUrl.trimEnd('/')}/chat/completions"
-    private val style = Reasoning.styleFor(me.pngwasi.plume.data.ProviderKind.OpenAiCompatible, baseUrl)
+    private val style = Reasoning.styleFor(
+        me.pngwasi.plume.data.ProviderKind.OpenAiCompatible,
+        baseUrl,
+        dialect,
+    )
 
     override suspend fun complete(systemPrompt: String, userText: String): String {
         val cacheKey = ReasoningSupport.key(id, model)

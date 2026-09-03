@@ -90,7 +90,7 @@ class TextEngine(
         return when (config.kind) {
             ProviderKind.OpenAiCompatible -> OpenAiCompatibleProvider(
                 providerId, label, key, config.baseUrl, config.model, config.temperature,
-                timeoutSeconds, config.reasoning,
+                timeoutSeconds, config.reasoning, config.reasoningDialect,
             )
             ProviderKind.Gemini -> GeminiProvider(
                 providerId, label, key, config.baseUrl, config.model, config.temperature,

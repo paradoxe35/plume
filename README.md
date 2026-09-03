@@ -40,6 +40,11 @@ deliberate anyway — slowly, and at a cost. Each provider is set to ask for min
 default, and the default timeout is 120s because a model that thinks for a minute before answering
 should not be cut off.
 
+For a **custom provider**, the shape is inferred from the kind and the host, and the editor shows
+what it detected. Inference cannot cover everything — a self-hosted proxy (LiteLLM, Helicone, an
+internal gateway) may speak OpenRouter's dialect from a domain that gives no hint of it — so the
+parameter can be set explicitly per provider.
+
 There is no portable parameter for this. OpenAI returns 400 for `reasoning_effort` on a
 non-reasoning model, OpenRouter uses its own `reasoning` object and rejects requests carrying both
 shapes, and Gemini refuses a zero thinking budget on models that cannot turn thinking off. So Plume
@@ -73,22 +78,22 @@ placeholder and Plume appends the target as a final line instead.
 
 ## The companion keyboard (optional, off by default)
 
-Plume can also install a keyboard *panel* — not a typing keyboard, just Revise and Translate as
+Plume can also install a keyboard _panel_ — not a typing keyboard, just Revise and Translate as
 buttons. You switch to it while typing, run an action, and switch straight back.
 
 Why it exists: an input method holds an `InputConnection`, which is the only way to read and rewrite
 an entire text field **without a selection and without any permission**. Inside a message box that
 is strictly more capable than the selection menu.
 
-| | Selection menu | Companion keyboard |
-|---|---|---|
-| Needs you to select text | Yes | **No** |
-| Fix the whole message | Select all first | One tap |
-| Works on text you're only reading | **Yes** | No |
-| Permissions | None | None |
+|                                   | Selection menu   | Companion keyboard |
+| --------------------------------- | ---------------- | ------------------ |
+| Needs you to select text          | Yes              | **No**             |
+| Fix the whole message             | Select all first | One tap            |
+| Works on text you're only reading | **Yes**          | No                 |
+| Permissions                       | None             | None               |
 
-They cover different halves, so both ship. The selection menu handles text you're *reading*; the
-keyboard handles text you're *writing*.
+They cover different halves, so both ship. The selection menu handles text you're _reading_; the
+keyboard handles text you're _writing_.
 
 It is **disabled by default**. The service is declared `android:enabled="false"`, so a default
 install adds nothing to your system keyboard list — turning it on in Plume enables the component,
@@ -116,7 +121,7 @@ unknown source.
 Requires JDK 17 and an Android SDK with API 36.
 
 ```bash
-./gradlew testDebugUnitTest    # 148 unit tests
+./gradlew testDebugUnitTest    # 181 unit tests
 ./gradlew assembleDebug
 ./gradlew assembleRelease      # signed if keystore.properties exists
 ```

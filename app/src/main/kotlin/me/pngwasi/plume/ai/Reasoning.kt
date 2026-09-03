@@ -4,6 +4,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import me.pngwasi.plume.data.ProviderKind
+import me.pngwasi.plume.data.ReasoningDialect
 import me.pngwasi.plume.data.ReasoningMode
 import java.util.Collections
 
@@ -29,10 +30,24 @@ enum class ReasoningStyle {
 object Reasoning {
 
     /**
+     * An explicit dialect always wins; [ReasoningDialect.Auto] falls back to [detect].
+     */
+    fun styleFor(
+        kind: ProviderKind,
+        baseUrl: String,
+        dialect: ReasoningDialect = ReasoningDialect.Auto,
+    ): ReasoningStyle = when (dialect) {
+        ReasoningDialect.OpenAi -> ReasoningStyle.OpenAiEffort
+        ReasoningDialect.OpenRouter -> ReasoningStyle.OpenRouterReasoning
+        ReasoningDialect.Gemini -> ReasoningStyle.GeminiBudget
+        ReasoningDialect.Auto -> detect(kind, baseUrl)
+    }
+
+    /**
      * OpenRouter is picked out by host rather than by provider kind, because a custom provider can
      * point at it too and it is the one OpenAI-compatible gateway with its own reasoning shape.
      */
-    fun styleFor(kind: ProviderKind, baseUrl: String): ReasoningStyle = when (kind) {
+    fun detect(kind: ProviderKind, baseUrl: String): ReasoningStyle = when (kind) {
         ProviderKind.Gemini -> ReasoningStyle.GeminiBudget
         ProviderKind.OpenAiCompatible ->
             if (baseUrl.contains("openrouter.ai", ignoreCase = true)) {
