@@ -70,10 +70,50 @@ JVM needs a dynamic library, so it becomes `cdylib`, loaded through **JNA** — 
 functions to a Kotlin interface directly and supports the `void(*)(const char*)` hotkey callback
 without any hand-written glue. No C shim, no JNI boilerplate.
 
+`panic` also moves from `abort` to `unwind`. The hotkey callbacks already wrap themselves in
+`catch_unwind`, which `panic = "abort"` makes dead code. Inside the JVM that would take the whole
+app down with no stack trace.
+
+### What MyReviser got wrong, and what Plume does instead
+
+Carrying the crate over meant reading it, and the clipboard dance had real defects. They are worth
+naming because every one of them is invisible in the happy path and ruins the user's text when it
+misfires.
+
+**A copy that never landed is indistinguishable from a successful one.** The Go processor saved the
+clipboard, simulated copy, slept 150 ms, then read the clipboard. If the copy did not land — the app
+was busy, focus moved, the Wayland grab was slow — the clipboard still held *its previous contents*,
+so the processor cheerfully revised whatever was there before and pasted it over the user's
+selection. No sleep length fixes this, because nothing is being checked.
+
+Plume clears the clipboard before simulating the copy and then polls until it changes, with a
+deadline. "The copy landed" becomes observable instead of assumed, and the empty-selection case
+reports honestly rather than mangling unrelated text.
+
+**Restore silently discarded non-text clipboard contents.** `save` stored `Option<String>`, so a
+clipboard holding an image saved as `None`, and `restore` treated `None` as "nothing to do" — which
+left *Plume's* text on the clipboard after having destroyed the image. Plume distinguishes empty
+from foreign content and clears rather than leaving its own text behind, so a borrow can never
+become a silent overwrite.
+
+**The hotkey's own modifiers leaked into the synthetic keystrokes.** Triggering on Ctrl+Alt+R and
+then simulating Ctrl+A while Alt is still physically held sends Ctrl+Alt+A. The 250 ms sleep at the
+top of each operation was a hope that the user had let go. The simulator now releases held modifiers
+first, and releases Control even if the letter keystroke fails, so a failure cannot leave the
+desktop with a stuck modifier.
+
+**A Tokio runtime was built and destroyed on every clipboard call** — to await a lock that never
+yields. Beyond the waste on a latency-sensitive path, `block_on` panics if the calling thread
+already drives a runtime; the JVM calls in from whatever thread it likes. The clipboard is plain
+synchronous code now and the Tokio dependency is gone.
+
+**Re-entrancy was a single bool.** Plume serialises desktop actions and refuses a second one while
+the first holds the clipboard, since two overlapping runs fight over one global resource.
+
 **The flow is the same as Android's, with a different bridge.** There is no `InputConnection` on the
-desktop, so the `EditorBridge` implementation is: save clipboard → simulate select-all and copy →
-read clipboard → send to the model → set clipboard → simulate paste → restore clipboard. MyReviser's
-processor already sequences this, including the sleeps that make it reliable.
+desktop, so the `EditorBridge` implementation is: save clipboard → clear → simulate select-all and
+copy → wait for the clipboard to actually change → send to the model → set clipboard → simulate
+paste → restore clipboard.
 
 ### Desktop needs platform permissions, and they need UI
 
@@ -91,15 +131,29 @@ MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_
 `start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
 "open Accessibility preferences" deep link. All of that is carried over.
 
-### Desktop-only settings
+### Desktop-only settings and features
 
 Things the Android build has no concept of, which the desktop needs:
 
-- **Hotkey bindings** — one for "revise selection", one for "select all and revise"; MyReviser's
-  defaults are a sensible start, and a translate binding is new.
+- **Hotkey bindings** — revise selection, revise the whole field, and translate; MyReviser's
+  defaults are a sensible start, and the translate binding is new. Each is rebindable, and a
+  binding already taken by another action is rejected rather than silently shadowing it.
 - **Permission status** — granted / not granted, with the button that fixes it.
 - **Start on login**, **start minimised**, **close to tray**.
 - **Character limit and timeout** already exist and stay shared.
+
+Beyond parity, a few things only make sense once there is a always-running tray process:
+
+- **A result notification.** On Android the replacement happens under the user's eyes. On the
+  desktop the hotkey fires into whatever app has focus, so success, failure and "nothing was
+  selected" have to be visible without stealing focus — a tray notification, not a window.
+- **A translate target chosen without a window.** The tray menu carries the pinned languages, so
+  translating does not mean opening settings.
+- **History of the last few runs**, with the original text. This is the desktop's version of undo:
+  the paste went into someone else's app and Plume cannot reach into it, but it can always tell the
+  user what the original text was so they can put it back.
+- **A visible busy state.** A reasoning model can take a minute, and a hotkey that appears to do
+  nothing for a minute reads as broken. The tray icon reflects it.
 
 ### Secrets differ everywhere
 
@@ -115,13 +169,24 @@ Things the Android build has no concept of, which the desktop needs:
 
 ### Smaller seams
 
-- **HTTP** — OkHttp gives way to Ktor, one engine per platform.
+- **HTTP** — OkHttp gives way to Ktor (3.5.2), one engine per platform: OkHttp on Android and the
+  JVM, Darwin on iOS. Tests move to Ktor's `MockEngine`, which runs in `commonTest` rather than
+  only on the JVM as MockWebServer did.
 - **Settings storage** — DataStore supports KMP, but officially only *Preferences*. Plume uses a
-  typed store with a custom serializer, so this needs the okio-based `DataStoreFactory` or a small
-  hand-rolled JSON store.
-- **`Languages`** — `java.util.Locale` is JVM-only; display names need an `expect`/`actual` or a
-  multiplatform locale library.
+  typed store with a custom serializer, so it goes through `datastore-core-okio`, whose
+  `OkioSerializer` works on every target. Only the file location is `expect`/`actual`.
+- **`Languages`** — `java.util.Locale` is JVM-only; display names need an `expect`/`actual`.
 - **Clipboard** — trivial but platform-specific.
+
+### Material icons are a dead end, so Plume ships its own
+
+JetBrains stopped publishing `org.jetbrains.compose.material:material-icons-extended` after
+**1.7.3**, and androidx deprecated its equivalent: shipping a few thousand pre-bundled icons fights
+resource shrinking, and Material 3 is meant to be icon-agnostic. Pinning the last release against a
+1.12 runtime is exactly the kind of stale dependency worth avoiding.
+
+Plume uses 29 icons. They become `ImageVector` definitions in the shared module — no dependency, no
+deprecation, identical on all five platforms, and a fraction of the size.
 
 ## Platform-specific UI, not just platform-specific API
 
