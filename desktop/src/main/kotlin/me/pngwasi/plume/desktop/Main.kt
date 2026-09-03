@@ -57,6 +57,16 @@ fun main() {
         var windowVisible by remember { mutableStateOf(false) }
         var started by remember { mutableStateOf(false) }
 
+        // Opening is an event, not a state. `windowVisible = true` when the window is already open
+        // changes nothing, so nothing runs and the window stays where it was — behind whatever the
+        // user was looking at, or minimised — and the tray looks like it did nothing. This counter
+        // changes on every request, so the effect that raises the window always fires.
+        var openRequests by remember { mutableStateOf(0) }
+        val requestOpen: () -> Unit = {
+            windowVisible = true
+            openRequests++
+        }
+
         LaunchedEffect(loaded != null) {
             val settings = loaded ?: return@LaunchedEffect
             if (started) return@LaunchedEffect
@@ -78,7 +88,7 @@ fun main() {
         }
 
         LaunchedEffect(Unit) {
-            controller.openRequests.collect { windowVisible = true }
+            controller.openRequests.collect { requestOpen() }
         }
 
         // On macOS the Dock icon follows the window: a tray app with nothing on screen has no
@@ -112,7 +122,7 @@ fun main() {
             PlumeTray(
                 outcome = outcome,
                 settings = loaded,
-                onOpen = { windowVisible = true },
+                onOpen = requestOpen,
                 onQuit = {
                     controller.shutdown()
                     exitApplication()
@@ -166,6 +176,19 @@ fun main() {
                     }
                     window.addWindowListener(opened)
                     onDispose { window.removeWindowListener(opened) }
+                }
+
+                // Raised on every request, including the ones where the window was already open.
+                //
+                // On macOS this is the whole of it: a menu-bar app is an accessory, and an
+                // accessory's window opens behind the active application with no keyboard focus,
+                // so the app has to be activated before `toFront` means anything. Elsewhere the
+                // window may simply be minimised or buried.
+                LaunchedEffect(openRequests) {
+                    state.isMinimized = false
+                    if (MacDock.isSupported) MacDock.showInDock()
+                    window.toFront()
+                    window.requestFocus()
                 }
 
                 PlumeTheme(mode = theme) {
