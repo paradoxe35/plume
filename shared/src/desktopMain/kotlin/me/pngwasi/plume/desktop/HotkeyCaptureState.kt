@@ -1,5 +1,6 @@
 package me.pngwasi.plume.desktop
 
+import me.pngwasi.plume.data.DesktopOs
 import me.pngwasi.plume.data.normaliseHotkey
 
 /**
@@ -10,7 +11,14 @@ import me.pngwasi.plume.data.normaliseHotkey
  * moves focus off the field, ending the recording — handled the click against an already-empty
  * combination. The shortcut appeared to record and then saved nothing.
  */
-class HotkeyCaptureState {
+class HotkeyCaptureState(
+    /**
+     * Explicit rather than read from [DesktopOs.current] at each call: the binding string differs
+     * per platform (`alt` against `option`, `super` against `cmd` against `win`), so leaving it
+     * implicit made the behaviour — and its tests — depend on where they happened to run.
+     */
+    private val os: DesktopOs = DesktopOs.current,
+) {
 
     var recording: Boolean = false
         private set
@@ -64,7 +72,7 @@ class HotkeyCaptureState {
             error = "Hold a modifier and press a key"
             return null
         }
-        val formatted = candidate.format()
+        val formatted = candidate.format(os)
         val clash = otherBindings.any {
             it.isNotBlank() && normaliseHotkey(it) == normaliseHotkey(formatted)
         }

@@ -1,6 +1,5 @@
 package me.pngwasi.plume.desktop
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -9,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.ui.icons.PlumeMark
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 fun main() {
@@ -159,15 +160,15 @@ private fun ApplicationScope.PlumeTray(
     onOpen: () -> Unit,
     onQuit: () -> Unit,
 ) {
-    val dark = when (settings?.theme ?: ThemeMode.System) {
-        ThemeMode.System -> isSystemInDarkTheme()
-        ThemeMode.Light -> false
-        ThemeMode.Dark -> true
-    }
     val busy = outcome is ActionOutcome.Working
 
     Tray(
-        icon = rememberTrayIcon(dark = dark, busy = busy),
+        // The mark is handed over untinted so the library can adapt it to the panel's own
+        // background. Colouring it from Plume's theme was wrong: a tray sits in the desktop's
+        // panel, not in Plume's window, and the two are routinely opposite — which is how the icon
+        // ended up dark on a dark panel and all but invisible.
+        icon = remember { PlumeMark.vector() },
+        tint = if (busy) BusyTint else null,
         tooltip = when (outcome) {
             is ActionOutcome.Working -> "Plume — ${outcome.label}…"
             is ActionOutcome.Failed -> "Plume — ${outcome.message}"
@@ -180,6 +181,9 @@ private fun ApplicationScope.PlumeTray(
         Item(label = "Quit Plume", onClick = onQuit)
     }
 }
+
+/** Only used while working, where saying so matters more than blending into the panel. */
+private val BusyTint = Color(0xFF7FD1C4)
 
 /** AWT reports this honestly, and it is false on a stock GNOME desktop. */
 private fun isTraySupported(): Boolean =

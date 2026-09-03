@@ -16,7 +16,11 @@ import kotlin.test.assertTrue
  */
 class HotkeyCaptureStateTest {
 
-    private fun recorded(): HotkeyCaptureState = HotkeyCaptureState().apply {
+    // Pinned to Linux: the binding string is platform-specific, and these assertions are about
+    // the state machine rather than about naming.
+    private fun state() = HotkeyCaptureState(me.pngwasi.plume.data.DesktopOs.Linux)
+
+    private fun recorded(): HotkeyCaptureState = state().apply {
         start()
         press(ctrl = true, alt = true, shift = false, meta = false, key = "t")
     }
@@ -68,7 +72,7 @@ class HotkeyCaptureStateTest {
 
     @Test
     fun `a combination with no modifier is refused with a reason`() {
-        val state = HotkeyCaptureState().apply {
+        val state = state().apply {
             start()
             press(ctrl = false, alt = false, shift = false, meta = false, key = "t")
         }
@@ -79,7 +83,7 @@ class HotkeyCaptureStateTest {
 
     @Test
     fun `saving nothing is refused`() {
-        val state = HotkeyCaptureState().apply { start() }
+        val state = state().apply { start() }
 
         assertNull(state.save(emptyList()))
         assertNotNull(state.error)
@@ -125,7 +129,7 @@ class HotkeyCaptureStateTest {
 
     @Test
     fun `pressing again clears a previous error`() {
-        val state = HotkeyCaptureState().apply { start() }
+        val state = state().apply { start() }
         state.save(emptyList())
         assertNotNull(state.error)
 
@@ -137,7 +141,7 @@ class HotkeyCaptureStateTest {
     /** Ctrl with the command key is the one modifier-only binding the listener accepts. */
     @Test
     fun `the allowed modifier-only combination saves`() {
-        val state = HotkeyCaptureState().apply {
+        val state = state().apply {
             start()
             press(ctrl = true, alt = false, shift = false, meta = true)
         }

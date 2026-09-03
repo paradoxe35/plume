@@ -114,13 +114,58 @@ compose.desktop {
     }
 }
 
+/**
+ * Replaces the maintainer scripts jpackage writes into the `.deb`.
+ *
+ * jpackage's postinst calls `xdg-desktop-menu install`, which exits non-zero when there is no
+ * writable menu directory. A failing postinst leaves the package half-configured: the files land,
+ * the application runs, and nothing ever appears in the launcher — which is exactly how "installed
+ * but no icon" happens, with no error the user is likely to notice.
+ *
+ * jpackage can be given replacements through `--resource-dir`, but the Compose plugin owns that
+ * directory and clears it as part of its own task, so the package is rewritten afterwards instead.
+ */
+fun Task.rewriteDebScripts(debDirectory: Provider<Directory>) {
+    // Declared so that editing a maintainer script rebuilds the package rather than leaving a
+    // stale one in place.
+    inputs.dir(layout.projectDirectory.dir("jpackage"))
+    doLast {
+    val debs = debDirectory.get().asFile.listFiles { file -> file.extension == "deb" }.orEmpty()
+    debs.forEach { deb ->
+        val unpacked = File(temporaryDir, deb.nameWithoutExtension)
+        unpacked.deleteRecursively()
+
+        providers.exec {
+            commandLine("dpkg-deb", "--raw-extract", deb.absolutePath, unpacked.absolutePath)
+        }.result.get().assertNormalExitValue()
+
+        listOf("postinst", "prerm").forEach { script ->
+            val replacement = layout.projectDirectory.file("jpackage/$script").asFile
+            val target = File(unpacked, "DEBIAN/$script")
+            replacement.copyTo(target, overwrite = true)
+            target.setExecutable(true, false)
+        }
+
+        providers.exec {
+            commandLine("dpkg-deb", "--build", unpacked.absolutePath, deb.absolutePath)
+        }.result.get().assertNormalExitValue()
+
+        logger.lifecycle("Rewrote the maintainer scripts in ${deb.name}")
+        }
+    }
+}
+
+tasks.matching { it.name == "packageDeb" }.configureEach {
+    rewriteDebScripts(layout.buildDirectory.dir("compose/binaries/main/deb"))
+}
+
+tasks.matching { it.name == "packageReleaseDeb" }.configureEach {
+    rewriteDebScripts(layout.buildDirectory.dir("compose/binaries/main-release/deb"))
+}
+
 tasks.named("processResources") { dependsOn(copyNativeLibrary) }
 
 sourceSets.main {
     resources.srcDir(layout.buildDirectory.dir("native"))
-    // The window and taskbar icon is loaded from the classpath at runtime; jpackage's iconFile
-    // only covers the launcher and the desktop entry. Only the PNG is needed there — the .ico and
-    // .icns are build inputs for jpackage, and the generator is not shipped at all.
-    resources.srcDir("icons")
-    resources.exclude("*.ico", "*.icns", "*.py")
+
 }
