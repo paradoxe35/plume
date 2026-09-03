@@ -18,6 +18,9 @@ dependencies {
     // hand results back to it.
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.jna)
+    // A tray that uses the desktop's own status-notifier protocol. AWT's PopupMenu is a
+    // heavyweight X11 widget drawn in Motif style: it ignores the GTK theme and cannot be styled.
+    implementation(libs.compose.native.tray)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)

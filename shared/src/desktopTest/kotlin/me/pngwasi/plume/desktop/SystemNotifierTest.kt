@@ -133,10 +133,10 @@ class SystemNotifierTest {
     @Test
     fun `linux tries libnotify first and falls back to dbus`() {
         val attempts = mutableListOf<String>()
-        val notifier = PlatformNotifier(DesktopOs.Linux, null) { command ->
+        val notifier = PlatformNotifier(DesktopOs.Linux, null, run = { command ->
             attempts += command.first()
             false
-        }
+        })
 
         assertFalse(notifier.notify("Plume", "done", NotificationLevel.Info))
         assertEquals(listOf("notify-send", "gdbus"), attempts)
@@ -145,10 +145,10 @@ class SystemNotifierTest {
     @Test
     fun `dbus is not tried when libnotify worked`() {
         val attempts = mutableListOf<String>()
-        val notifier = PlatformNotifier(DesktopOs.Linux, null) { command ->
+        val notifier = PlatformNotifier(DesktopOs.Linux, null, run = { command ->
             attempts += command.first()
             true
-        }
+        })
 
         assertTrue(notifier.notify("Plume", "done", NotificationLevel.Info))
         assertEquals(listOf("notify-send"), attempts)
@@ -157,32 +157,69 @@ class SystemNotifierTest {
     @Test
     fun `macOS goes to the Notification Center`() {
         val attempts = mutableListOf<String>()
-        val notifier = PlatformNotifier(DesktopOs.MacOs, null) { command ->
+        val notifier = PlatformNotifier(DesktopOs.MacOs, null, run = { command ->
             attempts += command.first()
             true
-        }
+        })
 
         assertTrue(notifier.notify("Plume", "done", NotificationLevel.Info))
         assertEquals(listOf("osascript"), attempts)
     }
 
-    /** Windows already gets a native balloon through the tray, so this route declines. */
+    /**
+     * Windows gets a shell balloon, started without waiting: the balloon only shows while the icon
+     * lives, so the script outlives the call by design.
+     */
     @Test
-    fun `windows defers to the tray`() {
-        var called = false
-        val notifier = PlatformNotifier(DesktopOs.Windows, null) { called = true; true }
+    fun `windows spawns a shell notification without waiting for it`() {
+        val waited = mutableListOf<String>()
+        val spawned = mutableListOf<String>()
+        val notifier = PlatformNotifier(
+            DesktopOs.Windows,
+            null,
+            run = { waited += it.first(); true },
+            spawn = { spawned += it.first(); true },
+        )
 
-        assertFalse(notifier.notify("Plume", "done", NotificationLevel.Info))
-        assertFalse(called)
+        assertTrue(notifier.notify("Plume", "done", NotificationLevel.Info))
+        assertEquals(listOf("powershell"), spawned)
+        assertTrue(waited.isEmpty(), "the notification must not be waited on")
+    }
+
+    // --- PowerShell escaping ---------------------------------------------------------------------
+
+    @Test
+    fun `a single quote is doubled for PowerShell`() {
+        assertEquals("'it''s done'", powerShellLiteral("it's done"))
+    }
+
+    /** Closing the literal and appending a command is the shape to defend against. */
+    @Test
+    fun `an attempt to close the PowerShell literal is neutralised`() {
+        val literal = powerShellLiteral("'; Remove-Item C:\\ -Recurse; '")
+
+        val inner = literal.substring(1, literal.length - 1)
+        // Every quote survives only as a doubled pair, so the literal cannot be closed early.
+        assertTrue(inner.split("''").none { it.contains("'") })
+    }
+
+    @Test
+    fun `the windows command carries the message and the level`() {
+        val command = windowsNotifyCommand("Plume", "Revise done", NotificationLevel.Error)
+
+        val script = command.last()
+        assertTrue(script.contains("'Revise done'"))
+        assertTrue(script.contains("ToolTipIcon]::Error"))
+        assertTrue(command.contains("-NonInteractive"))
     }
 
     @Test
     fun `the body is shortened before it reaches the command`() {
         var body = ""
-        val notifier = PlatformNotifier(DesktopOs.Linux, null) { command ->
+        val notifier = PlatformNotifier(DesktopOs.Linux, null, run = { command ->
             body = command.last()
             true
-        }
+        })
 
         notifier.notify("Plume", "y".repeat(400), NotificationLevel.Info)
 

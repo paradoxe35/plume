@@ -14,8 +14,9 @@ enum class NotificationLevel { Info, Error }
  * draws Java's own balloon on Linux rather than going through the desktop's notification service.
  * It looks foreign, ignores the user's do-not-disturb setting, and disappears on its own schedule.
  *
- * So Linux goes through libnotify or D-Bus, and macOS through the Notification Center. Windows is
- * left to the tray: `Shell_NotifyIcon` is already the native mechanism there, and AWT uses it.
+ * So Linux goes through libnotify or D-Bus, macOS through the Notification Center, and Windows
+ * through a shell notification balloon. Nothing here depends on the tray: Plume's tray is the
+ * desktop's own status-notifier item, which has no notification API of its own.
  */
 interface SystemNotifier {
     /** False when this route is unavailable, so the caller can fall back to the tray. */
@@ -91,6 +92,39 @@ internal fun osascriptCommand(title: String, body: String): List<String> = listO
 )
 
 /**
+ * Escapes a string for a single-quoted PowerShell literal, where a quote is doubled rather than
+ * backslash-escaped.
+ */
+internal fun powerShellLiteral(text: String): String =
+    "'" + text.replace("'", "''").replace("\n", " ").replace("\r", " ") + "'"
+
+/**
+ * A shell notification balloon, which Windows turns into a toast.
+ *
+ * `NotifyIcon` is part of Windows itself, so this needs nothing installed — unlike the newer toast
+ * API, which wants a registered AppUserModelID or it attributes the notification to PowerShell.
+ * The icon has to stay alive briefly for the balloon to appear, hence the sleep.
+ */
+internal fun windowsNotifyCommand(
+    title: String,
+    body: String,
+    level: NotificationLevel,
+): List<String> {
+    val icon = if (level == NotificationLevel.Error) "Error" else "Info"
+    val script = buildString {
+        // The dollars are PowerShell's, not Kotlin's, hence the escaping.
+        append("[reflection.assembly]::LoadWithPartialName('System.Windows.Forms')|Out-Null;")
+        append("\$n=New-Object System.Windows.Forms.NotifyIcon;")
+        append("\$n.Icon=[System.Drawing.SystemIcons]::$icon;")
+        append("\$n.Visible=\$true;")
+        append("\$n.ShowBalloonTip(6000,${powerShellLiteral(title)},${powerShellLiteral(body)},")
+        append("[System.Windows.Forms.ToolTipIcon]::$icon);")
+        append("Start-Sleep -Seconds 7;\$n.Dispose()")
+    }
+    return listOf("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+}
+
+/**
  * Picks a route once and remembers whether it worked.
  *
  * [iconPath] is the installed application icon where jpackage put it, so the notification carries
@@ -100,6 +134,7 @@ class PlatformNotifier(
     private val os: DesktopOs = DesktopOs.current,
     private val iconPath: String? = installedIconPath(),
     private val run: (List<String>) -> Boolean = ::runCommand,
+    private val spawn: (List<String>) -> Boolean = ::spawnCommand,
 ) : SystemNotifier {
 
     override fun notify(title: String, body: String, level: NotificationLevel): Boolean {
@@ -111,8 +146,9 @@ class PlatformNotifier(
 
             DesktopOs.MacOs -> run(osascriptCommand(title, short))
 
-            // Shell_NotifyIcon is already the native route, and AWT uses it.
-            DesktopOs.Windows -> false
+            // Fire and forget: the balloon only shows while the icon lives, so the script outlives
+            // the call by design and waiting for it would block the action that produced it.
+            DesktopOs.Windows -> spawn(windowsNotifyCommand(title, short, level))
         }
     }
 }
@@ -124,6 +160,15 @@ internal fun installedIconPath(): String? {
             .firstOrNull { File(it).isFile }
     return File(resources, "Plume.png").takeIf { it.isFile }?.absolutePath
 }
+
+/** Starts a command without waiting for it, for one that is meant to outlive the call. */
+private fun spawnCommand(command: List<String>): Boolean = runCatching {
+    ProcessBuilder(command)
+        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start()
+    true
+}.getOrDefault(false)
 
 private fun runCommand(command: List<String>): Boolean = runCatching {
     val process = ProcessBuilder(command)

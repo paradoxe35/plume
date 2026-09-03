@@ -12,12 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
-import androidx.compose.ui.window.Notification
-import androidx.compose.ui.window.Tray
+import com.kdroid.composetray.tray.api.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
-import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +70,6 @@ fun main() {
         }
 
         val theme = loaded?.theme ?: ThemeMode.System
-        val trayState = rememberTrayState()
 
         // The result appears in someone else's window, so without this a failure is
         // indistinguishable from the shortcut never having fired.
@@ -88,27 +85,11 @@ fun main() {
                 is ActionOutcome.Done -> "${settled.label} done" to NotificationLevel.Info
                 else -> return@LaunchedEffect
             }
-            val delivered = withContext(Dispatchers.IO) {
-                notifier.notify("Plume", body, level)
-            }
-            if (!delivered && trayAvailable) {
-                trayState.sendNotification(
-                    Notification(
-                        "Plume",
-                        body,
-                        if (level == NotificationLevel.Error) {
-                            Notification.Type.Error
-                        } else {
-                            Notification.Type.Info
-                        },
-                    ),
-                )
-            }
+            withContext(Dispatchers.IO) { notifier.notify("Plume", body, level) }
         }
 
         if (trayAvailable) {
             PlumeTray(
-                trayState = trayState,
                 outcome = outcome,
                 settings = loaded,
                 onOpen = { windowVisible = true },
@@ -162,10 +143,13 @@ fun main() {
  * The tray is the desktop app's real front door: the window is optional, but something has to show
  * that Plume is running, report what a shortcut just did, and offer a translate target without
  * making the user open a window for it.
+ *
+ * This uses the desktop's own status-notifier protocol rather than `androidx.compose.ui.window.Tray`,
+ * which goes through `java.awt.PopupMenu` — a heavyweight X11 widget drawn in Motif style. It
+ * ignores the GTK theme and the user's fonts, and there is no way to style it.
  */
 @Composable
 private fun ApplicationScope.PlumeTray(
-    trayState: androidx.compose.ui.window.TrayState,
     outcome: ActionOutcome,
     settings: AppSettings?,
     onOpen: () -> Unit,
@@ -182,31 +166,36 @@ private fun ApplicationScope.PlumeTray(
     val busy = outcome is ActionOutcome.Working
 
     Tray(
-        state = trayState,
         icon = rememberTrayIcon(dark = dark, busy = busy),
         tooltip = when (outcome) {
             is ActionOutcome.Working -> "Plume — ${outcome.label}…"
             is ActionOutcome.Failed -> "Plume — ${outcome.message}"
             else -> "Plume"
         },
-        onAction = onOpen,
-        menu = {
-            Item("Revise selection", enabled = !busy, onClick = onRevise)
-            Item("Revise everything", enabled = !busy, onClick = onReviseAll)
-            Separator()
-            // The pinned languages, so translating never requires opening a window.
-            settings?.translate?.favorites.orEmpty().take(6).forEach { code ->
-                Item(
-                    text = "Translate to ${Languages.resolve(code).displayName()}",
-                    enabled = !busy,
-                    onClick = { onTranslate(code) },
-                )
+        primaryAction = onOpen,
+    ) {
+        Item(label = "Revise selection", isEnabled = !busy, onClick = onRevise)
+        Item(label = "Revise everything", isEnabled = !busy, onClick = onReviseAll)
+
+        // The pinned languages, so translating never requires opening a window.
+        val favorites = settings?.translate?.favorites.orEmpty().take(6)
+        if (favorites.isNotEmpty()) {
+            Divider()
+            SubMenu(label = "Translate selection") {
+                favorites.forEach { code ->
+                    Item(
+                        label = Languages.resolve(code).displayName(),
+                        isEnabled = !busy,
+                        onClick = { onTranslate(code) },
+                    )
+                }
             }
-            Separator()
-            Item("Settings…", onClick = onOpen)
-            Item("Quit Plume", onClick = onQuit)
-        },
-    )
+        }
+
+        Divider()
+        Item(label = "Settings…", onClick = onOpen)
+        Item(label = "Quit Plume", onClick = onQuit)
+    }
 }
 
 /** AWT reports this honestly, and it is false on a stock GNOME desktop. */
