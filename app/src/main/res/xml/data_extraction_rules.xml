@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Nothing leaves the device.
+
+    API keys are encrypted with a key held in the Android Keystore, which does not transfer, so a
+    restored backup would carry ciphertext no device could ever read. Rather than ship settings that
+    silently half-work, Plume opts out of backup and transfer entirely; it takes under a minute to
+    set up again.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -144,12 +143,3 @@ private fun Paragraph(text: String) {
     )
 }
 
-@Composable
-fun Bullet() {
-    Icon(
-        imageVector = Icons.Outlined.Circle,
-        contentDescription = null,
-        modifier = Modifier.size(6.dp),
-        tint = MaterialTheme.colorScheme.primary,
-    )
-}

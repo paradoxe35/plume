@@ -35,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import me.pngwasi.plume.data.AppSettings
@@ -125,6 +127,12 @@ private fun SettingsApp(
     BackHandler(enabled = stack.size > 1) { pop() }
 
     // The model catalogue belongs to whichever provider is open; drop it on the way out.
+    // Enabling the keyboard happens in Android's settings, so the answer changes while Plume is in
+    // the background. Navigation alone would leave the checklist stale on the way back.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshKeyboardStatus()
+    }
+
     LaunchedEffect(current) {
         if (current is Destination.Keyboard) viewModel.refreshKeyboardStatus()
         if (current !is Destination.ProviderEdit) {

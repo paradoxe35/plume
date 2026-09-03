@@ -15,7 +15,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import me.pngwasi.plume.MainActivity
 import me.pngwasi.plume.data.SecretStore
@@ -62,10 +64,16 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         )
 
         // The panel is drawn over other apps' input areas, so it follows the same theme setting as
-        // the rest of Plume rather than the host app's. Seeded synchronously to avoid a flash.
+        // the rest of Plume rather than the host app's. Seeded synchronously to avoid a flash, then
+        // collected rather than read once: this service outlives any single settings change.
         themeMode = ThemeCache.read(this)
         themeJob = serviceScope.launch {
-            runCatching { themeMode = repository.settings.first().theme }
+            runCatching {
+                repository.settings
+                    .map { it.theme }
+                    .distinctUntilChanged()
+                    .collect { themeMode = it }
+            }
         }
     }
 

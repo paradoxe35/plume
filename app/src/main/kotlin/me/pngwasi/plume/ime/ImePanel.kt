@@ -32,6 +32,7 @@ import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -225,14 +226,16 @@ private fun PickerBody(
     onCancel: () -> Unit,
 ) {
     // Recents first: in a keyboard the target is nearly always one the user just used, and there is
-    // no room for a search field without pushing the actions off screen.
-    val options = (state.recents + state.favorites).distinctBy { it.lowercase() }.take(12)
+    // no room for a search field without pushing the actions off screen. Falling back to the device
+    // defaults matters — a user who unpinned everything would otherwise reach a dead end here, with
+    // no way to translate and no way to open settings from inside the picker.
+    val options = remember(state) { pickerOptions(state.recents, state.favorites) }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Translate into", style = MaterialTheme.typography.titleMedium)
 
         if (options.isEmpty()) {
-            Hint("Pin some languages in Plume settings to translate from the keyboard.")
+            Hint("No languages available.")
         } else {
             Column(
                 modifier = Modifier.weight(1f),

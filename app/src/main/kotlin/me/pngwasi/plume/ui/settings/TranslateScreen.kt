@@ -164,7 +164,3 @@ fun TranslateScreen(
     }
 }
 
-@Composable
-fun AlignedRow(content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) { content() }
-}

@@ -40,8 +40,8 @@ deliberate anyway — slowly, and at a cost. Each provider is set to ask for min
 default, and the default timeout is 120s because a model that thinks for a minute before answering
 should not be cut off.
 
-For a **custom provider**, the shape is inferred from the kind and the host, and the editor shows
-what it detected. Inference cannot cover everything — a self-hosted proxy (LiteLLM, Helicone, an
+The shape is inferred from the provider kind and host, and every provider's editor shows what was
+detected and lets you override it. Inference cannot cover everything — a self-hosted proxy (LiteLLM, Helicone, an
 internal gateway) may speak OpenRouter's dialect from a domain that gives no hint of it — so the
 parameter can be set explicitly per provider.
 
@@ -121,7 +121,8 @@ unknown source.
 Requires JDK 17 and an Android SDK with API 36.
 
 ```bash
-./gradlew testDebugUnitTest    # 181 unit tests
+./gradlew testDebugUnitTest    # 188 unit tests
+./gradlew lintDebug            # clean; remaining warnings are the deliberate version pins
 ./gradlew assembleDebug
 ./gradlew assembleRelease      # signed if keystore.properties exists
 ```

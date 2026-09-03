@@ -273,9 +273,9 @@ fun ProviderEditScreen(
             modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 4.dp),
         )
 
-        // Auto is right for the built-ins and for gateways on a recognisable domain. A self-hosted
-        // proxy can speak a dialect its hostname gives no hint of, so custom providers get to say.
-        if (!builtIn && reasoning == ReasoningMode.Low) {
+        // Shown for every provider, not just custom ones: detection is a heuristic everywhere, and
+        // a provider that changes its API should be correctable without editing the app.
+        if (reasoning == ReasoningMode.Low) {
             DialectSelector(
                 selected = dialect,
                 detected = Reasoning.detect(kind, baseUrl.trim()),

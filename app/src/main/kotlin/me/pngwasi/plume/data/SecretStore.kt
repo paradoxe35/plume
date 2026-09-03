@@ -1,6 +1,7 @@
 package me.pngwasi.plume.data
 
 import android.content.Context
+import androidx.core.content.edit
 import android.util.Base64
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
@@ -36,7 +37,7 @@ class SecretStore(context: Context) {
             String(cipher.decrypt(raw, providerId.toByteArray()), Charsets.UTF_8)
         }.getOrElse {
             // Keystore reset (device restore, key invalidation) leaves undecryptable blobs behind.
-            prefs.edit().remove(entry(providerId)).apply()
+            prefs.edit { remove(entry(providerId)) }
             ""
         }
     }
@@ -50,12 +51,12 @@ class SecretStore(context: Context) {
         val cipher = aead ?: return
         runCatching {
             val encrypted = cipher.encrypt(trimmed.toByteArray(Charsets.UTF_8), providerId.toByteArray())
-            prefs.edit().putString(entry(providerId), Base64.encodeToString(encrypted, Base64.NO_WRAP)).apply()
+            prefs.edit { putString(entry(providerId), Base64.encodeToString(encrypted, Base64.NO_WRAP)) }
         }
     }
 
     fun removeKey(providerId: String) {
-        prefs.edit().remove(entry(providerId)).apply()
+        prefs.edit { remove(entry(providerId)) }
     }
 
     fun hasKey(providerId: String): Boolean = prefs.contains(entry(providerId))

@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import me.pngwasi.plume.ai.AiException
 import me.pngwasi.plume.ai.TextEngine
 import me.pngwasi.plume.data.AppSettings
+import me.pngwasi.plume.data.Languages
 
 /** What the action will be applied to, surfaced so the user is never surprised by the scope. */
 enum class ActionScope { Selection, WholeField }
@@ -201,6 +202,23 @@ class ImePanelController(
         cached = null
     }
 }
+
+/**
+ * Targets offered by the keyboard picker: recents first, then pinned, then the device defaults.
+ *
+ * The final fallback is what stops the picker dead-ending. There is no room in a keyboard panel for
+ * a search field, and no way to open settings from inside the picker, so a user who unpinned every
+ * language would otherwise be stuck with no way to translate at all.
+ */
+fun pickerOptions(
+    recents: List<String>,
+    favorites: List<String>,
+    fallback: List<String> = Languages.defaultFavorites(),
+    max: Int = 12,
+): List<String> = (recents + favorites)
+    .distinctBy { it.lowercase() }
+    .ifEmpty { fallback }
+    .take(max)
 
 /** Field text goes into a one-line preview, so newlines and runs of spaces would break the layout. */
 internal fun String.collapseWhitespace(): String =

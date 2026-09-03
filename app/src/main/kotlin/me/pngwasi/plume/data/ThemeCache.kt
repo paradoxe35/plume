@@ -1,6 +1,7 @@
 package me.pngwasi.plume.data
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * A synchronously-readable mirror of the theme setting.
@@ -29,8 +30,6 @@ object ThemeCache {
     fun write(context: Context, mode: ThemeMode) {
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY, mode.name)
-            .apply()
+            .edit { putString(KEY, mode.name) }
     }
 }
