@@ -1,7 +1,5 @@
 package me.pngwasi.plume.desktop
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
@@ -10,8 +8,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -27,10 +24,11 @@ import androidx.compose.ui.unit.LayoutDirection
  * the minified build: the icon worked when run from Gradle and silently vanished in the installed
  * package, which is the worst way for it to fail. Nothing here can be shrunk away.
  *
- * The artwork is the Android launcher's, so the two stay in step.
+ * The artwork is the Android launcher's, so the two stay in step. Every size is drawn from the path
+ * data rather than resampled from one bitmap, so a 16px tray cell is as sharp as a 256px dock tile.
  */
-@Composable
-fun rememberWindowIcon(): Painter = remember { BitmapPainter(renderAppIcon(256)) }
+fun appIconImages(): List<java.awt.image.BufferedImage> =
+    listOf(16, 24, 32, 48, 64, 128, 256).map { renderAppIcon(it).toAwtImage() }
 
 /** Background, then the quill: vane, shoulder, shaft, nib — in the order they overlap. */
 private val LAYERS = listOf(

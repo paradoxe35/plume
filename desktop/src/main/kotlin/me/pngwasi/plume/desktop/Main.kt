@@ -1,6 +1,7 @@
 package me.pngwasi.plume.desktop
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -12,11 +13,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
-import com.kdroid.composetray.tray.api.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.kdroid.composetray.tray.api.Tray
+import com.kdroid.composetray.utils.IconRenderProperties
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -75,7 +79,7 @@ fun main() {
         }
 
         val theme = loaded?.theme ?: ThemeMode.System
-        val windowIcon = rememberWindowIcon()
+        val windowIcons = remember { appIconImages() }
 
         // The result appears in someone else's window, so without this a failure is
         // indistinguishable from the shortcut never having fired.
@@ -131,10 +135,25 @@ fun main() {
                     }
                 },
                 title = "Plume",
-                // Without this the window and the taskbar show Compose's own logo.
-                icon = windowIcon,
                 state = state,
             ) {
+                // Not the `icon` parameter: that carries a single bitmap, which the taskbar then
+                // resamples to whatever size it wants — the oversized, blurred result. AWT picks
+                // from a set instead, so every size is drawn rather than stretched.
+                //
+                // Applied again on `windowOpened` because the effect runs before the window is
+                // realised, and X11 reads the icon when the peer is created.
+                DisposableEffect(window) {
+                    window.iconImages = windowIcons
+                    val opened = object : WindowAdapter() {
+                        override fun windowOpened(event: WindowEvent) {
+                            window.iconImages = windowIcons
+                        }
+                    }
+                    window.addWindowListener(opened)
+                    onDispose { window.removeWindowListener(opened) }
+                }
+
                 PlumeTheme(mode = theme) {
                     DesktopSettingsWindow(
                         controller = controller,
@@ -180,6 +199,10 @@ private fun ApplicationScope.PlumeTray(
         // ended up dark on a dark panel and all but invisible.
         icon = remember { PlumeMark.vector() },
         tint = if (busy) BusyTint else null,
+        // Drawn straight at the size the tray asks for. The default renders to a larger scene and
+        // scales down, which on a small panel icon reads as a big picture squeezed into a little
+        // box rather than as an icon.
+        iconRenderProperties = IconRenderProperties.withoutScalingAndAliasing(),
         tooltip = when (outcome) {
             is ActionOutcome.Working -> "Plume — ${outcome.label}…"
             is ActionOutcome.Failed -> "Plume — ${outcome.message}"

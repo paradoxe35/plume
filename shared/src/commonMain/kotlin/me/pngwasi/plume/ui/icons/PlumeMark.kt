@@ -66,8 +66,11 @@ object PlumeMark {
      * background — which is routinely the opposite of the application's theme.
      */
     fun vector(): ImageVector = ImageVector.Builder(
-        defaultWidth = VIEWPORT.dp,
-        defaultHeight = VIEWPORT.dp,
+        // 24dp intrinsic against its own viewport, the shape every other icon has. The viewport is
+        // just the coordinate space the artwork is drawn in; handing over a 67dp intrinsic made
+        // callers size it as though it were a picture.
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
         viewportWidth = VIEWPORT,
         viewportHeight = VIEWPORT,
     ).apply {
