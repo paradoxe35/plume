@@ -223,6 +223,36 @@ class ReasoningTest {
         assertEquals(2, server.requestCount)
     }
 
+    /**
+     * A 400 has many causes. Caching on the status alone would let an unknown model or an exhausted
+     * quota switch reasoning off for the rest of the session, on a model that never objected to it.
+     */
+    @Test
+    fun `an unrelated 400 does not disable reasoning for later calls`() = runTest {
+        // Both attempts fail: the parameter was never the problem.
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"unknown model"}}"""))
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"unknown model"}}"""))
+        runCatching { engine().revise("text") }
+        assertEquals(2, server.requestCount)
+        repeat(2) { server.takeRequest() }
+
+        // The next call must still ask for low reasoning.
+        server.enqueue(ok())
+        engine().revise("text")
+
+        assertEquals("low", bodyOf(server.takeRequest())["reasoning_effort"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `the rejection is only cached once dropping the parameter actually helped`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(400))
+        server.enqueue(ok())
+        engine().revise("text")
+        repeat(2) { server.takeRequest() }
+
+        assertFalse(ReasoningSupport.accepts(ReasoningSupport.key("test", "test-model")))
+    }
+
     @Test
     fun `nothing is retried when reasoning was never sent`() = runTest {
         server.enqueue(MockResponse().setResponseCode(400))

@@ -112,9 +112,12 @@ object ReasoningSupport {
  * Runs [send] with the reasoning parameter, and once without it if the provider rejects the request.
  *
  * The retry triggers on the status code rather than on error text: every provider words this
- * differently, and a message match that misses simply surfaces a confusing 400 to the user. A 400
- * caused by something else fails identically on the retry, so the fallback costs a round trip in
- * that case and never changes the outcome.
+ * differently, and a message match that misses simply surfaces a confusing 400 to the user.
+ *
+ * The rejection is only remembered when dropping the parameter actually fixed the request. A 400
+ * has many causes — an unknown model, a malformed body, an exhausted quota — and caching on the
+ * status alone would let any of them switch reasoning off for the rest of the session, silently and
+ * for a model that never objected to it.
  */
 internal suspend fun withReasoningFallback(
     cacheKey: String,
@@ -127,11 +130,12 @@ internal suspend fun withReasoningFallback(
     return try {
         send(true)
     } catch (e: AiException) {
-        if (e.status == 400 || e.status == 422) {
-            ReasoningSupport.markRejected(cacheKey)
-            send(false)
-        } else {
-            throw e
-        }
+        if (e.status != 400 && e.status != 422) throw e
+
+        // If this also fails, the parameter was never the problem — the original error stands and
+        // nothing is cached.
+        val result = send(false)
+        ReasoningSupport.markRejected(cacheKey)
+        result
     }
 }

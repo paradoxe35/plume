@@ -49,8 +49,12 @@ There is no portable parameter for this. OpenAI returns 400 for `reasoning_effor
 non-reasoning model, OpenRouter uses its own `reasoning` object and rejects requests carrying both
 shapes, and Gemini refuses a zero thinking budget on models that cannot turn thinking off. So Plume
 picks the shape per provider and, if the request is rejected with 400 or 422, **retries once without
-the parameter and remembers not to send it to that model again**. The correction still succeeds; the
-user never sees the negotiation. Turn it off per provider to send nothing at all.
+the parameter**. The correction still succeeds; the user never sees the negotiation.
+
+The rejection is only remembered when dropping the parameter is what fixed the request. A 400 has
+many causes — an unknown model, a bad body, an exhausted quota — and caching on the status alone
+would let any of them switch reasoning off for the rest of the session on a model that never
+objected to it. Turn it off per provider to send nothing at all.
 
 ### Providers without an API key
 
@@ -121,7 +125,7 @@ unknown source.
 Requires JDK 17 and an Android SDK with API 36.
 
 ```bash
-./gradlew testDebugUnitTest    # 188 unit tests
+./gradlew testDebugUnitTest    # 190 unit tests
 ./gradlew lintDebug            # clean; remaining warnings are the deliberate version pins
 ./gradlew assembleDebug
 ./gradlew assembleRelease      # signed if keystore.properties exists
