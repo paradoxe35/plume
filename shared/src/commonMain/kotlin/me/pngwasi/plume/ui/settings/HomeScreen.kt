@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,8 @@ fun HomeScreen(
      */
     platformFooter: @Composable () -> Unit = {},
 ) {
+    val copy = remember { platformCopy() }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -103,7 +106,7 @@ fun HomeScreen(
             RowDivider()
             SettingsRow(
                 title = "How Plume works",
-                subtitle = "Where the menu appears, and where it can't",
+                subtitle = copy.aboutSubtitle,
                 icon = PlumeIcons.Info,
                 showChevron = true,
                 onClick = { onOpen(Destination.About) },
