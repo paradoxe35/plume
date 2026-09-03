@@ -22,6 +22,7 @@ import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.data.TranslateSettings
+import me.pngwasi.plume.ime.KeyboardComponent
 
 /** Outcome of the "Test connection" button on a provider. */
 sealed interface ProbeState {
@@ -49,6 +50,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = SettingsRepository.get(app)
     private val secrets = SecretStore(app)
 
+    /** `app` is a constructor parameter, not a property, so member functions go through this. */
+    private val context: Application get() = getApplication()
+
     val settings: StateFlow<AppSettings?> = repository.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -67,9 +71,47 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     private var modelJob: Job? = null
 
+    private val _keyboardStatus = MutableStateFlow(readKeyboardStatus())
+    val keyboardStatus: StateFlow<KeyboardStatus> = _keyboardStatus.asStateFlow()
+
     init {
-        viewModelScope.launch { refreshKeyed() }
+        viewModelScope.launch {
+            refreshKeyed()
+            reconcileKeyboardComponent()
+        }
     }
+
+    private fun readKeyboardStatus() = KeyboardStatus(
+        available = KeyboardComponent.isAvailable(context),
+        enabledInSystem = KeyboardComponent.isEnabledInSystem(context),
+        isCurrent = KeyboardComponent.isCurrentInputMethod(context),
+    )
+
+    /**
+     * The component's enabled state is what the system actually acts on, so it — not the stored
+     * flag — is the truth. A restore to a new device brings settings across but not component
+     * state, which would otherwise leave the toggle on and the keyboard missing.
+     */
+    private suspend fun reconcileKeyboardComponent() {
+        val wanted = repository.current().keyboardEnabled
+        if (KeyboardComponent.isAvailable(context) != wanted) {
+            KeyboardComponent.setAvailable(context, wanted)
+        }
+        _keyboardStatus.value = readKeyboardStatus()
+    }
+
+    /** System state changes outside the app, so it is re-read whenever the screen is shown. */
+    fun refreshKeyboardStatus() {
+        _keyboardStatus.value = readKeyboardStatus()
+    }
+
+    fun setKeyboardEnabled(enabled: Boolean) = viewModelScope.launch {
+        KeyboardComponent.setAvailable(context, enabled)
+        repository.update { it.copy(keyboardEnabled = enabled) }
+        _keyboardStatus.value = readKeyboardStatus()
+    }
+
+    fun showKeyboardPicker() = KeyboardComponent.showPicker(context)
 
     private suspend fun refreshKeyed() {
         val ids = repository.current().providers.keys

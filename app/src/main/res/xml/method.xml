@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Declares Plume's companion keyboard to the system.
+
+    settingsActivity points at Plume itself so the "settings" affordance next to the keyboard in
+    system settings lands somewhere useful. supportsSwitchingToNextInputMethod lets the panel hand
+    control straight back to the user's real keyboard.
+-->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="me.pngwasi.plume.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true"
+    android:isDefault="false">
+    <subtype
+        android:label="@string/ime_subtype_label"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="false" />
+</input-method>

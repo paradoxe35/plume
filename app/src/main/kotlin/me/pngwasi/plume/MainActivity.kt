@@ -33,17 +33,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.BuiltInProviders
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.ime.KeyboardComponent
 import me.pngwasi.plume.ui.settings.AboutScreen
 import me.pngwasi.plume.ui.settings.AddProviderDialog
 import me.pngwasi.plume.ui.settings.AppearanceScreen
 import me.pngwasi.plume.ui.settings.Destination
 import me.pngwasi.plume.ui.settings.HomeScreen
+import me.pngwasi.plume.ui.settings.KeyboardScreen
 import me.pngwasi.plume.ui.settings.ProviderEditScreen
 import me.pngwasi.plume.ui.settings.ProvidersScreen
 import me.pngwasi.plume.ui.settings.ReviseScreen
@@ -109,8 +112,10 @@ private fun SettingsApp(
     val keyed by viewModel.keyedProviders.collectAsStateWithLifecycle()
     val probe by viewModel.probe.collectAsStateWithLifecycle()
     val models by viewModel.models.collectAsStateWithLifecycle()
+    val keyboardStatus by viewModel.keyboardStatus.collectAsStateWithLifecycle()
 
     var showAddProvider by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     fun push(destination: Destination) = stack.add(destination)
     fun pop() {
@@ -121,6 +126,7 @@ private fun SettingsApp(
 
     // The model catalogue belongs to whichever provider is open; drop it on the way out.
     LaunchedEffect(current) {
+        if (current is Destination.Keyboard) viewModel.refreshKeyboardStatus()
         if (current !is Destination.ProviderEdit) {
             viewModel.resetModels()
             viewModel.clearProbe()
@@ -219,6 +225,16 @@ private fun SettingsApp(
                 Destination.TranslatePrompt -> TranslatePromptScreen(
                     settings = settings.translate,
                     onChange = { transform -> viewModel.updateTranslate(transform) },
+                )
+
+                Destination.Keyboard -> KeyboardScreen(
+                    enabled = settings.keyboardEnabled,
+                    status = keyboardStatus,
+                    onToggle = viewModel::setKeyboardEnabled,
+                    onOpenSystemSettings = {
+                        context.startActivity(KeyboardComponent.systemKeyboardSettings())
+                    },
+                    onShowPicker = viewModel::showKeyboardPicker,
                 )
 
                 Destination.Appearance -> AppearanceScreen(

@@ -9,4 +9,8 @@
     -->
     <string name="action_revise">Plume Revise</string>
     <string name="action_translate">Plume Translate</string>
+
+    <!-- Companion keyboard (optional, disabled by default). -->
+    <string name="ime_label">Plume</string>
+    <string name="ime_subtype_label">Plume actions</string>
 </resources>

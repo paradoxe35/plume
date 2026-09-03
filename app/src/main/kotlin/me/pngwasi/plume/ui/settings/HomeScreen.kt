@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -82,6 +83,14 @@ fun HomeScreen(
                 icon = Icons.Outlined.Hub,
                 showChevron = true,
                 onClick = { onOpen(Destination.Providers) },
+            )
+            RowDivider()
+            SettingsRow(
+                title = "Plume keyboard",
+                subtitle = if (settings.keyboardEnabled) "On" else "Off · optional second way in",
+                icon = Icons.Outlined.Keyboard,
+                showChevron = true,
+                onClick = { onOpen(Destination.Keyboard) },
             )
             RowDivider()
             SettingsRow(

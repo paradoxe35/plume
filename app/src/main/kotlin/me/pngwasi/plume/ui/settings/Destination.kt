@@ -33,6 +33,10 @@ sealed interface Destination {
         override val title = "Translation prompt"
     }
 
+    data object Keyboard : Destination {
+        override val title = "Plume keyboard"
+    }
+
     data object Appearance : Destination {
         override val title = "Appearance"
     }

@@ -66,6 +66,11 @@ data class AppSettings(
     val revise: ReviseSettings = ReviseSettings(),
     val translate: TranslateSettings = TranslateSettings(),
     val theme: ThemeMode = ThemeMode.System,
+    /**
+     * Opt-in companion keyboard. Off by default: it adds an entry to the user's system keyboard
+     * list, which nobody should get without asking for it.
+     */
+    val keyboardEnabled: Boolean = false,
 ) {
     /**
      * Resolves which provider runs [action], falling back to the default when the override points

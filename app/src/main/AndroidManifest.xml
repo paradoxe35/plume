@@ -61,6 +61,29 @@
             </intent-filter>
         </activity>
 
+
+        <!--
+            Companion keyboard: an action panel, not a typing keyboard. An IME is the only way to
+            read and rewrite a whole text field without a selection and without any permission.
+
+            android:enabled="false" is deliberate — the feature is opt-in, and a default install
+            must not add a stray keyboard to the user's system list. KeyboardComponent flips the
+            component on when the user enables it inside Plume.
+        -->
+        <service
+            android:name=".ime.PlumeInputMethodService"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/ime_label"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
     </application>
 
 </manifest>

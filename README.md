@@ -51,6 +51,33 @@ Both prompts are editable, with a Reset that restores the default. The translate
 `{{target_language}}` placeholder, substituted with whichever language you pick. Remove the
 placeholder and Plume appends the target as a final line instead.
 
+## The companion keyboard (optional, off by default)
+
+Plume can also install a keyboard *panel* — not a typing keyboard, just Revise and Translate as
+buttons. You switch to it while typing, run an action, and switch straight back.
+
+Why it exists: an input method holds an `InputConnection`, which is the only way to read and rewrite
+an entire text field **without a selection and without any permission**. Inside a message box that
+is strictly more capable than the selection menu.
+
+| | Selection menu | Companion keyboard |
+|---|---|---|
+| Needs you to select text | Yes | **No** |
+| Fix the whole message | Select all first | One tap |
+| Works on text you're only reading | **Yes** | No |
+| Permissions | None | None |
+
+They cover different halves, so both ship. The selection menu handles text you're *reading*; the
+keyboard handles text you're *writing*.
+
+It is **disabled by default**. The service is declared `android:enabled="false"`, so a default
+install adds nothing to your system keyboard list — turning it on in Plume enables the component,
+which is what makes Android aware of it at all. Turning it back off removes it again.
+
+Enabling is a three-step journey the system owns most of, and Settings → Plume keyboard walks
+through it: switch it on in Plume, switch it on in Android's keyboard list, then select it while
+typing.
+
 ## Privacy
 
 Selected text goes to the AI provider you configured, and nowhere else. Plume has no backend and no
@@ -69,7 +96,7 @@ unknown source.
 Requires JDK 17 and an Android SDK with API 36.
 
 ```bash
-./gradlew testDebugUnitTest    # 117 unit tests
+./gradlew testDebugUnitTest    # 148 unit tests
 ./gradlew assembleDebug
 ./gradlew assembleRelease      # signed if keystore.properties exists
 ```
@@ -90,5 +117,6 @@ No dependency-injection framework and no navigation library: both entry activiti
 another app's process while the user is mid-sentence, and cold-start latency is the whole product.
 The settings screens are a plain back stack held in state.
 
-Tests are JVM-only — MockWebServer for the provider clients and the full engine, Robolectric for the
-`ACTION_PROCESS_TEXT` intent contract.
+Tests are JVM-only — MockWebServer for the provider clients, the engine and the keyboard panel;
+Robolectric for the `ACTION_PROCESS_TEXT` intent contract and for the keyboard's read/replace path,
+which runs against a real `EditText` and `InputConnection` rather than a fake.
