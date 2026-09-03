@@ -20,22 +20,27 @@ internal fun httpError(status: Int, body: String, providerLabel: String): AiExce
         401, 403 -> AiException(
             AiException.Kind.Auth,
             "$providerLabel rejected the API key. Check it in Settings.",
+            status = status,
         )
         404 -> AiException(
             AiException.Kind.BadResponse,
             detail ?: "$providerLabel has no such model or endpoint. Check the model name and base URL.",
+            status = status,
         )
         429 -> AiException(
             AiException.Kind.RateLimit,
             "$providerLabel is rate limiting you. Wait a moment and try again.",
+            status = status,
         )
         in 500..599 -> AiException(
             AiException.Kind.Server,
             "$providerLabel is having trouble (HTTP $status). Try again shortly.",
+            status = status,
         )
         else -> AiException(
             AiException.Kind.BadResponse,
             detail ?: "$providerLabel returned HTTP $status.",
+            status = status,
         )
     }
 }

@@ -32,6 +32,8 @@ class TextEngineTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
+        // Process-wide cache; reset so test order cannot change what requests carry.
+        ReasoningSupport.reset()
     }
 
     @After

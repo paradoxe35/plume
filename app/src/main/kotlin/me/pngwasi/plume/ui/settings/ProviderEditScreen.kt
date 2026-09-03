@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +43,8 @@ import kotlinx.coroutines.delay
 import me.pngwasi.plume.data.BuiltInProviders
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ProviderKind
+import me.pngwasi.plume.data.ReasoningMode
+import me.pngwasi.plume.data.isLocalEndpoint
 import me.pngwasi.plume.data.validateProvider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
@@ -78,6 +81,8 @@ fun ProviderEditScreen(
     var apiKey by remember { mutableStateOf(initialApiKey) }
     var revealKey by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var reasoning by remember { mutableStateOf(initial.reasoning) }
+    var authRequired by remember { mutableStateOf(initial.authRequired) }
 
     val builtIn = BuiltInProviders.isBuiltIn(providerId)
 
@@ -87,6 +92,8 @@ fun ProviderEditScreen(
         baseUrl = baseUrl.trim(),
         model = model.trim(),
         temperature = temperature,
+        reasoning = reasoning,
+        authRequired = authRequired,
     )
 
     val validation = validateProvider(snapshot(), apiKey, requireLabel = !builtIn)
@@ -115,11 +122,29 @@ fun ProviderEditScreen(
         )
 
         SectionLabel("Credentials")
+        SettingsCard {
+            SettingsRow(
+                title = "This provider needs an API key",
+                subtitle = if (authRequired) {
+                    "Plume will not run without one"
+                } else {
+                    "For local runtimes like Ollama or LM Studio"
+                },
+                trailing = {
+                    Switch(
+                        checked = authRequired,
+                        onCheckedChange = { authRequired = it; commit() },
+                    )
+                },
+                onClick = { authRequired = !authRequired; commit() },
+            )
+        }
+
         OutlinedTextField(
             value = apiKey,
             onValueChange = { apiKey = it; commit() },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("API key *") },
+            label = { Text(if (authRequired) "API key *" else "API key (optional)") },
             singleLine = true,
             isError = validation.apiKey != null,
             visualTransformation = if (revealKey) {
@@ -139,6 +164,14 @@ fun ProviderEditScreen(
                 Text(validation.apiKey ?: "Encrypted with a key held in the Android Keystore.")
             },
         )
+
+        // A local address almost always means a runtime that wants no credentials; offering the
+        // switch at the moment the URL says so beats making the user find it after a 401.
+        if (authRequired && isLocalEndpoint(baseUrl)) {
+            TextButton(onClick = { authRequired = false; commit() }) {
+                Text("This looks like a local endpoint — no API key needed")
+            }
+        }
 
         SectionLabel("Endpoint")
         if (!builtIn) {
@@ -198,6 +231,42 @@ fun ProviderEditScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        SectionLabel("Reasoning")
+        SettingsCard {
+            SettingsRow(
+                title = "Keep thinking short",
+                subtitle = if (reasoning == ReasoningMode.Low) {
+                    "Asks for minimal deliberation. Correcting and translating rarely need more."
+                } else {
+                    "Uses the provider's own default, which can be slow and costly"
+                },
+                trailing = {
+                    Switch(
+                        checked = reasoning == ReasoningMode.Low,
+                        onCheckedChange = {
+                            reasoning = if (it) ReasoningMode.Low else ReasoningMode.ProviderDefault
+                            commit()
+                        },
+                    )
+                },
+                onClick = {
+                    reasoning = if (reasoning == ReasoningMode.Low) {
+                        ReasoningMode.ProviderDefault
+                    } else {
+                        ReasoningMode.Low
+                    }
+                    commit()
+                },
+            )
+        }
+        Text(
+            text = "If a model rejects the setting, Plume retries without it automatically and " +
+                "remembers not to send it again.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 4.dp),
+        )
 
         SectionLabel("Check")
         SettingsCard {

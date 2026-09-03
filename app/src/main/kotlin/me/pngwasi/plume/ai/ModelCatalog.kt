@@ -24,7 +24,8 @@ object ModelCatalog {
         return when (config.kind) {
             ProviderKind.OpenAiCompatible -> {
                 val body = getJson("$base/models", timeoutSeconds, label) {
-                    // OpenRouter serves its catalogue unauthenticated; OpenAI does not.
+                    // OpenRouter and local runtimes serve their catalogue unauthenticated; OpenAI
+                    // does not. An empty Bearer header is worse than no header at all.
                     if (apiKey.isBlank()) it else it.header("Authorization", "Bearer $apiKey")
                 }
                 parseOpenAi(body)

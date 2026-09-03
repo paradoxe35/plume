@@ -55,7 +55,8 @@ class TextEngine(
         if (config.model.isBlank()) {
             throw AiException(AiException.Kind.NotConfigured, "$label has no model selected. Pick one in Plume.")
         }
-        if (apiKeyFor(providerId).isBlank()) {
+        // Local runtimes take no credentials, so a key is only demanded when the provider says so.
+        if (config.authRequired && apiKeyFor(providerId).isBlank()) {
             throw AiException(AiException.Kind.NotConfigured, "No API key for $label. Add one in Plume.")
         }
         return config
@@ -88,10 +89,12 @@ class TextEngine(
         val label = label(providerId, config)
         return when (config.kind) {
             ProviderKind.OpenAiCompatible -> OpenAiCompatibleProvider(
-                providerId, label, key, config.baseUrl, config.model, config.temperature, timeoutSeconds,
+                providerId, label, key, config.baseUrl, config.model, config.temperature,
+                timeoutSeconds, config.reasoning,
             )
             ProviderKind.Gemini -> GeminiProvider(
-                providerId, label, key, config.baseUrl, config.model, config.temperature, timeoutSeconds,
+                providerId, label, key, config.baseUrl, config.model, config.temperature,
+                timeoutSeconds, config.reasoning,
             )
         }
     }

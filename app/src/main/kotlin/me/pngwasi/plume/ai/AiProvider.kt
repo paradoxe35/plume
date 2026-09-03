@@ -20,6 +20,8 @@ class AiException(
     val kind: Kind,
     message: String,
     cause: Throwable? = null,
+    /** HTTP status when the failure came from a response, so callers can react to 400 vs 500. */
+    val status: Int? = null,
 ) : Exception(message, cause) {
     enum class Kind { NotConfigured, Auth, RateLimit, Server, Network, Timeout, BadResponse, Empty }
 }

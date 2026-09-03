@@ -33,6 +33,26 @@ Built-in providers: **OpenAI**, **OpenRouter**, **Gemini**. You can add as many 
 you like — anything speaking the OpenAI chat-completions format works, with presets for Groq,
 Mistral, DeepSeek, Together and Ollama.
 
+### Reasoning and timeouts
+
+Correcting a sentence is not a reasoning problem, but reasoning models left on their defaults will
+deliberate anyway — slowly, and at a cost. Each provider is set to ask for minimal deliberation by
+default, and the default timeout is 120s because a model that thinks for a minute before answering
+should not be cut off.
+
+There is no portable parameter for this. OpenAI returns 400 for `reasoning_effort` on a
+non-reasoning model, OpenRouter uses its own `reasoning` object and rejects requests carrying both
+shapes, and Gemini refuses a zero thinking budget on models that cannot turn thinking off. So Plume
+picks the shape per provider and, if the request is rejected with 400 or 422, **retries once without
+the parameter and remembers not to send it to that model again**. The correction still succeeds; the
+user never sees the negotiation. Turn it off per provider to send nothing at all.
+
+### Providers without an API key
+
+Local runtimes — Ollama, LM Studio, llama.cpp — take no credentials. Turn off "This provider needs
+an API key" and Plume omits the `Authorization` header entirely rather than sending an empty one,
+which some servers reject. Entering a local address offers the switch inline.
+
 ### Models
 
 The model field loads the provider's live catalogue from its `/models` endpoint, so you pick from

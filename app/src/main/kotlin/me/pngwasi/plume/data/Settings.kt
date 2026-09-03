@@ -15,6 +15,17 @@ enum class ProviderKind { OpenAiCompatible, Gemini }
 @Serializable
 enum class ThemeMode { System, Light, Dark }
 
+/**
+ * How much the model should be asked to deliberate.
+ *
+ * Correcting a sentence or translating one is not a reasoning problem, and reasoning models left on
+ * their defaults can spend a long time and a lot of tokens thinking before they answer. [Low] asks
+ * for the least deliberation the provider will accept; [ProviderDefault] sends nothing at all,
+ * which is the escape hatch for anything that dislikes the parameter.
+ */
+@Serializable
+enum class ReasoningMode { Low, ProviderDefault }
+
 /** The two things Plume can do. Each may run on its own provider. */
 enum class Action { Revise, Translate }
 
@@ -26,9 +37,33 @@ data class ProviderConfig(
     val model: String = "",
     val temperature: Float = 1f,
     val isCustom: Boolean = false,
+    val reasoning: ReasoningMode = ReasoningMode.Low,
+    /**
+     * Whether this endpoint needs credentials at all. Local runtimes — Ollama, LM Studio, llama.cpp
+     * — accept anything or nothing, and demanding a key would block a perfectly valid setup.
+     */
+    val authRequired: Boolean = true,
 ) {
     /** API keys never live here — they are held encrypted by [SecretStore], keyed by provider id. */
     fun isConfigured(): Boolean = baseUrl.isNotBlank() && model.isNotBlank()
+}
+
+/**
+ * Loopback and private-range addresses, where a local model runtime almost certainly lives and an
+ * API key is almost certainly not wanted.
+ */
+fun isLocalEndpoint(baseUrl: String): Boolean {
+    val host = runCatching {
+        java.net.URI(baseUrl.trim()).host
+    }.getOrNull()?.lowercase() ?: return false
+    return host == "localhost" ||
+        host == "127.0.0.1" ||
+        host == "::1" ||
+        host == "0.0.0.0" ||
+        host.endsWith(".local") ||
+        host.startsWith("10.") ||
+        host.startsWith("192.168.") ||
+        Regex("^172\\.(1[6-9]|2[0-9]|3[01])\\.").containsMatchIn(host)
 }
 
 @Serializable
@@ -108,7 +143,12 @@ data class AppSettings(
 }
 
 const val DEFAULT_CHARACTER_LIMIT = 4000
-const val DEFAULT_TIMEOUT_SECONDS = 45
+/**
+ * Generous on purpose. Reasoning models can deliberate for a minute or more before emitting a
+ * token, and a timeout that fires first looks to the user like a broken provider.
+ */
+const val DEFAULT_TIMEOUT_SECONDS = 120
+const val MAX_TIMEOUT_SECONDS = 300
 const val MAX_RECENT_TARGETS = 5
 
 object BuiltInProviders {
@@ -195,7 +235,7 @@ fun validateProvider(
         else -> null
     },
     model = if (config.model.isBlank()) "Model is required" else null,
-    apiKey = if (apiKey.isBlank()) "API key is required" else null,
+    apiKey = if (config.authRequired && apiKey.isBlank()) "API key is required" else null,
 )
 
 /** Moves [code] to the front, removing any earlier copy, and caps the list. */

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import me.pngwasi.plume.data.ReasoningMode
 
 /**
  * `POST {baseUrl}/v1beta/models/{model}:generateContent` — Google's Generative Language API.
@@ -20,12 +21,27 @@ class GeminiProvider(
     override val model: String,
     private val temperature: Float,
     private val timeoutSeconds: Int,
+    private val reasoning: ReasoningMode = ReasoningMode.ProviderDefault,
 ) : AiProvider {
 
     override suspend fun complete(systemPrompt: String, userText: String): String {
         val endpoint = "${baseUrl.trimEnd('/')}/v1beta/models/$model:generateContent"
+        val cacheKey = ReasoningSupport.key(id, model)
 
-        val payload = buildJsonObject {
+        // Gemini 3 Pro cannot have thinking switched off and rejects a zero budget, so the request
+        // is retried without it rather than failing the user's correction outright.
+        val body = withReasoningFallback(cacheKey, reasoning == ReasoningMode.Low) { includeReasoning ->
+            postJson(endpoint, payload(systemPrompt, userText, includeReasoning), timeoutSeconds, label) {
+                // The key travels as a header rather than a query parameter so it stays out of
+                // access logs. A blank key means an endpoint that wants no auth at all.
+                if (apiKey.isBlank()) it else it.header("x-goog-api-key", apiKey)
+            }
+        }
+        return parse(body, label)
+    }
+
+    private fun payload(systemPrompt: String, userText: String, includeReasoning: Boolean): String =
+        buildJsonObject {
             put(
                 "systemInstruction",
                 buildJsonObject { put("parts", buildJsonArray { add(textPart(systemPrompt)) }) },
@@ -43,16 +59,14 @@ class GeminiProvider(
             )
             put(
                 "generationConfig",
-                buildJsonObject { put("temperature", JsonPrimitive(temperature)) },
+                buildJsonObject {
+                    put("temperature", JsonPrimitive(temperature))
+                    if (includeReasoning) {
+                        Reasoning.geminiThinkingConfig(reasoning)?.let { put("thinkingConfig", it) }
+                    }
+                },
             )
-        }
-
-        // The key travels as a header rather than a query parameter so it stays out of access logs.
-        val body = postJson(endpoint, payload.toString(), timeoutSeconds, label) {
-            it.header("x-goog-api-key", apiKey)
-        }
-        return parse(body, label)
-    }
+        }.toString()
 
     private fun textPart(text: String) = buildJsonObject { put("text", JsonPrimitive(text)) }
 

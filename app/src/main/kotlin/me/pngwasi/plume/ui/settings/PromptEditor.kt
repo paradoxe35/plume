@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.DEFAULT_CHARACTER_LIMIT
+import me.pngwasi.plume.data.MAX_TIMEOUT_SECONDS
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.theme.PromptEditorStyle
 import kotlin.math.roundToInt
@@ -109,7 +110,13 @@ fun TimeoutControl(value: Int, onChange: (Int) -> Unit) {
         Slider(
             value = value.toFloat(),
             onValueChange = { onChange(it.roundToInt()) },
-            valueRange = 10f..120f,
+            valueRange = 15f..MAX_TIMEOUT_SECONDS.toFloat(),
+        )
+        Text(
+            text = "Reasoning models can deliberate for a while before answering. Raise this if " +
+                "requests time out before the model replies.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import me.pngwasi.plume.ai.ReasoningSupport
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ProviderKind
@@ -49,6 +50,8 @@ class ImePanelControllerTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
+        // Process-wide cache; reset so test order cannot change what requests carry.
+        ReasoningSupport.reset()
         scope = CoroutineScope(Dispatchers.Default)
     }
 
