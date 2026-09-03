@@ -1,5 +1,11 @@
 package me.pngwasi.plume.process
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,23 +55,36 @@ fun OverlaySheet(
             ),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Swallows taps so they never reach the dismiss handler on the scrim behind.
-                .clickable(interactionSource = sheetInteraction, indication = null, onClick = {})
-                .navigationBarsPadding()
-                .imePadding(),
-            shape = SheetShape,
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 16.dp,
+        // AnimatedVisibility does not run its enter transition when `visible` is already true on
+        // first composition, and the sheet is visible from the first frame. Driving it from a
+        // transition state that starts false and immediately targets true is what makes it animate.
+        val sheetVisible = remember { MutableTransitionState(false).apply { targetState = true } }
+
+        AnimatedVisibility(
+            visibleState = sheetVisible,
+            enter = fadeIn(tween(220)) + slideInVertically(
+                animationSpec = tween(320, easing = FastOutSlowInEasing),
+                initialOffsetY = { it },
+            ),
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Swallows taps so they never reach the dismiss handler on the scrim behind.
+                    .clickable(interactionSource = sheetInteraction, indication = null, onClick = {})
+                    .navigationBarsPadding()
+                    .imePadding(),
+                shape = SheetShape,
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 16.dp,
             ) {
-                Grabber()
-                content()
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Grabber()
+                    content()
+                }
             }
         }
     }

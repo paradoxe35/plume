@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.data.Language
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.TranslateSettings
 import me.pngwasi.plume.ui.components.RowDivider
@@ -47,8 +48,16 @@ fun TranslateScreen(
     onOpenPrompt: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    val results = remember(query) { Languages.search(query) }
     val favorites = settings.favorites
+
+    // Pinned languages float to the top in the order the user pinned them; everything else keeps
+    // catalogue order, since sortedWith is stable.
+    val results = remember(query, favorites) {
+        val pinOrder = favorites.mapIndexed { index, code -> code.lowercase() to index }.toMap()
+        Languages.search(query).sortedWith(
+            compareBy<Language> { pinOrder[it.code.lowercase()] ?: Int.MAX_VALUE },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -130,21 +139,26 @@ fun TranslateScreen(
                 val name = language.displayName()
                 val endonym = language.endonym()
 
-                SettingsRow(
-                    title = name,
-                    subtitle = if (endonym.equals(name, ignoreCase = true)) {
-                        language.code
-                    } else {
-                        "$endonym · ${language.code}"
-                    },
-                    trailing = {
-                        Checkbox(
-                            checked = pinned,
-                            onCheckedChange = { onToggleFavorite(language.code) },
-                        )
-                    },
-                    onClick = { onToggleFavorite(language.code) },
-                )
+                // Pinning re-sorts the list under the user's finger. Animating the placement turns
+                // that jump into visible movement, so the row reads as travelling to the top rather
+                // than vanishing.
+                Column(modifier = Modifier.animateItem()) {
+                    SettingsRow(
+                        title = name,
+                        subtitle = if (endonym.equals(name, ignoreCase = true)) {
+                            language.code
+                        } else {
+                            "$endonym · ${language.code}"
+                        },
+                        trailing = {
+                            Checkbox(
+                                checked = pinned,
+                                onCheckedChange = { onToggleFavorite(language.code) },
+                            )
+                        },
+                        onClick = { onToggleFavorite(language.code) },
+                    )
+                }
             }
         }
     }
