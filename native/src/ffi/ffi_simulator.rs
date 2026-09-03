@@ -70,6 +70,25 @@ pub unsafe extern "C" fn plume_simulate_paste(handle: SimulatorHandle) -> c_int 
     }
 }
 
+/// Releases modifiers still held from the triggering hotkey. Call once before any combo.
+#[no_mangle]
+pub unsafe extern "C" fn plume_simulate_release_modifiers(handle: SimulatorHandle) -> c_int {
+    if handle.is_null() {
+        set_last_error("Null simulator handle provided".to_string());
+        return FFIErrorCode::NullPointer as c_int;
+    }
+
+    let simulator = &mut *(handle as *mut KeySimulator);
+
+    match simulator.release_modifiers() {
+        Ok(_) => FFIErrorCode::Success as c_int,
+        Err(e) => {
+            set_last_error(format!("Releasing modifiers failed: {:#}", e));
+            FFIErrorCode::OperationFailed as c_int
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn plume_simulator_free(handle: SimulatorHandle) {
     if !handle.is_null() {

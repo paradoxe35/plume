@@ -41,9 +41,23 @@ void plume_free_string(char *s);
 
 plume_ClipboardHandle plume_clipboard_new(void);
 
+/**
+ * Null when the clipboard holds no text, including when it holds an image.
+ */
 char *plume_clipboard_get_text(plume_ClipboardHandle handle);
 
+/**
+ * 1 when the clipboard holds text, 0 when not. Distinguishes "copied a picture" from
+ * "the copy never landed", which look identical through `get_text`.
+ */
+int plume_clipboard_has_text(plume_ClipboardHandle handle);
+
 int plume_clipboard_set_text(plume_ClipboardHandle handle, const char *text);
+
+/**
+ * Empties the clipboard, so a following simulated copy landing becomes observable.
+ */
+int plume_clipboard_clear(plume_ClipboardHandle handle);
 
 int plume_clipboard_save(plume_ClipboardHandle handle);
 
@@ -73,6 +87,11 @@ int plume_simulate_select_all(plume_SimulatorHandle handle);
 int plume_simulate_copy(plume_SimulatorHandle handle);
 
 int plume_simulate_paste(plume_SimulatorHandle handle);
+
+/**
+ * Releases modifiers still held from the triggering hotkey. Call once before any combo.
+ */
+int plume_simulate_release_modifiers(plume_SimulatorHandle handle);
 
 void plume_simulator_free(plume_SimulatorHandle handle);
 

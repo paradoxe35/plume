@@ -3,6 +3,9 @@ use std::os::raw::{c_char, c_int};
 use super::ffi_types::*;
 use crate::core::ClipboardManager;
 
+// These built a Tokio runtime per call to await a lock that never yields. `block_on` also panics
+// when the calling thread already drives a runtime, and the JVM calls in from any thread.
+
 #[no_mangle]
 pub unsafe extern "C" fn plume_clipboard_new() -> ClipboardHandle {
     init_logging();
@@ -16,6 +19,7 @@ pub unsafe extern "C" fn plume_clipboard_new() -> ClipboardHandle {
     }
 }
 
+/// Null when the clipboard holds no text, including when it holds an image.
 #[no_mangle]
 pub unsafe extern "C" fn plume_clipboard_get_text(handle: ClipboardHandle) -> *mut c_char {
     if handle.is_null() {
@@ -25,23 +29,29 @@ pub unsafe extern "C" fn plume_clipboard_get_text(handle: ClipboardHandle) -> *m
 
     let clipboard = &*(handle as *mut ClipboardManager);
 
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(e) => {
-            set_last_error(format!("Failed to create runtime: {:#}", e));
-            return std::ptr::null_mut();
-        }
-    };
-
-    match rt.block_on(clipboard.get_text()) {
-        Ok(text) => string_to_c_str(text),
-        Err(e) => {
-            set_last_error(format!("Failed to get clipboard text: {:#}", e));
+    match clipboard.get_text() {
+        Some(text) => string_to_c_str(text),
+        None => {
+            set_last_error("Clipboard holds no text".to_string());
             std::ptr::null_mut()
         }
+    }
+}
+
+/// 1 when the clipboard holds text, 0 when not. Distinguishes "copied a picture" from
+/// "the copy never landed", which look identical through `get_text`.
+#[no_mangle]
+pub unsafe extern "C" fn plume_clipboard_has_text(handle: ClipboardHandle) -> c_int {
+    if handle.is_null() {
+        set_last_error("Null clipboard handle provided".to_string());
+        return FFIErrorCode::NullPointer as c_int;
+    }
+
+    let clipboard = &*(handle as *mut ClipboardManager);
+    if clipboard.get_text().is_some() {
+        1
+    } else {
+        0
     }
 }
 
@@ -70,80 +80,41 @@ pub unsafe extern "C" fn plume_clipboard_set_text(
         }
     };
 
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(e) => {
-            set_last_error(format!("Failed to create runtime: {:#}", e));
-            return FFIErrorCode::InitFailed as c_int;
-        }
-    };
+    result_to_error_code(clipboard.set_text(text_str))
+}
 
-    match rt.block_on(clipboard.set_text(text_str)) {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to set clipboard text: {:#}", e));
-            FFIErrorCode::OperationFailed as c_int
-        }
+/// Empties the clipboard, so a following simulated copy landing becomes observable.
+#[no_mangle]
+pub unsafe extern "C" fn plume_clipboard_clear(handle: ClipboardHandle) -> c_int {
+    if handle.is_null() {
+        set_last_error("Null clipboard handle provided".to_string());
+        return FFIErrorCode::NullPointer as c_int;
     }
+
+    let clipboard = &*(handle as *mut ClipboardManager);
+    result_to_error_code(clipboard.clear())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn plume_clipboard_save(handle: ClipboardHandle) -> c_int {
     if handle.is_null() {
+        set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
     }
 
     let clipboard = &*(handle as *mut ClipboardManager);
-
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(e) => {
-            set_last_error(format!("Failed to create runtime: {:#}", e));
-            return FFIErrorCode::InitFailed as c_int;
-        }
-    };
-
-    match rt.block_on(clipboard.save_clipboard()) {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to save clipboard: {:#}", e));
-            FFIErrorCode::OperationFailed as c_int
-        }
-    }
+    result_to_error_code(clipboard.save_clipboard())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn plume_clipboard_restore(handle: ClipboardHandle) -> c_int {
     if handle.is_null() {
+        set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
     }
 
     let clipboard = &*(handle as *mut ClipboardManager);
-
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(e) => {
-            set_last_error(format!("Failed to create runtime: {:#}", e));
-            return FFIErrorCode::InitFailed as c_int;
-        }
-    };
-
-    match rt.block_on(clipboard.restore_clipboard()) {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to restore clipboard: {:#}", e));
-            FFIErrorCode::OperationFailed as c_int
-        }
-    }
+    result_to_error_code(clipboard.restore_clipboard())
 }
 
 #[no_mangle]

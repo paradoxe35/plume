@@ -86,6 +86,36 @@ impl KeySimulator {
         })
     }
 
+    /// Drops modifiers still held from the triggering hotkey, so Ctrl+A does not arrive as
+    /// Ctrl+Alt+A. macOS needs nothing: its events carry an explicit flag mask.
+    pub fn release_modifiers(&mut self) -> Result<()> {
+        #[cfg(target_os = "macos")]
+        {
+            Ok(())
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            debug!("Releasing held modifiers");
+            // Best effort; a modifier that was never down releases harmlessly.
+            for key in [Key::Control, Key::Alt, Key::Shift, Key::Meta] {
+                let _ = self.enigo.key(key, enigo::Direction::Release);
+            }
+            Ok(())
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn control_combo(&mut self, letter: char) -> Result<()> {
+        self.release_modifiers()?;
+        self.enigo.key(Key::Control, enigo::Direction::Press)?;
+        let clicked = self.enigo.key(Key::Unicode(letter), enigo::Direction::Click);
+        // Control must come up even if the letter failed, or every later keystroke is a shortcut.
+        self.enigo.key(Key::Control, enigo::Direction::Release)?;
+        clicked?;
+        Ok(())
+    }
+
     pub fn select_all(&mut self) -> Result<()> {
         debug!("Simulating select all");
 
@@ -96,10 +126,7 @@ impl KeySimulator {
 
         #[cfg(not(target_os = "macos"))]
         {
-            self.enigo.key(Key::Control, enigo::Direction::Press)?;
-            self.enigo.key(Key::Unicode('a'), enigo::Direction::Click)?;
-            self.enigo.key(Key::Control, enigo::Direction::Release)?;
-            Ok(())
+            self.control_combo('a')
         }
     }
 
@@ -113,10 +140,7 @@ impl KeySimulator {
 
         #[cfg(not(target_os = "macos"))]
         {
-            self.enigo.key(Key::Control, enigo::Direction::Press)?;
-            self.enigo.key(Key::Unicode('c'), enigo::Direction::Click)?;
-            self.enigo.key(Key::Control, enigo::Direction::Release)?;
-            Ok(())
+            self.control_combo('c')
         }
     }
 
@@ -130,10 +154,7 @@ impl KeySimulator {
 
         #[cfg(not(target_os = "macos"))]
         {
-            self.enigo.key(Key::Control, enigo::Direction::Press)?;
-            self.enigo.key(Key::Unicode('v'), enigo::Direction::Click)?;
-            self.enigo.key(Key::Control, enigo::Direction::Release)?;
-            Ok(())
+            self.control_combo('v')
         }
     }
 }

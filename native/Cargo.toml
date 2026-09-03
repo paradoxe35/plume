@@ -8,7 +8,7 @@ license = "MIT"
 
 [lib]
 name = "plume_native"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Core dependencies for system input
@@ -18,8 +18,6 @@ rdev = { git = "https://github.com/rustdesk-org/rdev" }
 arboard = { version = "3.6", features = ["wayland-data-control"] }  # Clipboard with Wayland support
 enigo = { version = "0.6", features = ["wayland", "x11rb"] }  # Keyboard simulation with Wayland and X11 support
 
-# Async runtime
-tokio = { version = "1.41", features = ["rt", "sync", "time"] }
 
 # Error handling
 anyhow = "1.0"
