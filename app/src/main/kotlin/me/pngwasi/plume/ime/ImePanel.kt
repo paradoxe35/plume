@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.outlined.AutoFixHigh
@@ -30,9 +30,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +43,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Languages
+import me.pngwasi.plume.panel.ActionScope
+import me.pngwasi.plume.panel.PanelState
+import me.pngwasi.plume.panel.TranslationSubject
+import me.pngwasi.plume.panel.pickerOptions
 
 /**
  * The keyboard panel.
@@ -53,7 +57,7 @@ import me.pngwasi.plume.data.Languages
  */
 @Composable
 fun ImePanel(
-    state: ImeState,
+    state: PanelState,
     onRevise: () -> Unit,
     onTranslate: () -> Unit,
     onReadClipboard: () -> Unit,
@@ -79,11 +83,11 @@ fun ImePanel(
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (state) {
-                    is ImeState.Ready -> ReadyBody(state, onRevise, onTranslate, onReadClipboard)
-                    is ImeState.PickLanguage -> PickerBody(state, onPickLanguage, onCancelPicker)
-                    is ImeState.Working -> WorkingBody(state.note)
-                    is ImeState.Reading -> ReadingBody(state, onCopy, onCloseReading)
-                    is ImeState.Failed -> FailedBody(state, onRevise, onPickLanguage, onOpenSettings)
+                    is PanelState.Ready -> ReadyBody(state, onRevise, onTranslate, onReadClipboard)
+                    is PanelState.PickLanguage -> PickerBody(state, onPickLanguage, onCancelPicker)
+                    is PanelState.Working -> WorkingBody(state.note)
+                    is PanelState.Reading -> ReadingBody(state, onCopy, onCloseReading)
+                    is PanelState.Failed -> FailedBody(state, onRevise, onPickLanguage, onOpenSettings)
                 }
             }
         }
@@ -94,13 +98,13 @@ private val PanelHeight = 272.dp
 
 @Composable
 private fun Header(
-    state: ImeState,
+    state: PanelState,
     onClearField: () -> Unit,
     onBackToKeyboard: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     // Only meaningful while there is something in the field to clear.
-    val canClear = (state as? ImeState.Ready)?.scope != null
+    val canClear = (state as? PanelState.Ready)?.scope != null
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -139,19 +143,21 @@ private val TightPadding = androidx.compose.foundation.layout.PaddingValues(hori
 
 @Composable
 private fun ReadyBody(
-    state: ImeState.Ready,
+    state: PanelState.Ready,
     onRevise: () -> Unit,
     onTranslate: () -> Unit,
     onReadClipboard: () -> Unit,
 ) {
     val empty = state.scope == null
+    // Bound locally: Kotlin will not smart-cast a public property declared in another module.
+    val confirmation = state.confirmation
 
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         when {
-            state.confirmation != null -> Confirmation(state.confirmation, Modifier.weight(1f))
+            confirmation != null -> Confirmation(confirmation, Modifier.weight(1f))
             empty -> Hint(
                 "Type with your usual keyboard, then switch back here to fix or translate it.",
                 Modifier.weight(1f),
@@ -222,7 +228,7 @@ private fun ReadyBody(
  */
 @Composable
 private fun ReadingBody(
-    state: ImeState.Reading,
+    state: PanelState.Reading,
     onCopy: (String) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -322,7 +328,7 @@ private fun WorkingBody(note: String) {
 
 @Composable
 private fun PickerBody(
-    state: ImeState.PickLanguage,
+    state: PanelState.PickLanguage,
     onPick: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -378,7 +384,7 @@ private fun PickerBody(
 
 @Composable
 private fun FailedBody(
-    state: ImeState.Failed,
+    state: PanelState.Failed,
     onRevise: () -> Unit,
     onTranslate: (String) -> Unit,
     onOpenSettings: () -> Unit,
@@ -407,17 +413,17 @@ private fun FailedBody(
                 Button(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("Open Plume") }
             }
             when (val retry = state.retry) {
-                ImeState.Retry.Revise -> OutlinedButton(
+                PanelState.Retry.Revise -> OutlinedButton(
                     onClick = onRevise,
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }
 
-                is ImeState.Retry.Translate -> OutlinedButton(
+                is PanelState.Retry.Translate -> OutlinedButton(
                     onClick = { onTranslate(retry.code) },
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }
 
-                is ImeState.Retry.ReadClipboard -> OutlinedButton(
+                is PanelState.Retry.ReadClipboard -> OutlinedButton(
                     onClick = { onTranslate(retry.code) },
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }

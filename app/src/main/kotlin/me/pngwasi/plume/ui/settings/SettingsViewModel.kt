@@ -16,6 +16,7 @@ import me.pngwasi.plume.ai.TextEngine
 import me.pngwasi.plume.data.Action
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
+import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ReviseSettings
 import me.pngwasi.plume.data.SecretStore
@@ -49,8 +50,8 @@ sealed interface ModelsState {
 
 class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repository = SettingsRepository.get(app)
-    private val secrets = SecretStore(app)
+    private val repository = PlumeStores.settings(app)
+    private val secrets = PlumeStores.secrets(app)
 
     /** `app` is a constructor parameter, not a property, so member functions go through this. */
     private val context: Application get() = getApplication()
@@ -223,7 +224,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             translateProvider = null,
         )
         _probe.value = try {
-            val engine = TextEngine(scoped) { id -> secrets.getKey(id) }
+            val engine = TextEngine(scoped, secrets)
             ProbeState.Ok(engine.translate("Bonjour", Languages.resolve("en").code).take(80))
         } catch (e: AiException) {
             ProbeState.Failed(e.message ?: "Failed")

@@ -22,10 +22,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.first
 import me.pngwasi.plume.MainActivity
+import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.SettingsRepository
 import me.pngwasi.plume.data.ThemeCache
-import me.pngwasi.plume.ime.TypingKeyboard
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.ime.TypingKeyboard
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 /**
@@ -90,7 +91,7 @@ abstract class TextActionActivity : ComponentActivity() {
      */
     @Composable
     private fun rememberThemeMode(): State<ThemeMode> {
-        val repository = remember { SettingsRepository.get(this) }
+        val repository = remember { PlumeStores.settings(this) }
         val cached = remember { ThemeCache.read(this) }
         return produceState(initialValue = cached, repository) {
             val actual = runCatching { repository.settings.first().theme }.getOrNull() ?: return@produceState

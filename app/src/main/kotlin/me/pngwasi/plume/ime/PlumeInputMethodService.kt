@@ -5,12 +5,12 @@ import android.os.Build
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
@@ -20,10 +20,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import me.pngwasi.plume.MainActivity
+import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
 import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.panel.PanelController
+import me.pngwasi.plume.panel.PanelState
+import me.pngwasi.plume.panel.TranslationSubject
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 /**
@@ -39,7 +43,7 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
 
     private val owner = ImeViewOwner()
     private var scope: CoroutineScope? = null
-    private lateinit var controller: ImePanelController
+    private lateinit var controller: PanelController
     // Compose state, not a plain field: a var read inside setContent never triggers recomposition,
     // so the panel would keep whatever theme it was built with.
     private var themeMode by mutableStateOf(ThemeMode.System)
@@ -52,10 +56,10 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         val serviceScope = MainScope()
         scope = serviceScope
 
-        val repository = SettingsRepository.get(this)
-        val secrets = SecretStore(this)
+        val repository = PlumeStores.settings(this)
+        val secrets = PlumeStores.secrets(this)
 
-        controller = ImePanelController(
+        controller = PanelController(
             scope = serviceScope,
             bridge = InputConnectionBridge { currentInputConnection },
             loadSettings = { repository.current() },
@@ -90,7 +94,7 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
                         onTranslate = controller::startTranslate,
                         onReadClipboard = controller::startReadClipboard,
                         onPickLanguage = { code ->
-                            val picking = controller.state.value as? ImeState.PickLanguage
+                            val picking = controller.state.value as? PanelState.PickLanguage
                             if (picking?.subject == TranslationSubject.Clipboard) {
                                 controller.readClipboard(code)
                             } else {
