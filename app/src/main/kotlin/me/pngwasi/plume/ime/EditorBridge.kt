@@ -32,6 +32,9 @@ interface EditorBridge {
 
     /** Replaces the selection when there is one, otherwise the entire field. */
     fun apply(text: String): Boolean
+
+    /** Empties the field regardless of what is selected. */
+    fun clearAll(): Boolean
 }
 
 /**
@@ -68,6 +71,20 @@ class InputConnectionBridge(
                 if (length > 0) ic.deleteSurroundingText(length, 0)
                 ic.commitText(text, 1)
             }
+        } finally {
+            ic.endBatchEdit()
+        }
+        return true
+    }
+
+    override fun clearAll(): Boolean {
+        val ic = connection() ?: return false
+        val length = read()?.full?.length ?: return false
+        ic.beginBatchEdit()
+        try {
+            ic.finishComposingText()
+            ic.setSelection(length, length)
+            if (length > 0) ic.deleteSurroundingText(length, 0)
         } finally {
             ic.endBatchEdit()
         }

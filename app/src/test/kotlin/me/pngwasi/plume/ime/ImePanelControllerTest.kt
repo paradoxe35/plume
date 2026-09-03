@@ -30,7 +30,9 @@ class ImePanelControllerTest {
         val writable: Boolean = true,
     ) : EditorBridge {
         var applied: String? = null
+        var cleared = false
         override fun read() = EditorText(full, selection)
+        override fun clearAll(): Boolean { cleared = true; full = ""; return true }
         override fun apply(text: String): Boolean {
             if (!writable) return false
             applied = text

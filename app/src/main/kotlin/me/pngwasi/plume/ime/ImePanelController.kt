@@ -14,17 +14,39 @@ import me.pngwasi.plume.data.Languages
 /** What the action will be applied to, surfaced so the user is never surprised by the scope. */
 enum class ActionScope { Selection, WholeField }
 
+/**
+ * Which text a translation is for.
+ *
+ * [Field] rewrites what the user is writing. [Clipboard] translates what someone sent them and
+ * shows it in the panel — it must never touch the input field, or replying would overwrite the
+ * message they were trying to read.
+ */
+enum class TranslationSubject { Field, Clipboard }
+
 sealed interface ImeState {
     /** Waiting for the user. [scope] is null when there is nothing usable in the field. */
     data class Ready(
         val scope: ActionScope?,
         val preview: String,
         val confirmation: String? = null,
+        /** Enables the clipboard action; false when there is nothing copied to translate. */
+        val hasClipboard: Boolean = false,
     ) : ImeState
 
     data class PickLanguage(
         val favorites: List<String>,
         val recents: List<String>,
+        val subject: TranslationSubject = TranslationSubject.Field,
+    ) : ImeState
+
+    /**
+     * A translated incoming message, shown in the panel rather than written anywhere. Reading is
+     * the whole point here; the user is mid-conversation and has not asked to change their draft.
+     */
+    data class Reading(
+        val original: String,
+        val translated: String,
+        val language: String,
     ) : ImeState
 
     data class Working(val note: String) : ImeState
@@ -39,6 +61,7 @@ sealed interface ImeState {
     sealed interface Retry {
         data object Revise : Retry
         data class Translate(val code: String) : Retry
+        data class ReadClipboard(val code: String) : Retry
     }
 }
 
@@ -54,6 +77,8 @@ class ImePanelController(
     private val loadSettings: suspend () -> AppSettings,
     private val apiKeyFor: (String) -> String,
     private val onTargetUsed: suspend (String) -> Unit = {},
+    /** Null on platforms with no readable clipboard; the action is then simply never offered. */
+    private val clipboard: ClipboardSource? = null,
 ) {
 
     private val _state = MutableStateFlow<ImeState>(ImeState.Ready(null, ""))
@@ -72,14 +97,21 @@ class ImePanelController(
     }
 
     private fun readyState(confirmation: String? = null): ImeState.Ready {
+        val copied = runCatching { clipboard?.read() }.getOrNull()
         val text = bridge.read()
         if (text == null || text.isEmpty) {
-            return ImeState.Ready(scope = null, preview = "", confirmation = confirmation)
+            return ImeState.Ready(
+                scope = null,
+                preview = "",
+                confirmation = confirmation,
+                hasClipboard = !copied.isNullOrBlank(),
+            )
         }
         return ImeState.Ready(
             scope = if (text.hasSelection) ActionScope.Selection else ActionScope.WholeField,
             preview = text.target.collapseWhitespace(),
             confirmation = confirmation,
+            hasClipboard = !copied.isNullOrBlank(),
         )
     }
 
@@ -116,6 +148,82 @@ class ImePanelController(
         }
     }
 
+    /** Offers the language picker for whatever is on the clipboard. */
+    fun startReadClipboard() {
+        val copied = runCatching { clipboard?.read() }.getOrNull()
+        if (copied.isNullOrBlank()) {
+            _state.value = ImeState.Failed("Nothing is copied yet.", settingsFix = false, retry = null)
+            return
+        }
+        running?.cancel()
+        running = scope.launch {
+            val settings = settingsOrNull() ?: return@launch
+            val preset = settings.translate.defaultTarget
+            if (preset.isNullOrBlank()) {
+                _state.value = ImeState.PickLanguage(
+                    favorites = settings.translate.favorites,
+                    recents = settings.translate.recents,
+                    subject = TranslationSubject.Clipboard,
+                )
+            } else {
+                recordTarget(preset)
+                readClipboard(preset)
+            }
+        }
+    }
+
+    /**
+     * Translates the clipboard and shows the result in the panel.
+     *
+     * Deliberately never writes: the user is reading someone else's message, not editing their own
+     * draft, and replacing their half-typed reply would be the opposite of helpful.
+     */
+    fun readClipboard(code: String) {
+        running?.cancel()
+        running = scope.launch {
+            val copied = runCatching { clipboard?.read() }.getOrNull()
+            if (copied.isNullOrBlank()) {
+                _state.value = ImeState.Failed("Nothing is copied yet.", settingsFix = false, retry = null)
+                return@launch
+            }
+
+            _state.value = ImeState.Working("Translating")
+            val settings = settingsOrNull() ?: return@launch
+            recordTarget(code)
+
+            try {
+                val engine = TextEngine(settings, apiKeyFor)
+                _state.value = ImeState.Reading(
+                    original = copied,
+                    translated = engine.translate(copied, code),
+                    language = Languages.resolve(code).displayName(),
+                )
+            } catch (e: AiException) {
+                _state.value = ImeState.Failed(
+                    message = e.message ?: "Something went wrong.",
+                    settingsFix = e.kind == AiException.Kind.NotConfigured ||
+                        e.kind == AiException.Kind.Auth,
+                    retry = ImeState.Retry.ReadClipboard(code),
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = ImeState.Failed(
+                    e.message ?: "Unexpected error.",
+                    false,
+                    ImeState.Retry.ReadClipboard(code),
+                )
+            }
+        }
+    }
+
+    /** Empties the field the user is writing in. */
+    fun clearField() {
+        running?.cancel()
+        bridge.clearAll()
+        refresh()
+    }
+
     /** Leaves the picker without running anything. */
     fun cancelPicker() = refresh()
 
@@ -131,6 +239,9 @@ class ImePanelController(
         if (current !is ImeState.Ready) return
         refresh(confirmation = current.confirmation)
     }
+
+    /** Leaves the translated message and returns to the actions. */
+    fun closeReading() = refresh()
 
     private suspend fun recordTarget(code: String) {
         runCatching { onTargetUsed(code) }

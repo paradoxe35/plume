@@ -61,6 +61,7 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
             loadSettings = { repository.current() },
             apiKeyFor = { id -> secrets.getKey(id) },
             onTargetUsed = { code -> repository.recordTranslationTarget(code) },
+            clipboard = AndroidClipboardSource(this),
         )
 
         // The panel is drawn over other apps' input areas, so it follows the same theme setting as
@@ -87,8 +88,19 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
                         state = state,
                         onRevise = controller::revise,
                         onTranslate = controller::startTranslate,
-                        onPickLanguage = controller::translate,
+                        onReadClipboard = controller::startReadClipboard,
+                        onPickLanguage = { code ->
+                            val picking = controller.state.value as? ImeState.PickLanguage
+                            if (picking?.subject == TranslationSubject.Clipboard) {
+                                controller.readClipboard(code)
+                            } else {
+                                controller.translate(code)
+                            }
+                        },
                         onCancelPicker = controller::cancelPicker,
+                        onCloseReading = controller::closeReading,
+                        onClearField = controller::clearField,
+                        onCopy = ::copyToClipboard,
                         onOpenSettings = ::openSettings,
                         onBackToKeyboard = ::switchAway,
                     )
@@ -195,6 +207,12 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         }
         true
     }.getOrDefault(false)
+
+    /** Puts the translated message on the clipboard so it can be kept or shared. */
+    private fun copyToClipboard(text: String) {
+        val manager = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+        manager?.setPrimaryClip(android.content.ClipData.newPlainText("Plume", text))
+    }
 
     private fun openSettings() {
         startActivity(

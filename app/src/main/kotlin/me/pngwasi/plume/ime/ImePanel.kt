@@ -13,11 +13,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.Backspace
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Translate
@@ -52,8 +56,12 @@ fun ImePanel(
     state: ImeState,
     onRevise: () -> Unit,
     onTranslate: () -> Unit,
+    onReadClipboard: () -> Unit,
     onPickLanguage: (String) -> Unit,
     onCancelPicker: () -> Unit,
+    onCloseReading: () -> Unit,
+    onClearField: () -> Unit,
+    onCopy: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onBackToKeyboard: () -> Unit,
 ) {
@@ -62,13 +70,19 @@ fun ImePanel(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Header(state = state, onBackToKeyboard = onBackToKeyboard, onOpenSettings = onOpenSettings)
+            Header(
+                state = state,
+                onClearField = onClearField,
+                onBackToKeyboard = onBackToKeyboard,
+                onOpenSettings = onOpenSettings,
+            )
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (state) {
-                    is ImeState.Ready -> ReadyBody(state, onRevise, onTranslate)
+                    is ImeState.Ready -> ReadyBody(state, onRevise, onTranslate, onReadClipboard)
                     is ImeState.PickLanguage -> PickerBody(state, onPickLanguage, onCancelPicker)
                     is ImeState.Working -> WorkingBody(state.note)
+                    is ImeState.Reading -> ReadingBody(state, onCopy, onCloseReading)
                     is ImeState.Failed -> FailedBody(state, onRevise, onPickLanguage, onOpenSettings)
                 }
             }
@@ -76,10 +90,17 @@ fun ImePanel(
     }
 }
 
-private val PanelHeight = 248.dp
+private val PanelHeight = 272.dp
 
 @Composable
-private fun Header(state: ImeState, onBackToKeyboard: () -> Unit, onOpenSettings: () -> Unit) {
+private fun Header(
+    state: ImeState,
+    onClearField: () -> Unit,
+    onBackToKeyboard: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    // Only meaningful while there is something in the field to clear.
+    val canClear = (state as? ImeState.Ready)?.scope != null
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -91,19 +112,30 @@ private fun Header(state: ImeState, onBackToKeyboard: () -> Unit, onOpenSettings
             color = MaterialTheme.colorScheme.primary,
         )
 
+        // Two icons and the Keyboard button leave little room here; without a hard single-line
+        // constraint the scope label wraps and pushes the header to two rows.
         Box(modifier = Modifier.weight(1f)) {
             val scopeLabel = (state as? ImeState.Ready)?.scope?.let {
-                if (it == ActionScope.Selection) "selection" else "whole message"
+                if (it == ActionScope.Selection) "selection" else "message"
             }
             if (scopeLabel != null) {
                 Text(
                     text = "· $scopeLabel",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
 
+        TextButton(onClick = onClearField, enabled = canClear, contentPadding = TightPadding) {
+            Icon(
+                Icons.Outlined.Backspace,
+                contentDescription = "Clear the field",
+                modifier = Modifier.size(16.dp),
+            )
+        }
         TextButton(onClick = onOpenSettings, contentPadding = TightPadding) {
             Icon(Icons.Outlined.Settings, contentDescription = "Plume settings", modifier = Modifier.size(16.dp))
         }
@@ -113,7 +145,7 @@ private fun Header(state: ImeState, onBackToKeyboard: () -> Unit, onOpenSettings
                 contentDescription = "Back to keyboard",
                 modifier = Modifier.size(16.dp),
             )
-            Text("  Keyboard", style = MaterialTheme.typography.labelSmall)
+            Text("  Keyboard", style = MaterialTheme.typography.labelSmall, maxLines = 1)
         }
     }
 }
@@ -121,7 +153,12 @@ private fun Header(state: ImeState, onBackToKeyboard: () -> Unit, onOpenSettings
 private val TightPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
 
 @Composable
-private fun ReadyBody(state: ImeState.Ready, onRevise: () -> Unit, onTranslate: () -> Unit) {
+private fun ReadyBody(
+    state: ImeState.Ready,
+    onRevise: () -> Unit,
+    onTranslate: () -> Unit,
+    onReadClipboard: () -> Unit,
+) {
     val empty = state.scope == null
 
     Column(
@@ -157,6 +194,73 @@ private fun ReadyBody(state: ImeState.Ready, onRevise: () -> Unit, onTranslate: 
                 Icon(Icons.Outlined.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Translate")
             }
+        }
+
+        // Kept visible but disabled when nothing is copied. Hiding it would make the panel jump and
+        // would never teach anyone the feature exists; a greyed button with a reason does both.
+        TextButton(
+            onClick = onReadClipboard,
+            enabled = state.hasClipboard,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                Icons.Outlined.ContentPaste,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = if (state.hasClipboard) {
+                    "  Translate copied message"
+                } else {
+                    "  Copy a message to translate it here"
+                },
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+    }
+}
+
+/**
+ * A translated incoming message.
+ *
+ * Shown in the panel and never written to the field: the user is reading what someone sent them,
+ * not editing their own reply, and overwriting a half-typed answer would be the opposite of useful.
+ */
+@Composable
+private fun ReadingBody(
+    state: ImeState.Reading,
+    onCopy: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "IN ${state.language.uppercase()}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(12.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Text(
+                text = state.translated,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Back") }
+            OutlinedButton(
+                onClick = { onCopy(state.translated) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Copy") }
         }
     }
 }
@@ -235,7 +339,14 @@ private fun PickerBody(
     val options = remember(state) { pickerOptions(state.recents, state.favorites) }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Translate into", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = if (state.subject == TranslationSubject.Clipboard) {
+                "Read the copied message in"
+            } else {
+                "Translate into"
+            },
+            style = MaterialTheme.typography.titleMedium,
+        )
 
         if (options.isEmpty()) {
             Hint("No languages available.", Modifier.weight(1f))
@@ -308,6 +419,11 @@ private fun FailedBody(
                 ) { Text("Retry") }
 
                 is ImeState.Retry.Translate -> OutlinedButton(
+                    onClick = { onTranslate(retry.code) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Retry") }
+
+                is ImeState.Retry.ReadClipboard -> OutlinedButton(
                     onClick = { onTranslate(retry.code) },
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }
