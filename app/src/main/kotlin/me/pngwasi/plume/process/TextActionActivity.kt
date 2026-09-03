@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.first
 import me.pngwasi.plume.MainActivity
 import me.pngwasi.plume.data.SettingsRepository
+import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
@@ -77,12 +78,19 @@ abstract class TextActionActivity : ComponentActivity() {
         }
     }
 
-    /** Defaults to System until settings load, so the first frame never waits on disk. */
+    /**
+     * Seeded from the synchronous cache so the very first frame is already the user's theme —
+     * defaulting to System here would render the wrong scheme and then snap, a visible flash on a
+     * surface that is only ever seen cold. The real setting still wins, and refreshes the cache.
+     */
     @Composable
     private fun rememberThemeMode(): State<ThemeMode> {
         val repository = remember { SettingsRepository.get(this) }
-        return produceState(initialValue = ThemeMode.System, repository) {
-            value = runCatching { repository.settings.first().theme }.getOrDefault(ThemeMode.System)
+        val cached = remember { ThemeCache.read(this) }
+        return produceState(initialValue = cached, repository) {
+            val actual = runCatching { repository.settings.first().theme }.getOrNull() ?: return@produceState
+            if (actual != cached) ThemeCache.write(this@TextActionActivity, actual)
+            value = actual
         }
     }
 

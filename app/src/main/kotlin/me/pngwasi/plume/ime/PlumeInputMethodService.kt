@@ -9,6 +9,8 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 import me.pngwasi.plume.MainActivity
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
+import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
@@ -35,7 +38,9 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
     private val owner = ImeViewOwner()
     private var scope: CoroutineScope? = null
     private lateinit var controller: ImePanelController
-    private var themeMode: ThemeMode = ThemeMode.System
+    // Compose state, not a plain field: a var read inside setContent never triggers recomposition,
+    // so the panel would keep whatever theme it was built with.
+    private var themeMode by mutableStateOf(ThemeMode.System)
     private var themeJob: Job? = null
 
     override fun onCreate() {
@@ -57,7 +62,8 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         )
 
         // The panel is drawn over other apps' input areas, so it follows the same theme setting as
-        // the rest of Plume rather than the host app's.
+        // the rest of Plume rather than the host app's. Seeded synchronously to avoid a flash.
+        themeMode = ThemeCache.read(this)
         themeJob = serviceScope.launch {
             runCatching { themeMode = repository.settings.first().theme }
         }

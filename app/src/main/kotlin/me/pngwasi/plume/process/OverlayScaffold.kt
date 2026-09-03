@@ -2,7 +2,7 @@ package me.pngwasi.plume.process
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -22,7 +22,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,9 +34,17 @@ import androidx.compose.ui.unit.dp
 
 private val SheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
 
+private const val ScrimAlpha = 0.45f
+private const val ScrimMillis = 200
+private const val SlideMillis = 260
+
 /**
  * The container every Plume overlay uses: a dimmed scrim over the host app with a card anchored to
  * the bottom, within thumb reach and clear of the text the user just selected.
+ *
+ * Scrim and sheet are driven by one flag so they arrive as a single motion. Animating only the
+ * sheet — as an earlier version did — slams the scrim to full opacity on the first frame, which
+ * reads as a black flash over the app the user is still looking at.
  *
  * Tapping the scrim cancels — the user is mid-task in another app, so leaving is always one tap away.
  */
@@ -44,10 +56,21 @@ fun OverlaySheet(
     val scrimInteraction = remember { MutableInteractionSource() }
     val sheetInteraction = remember { MutableInteractionSource() }
 
+    // Both animations need a false→true edge: Compose does not animate a value that already equals
+    // its target on first composition, which is why this starts false and is flipped immediately.
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (shown) ScrimAlpha else 0f,
+        animationSpec = tween(ScrimMillis),
+        label = "scrim",
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = scrimAlpha))
             .clickable(
                 interactionSource = scrimInteraction,
                 indication = null,
@@ -55,15 +78,10 @@ fun OverlaySheet(
             ),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        // AnimatedVisibility does not run its enter transition when `visible` is already true on
-        // first composition, and the sheet is visible from the first frame. Driving it from a
-        // transition state that starts false and immediately targets true is what makes it animate.
-        val sheetVisible = remember { MutableTransitionState(false).apply { targetState = true } }
-
         AnimatedVisibility(
-            visibleState = sheetVisible,
-            enter = fadeIn(tween(220)) + slideInVertically(
-                animationSpec = tween(320, easing = FastOutSlowInEasing),
+            visible = shown,
+            enter = fadeIn(tween(ScrimMillis)) + slideInVertically(
+                animationSpec = tween(SlideMillis, easing = FastOutSlowInEasing),
                 initialOffsetY = { it },
             ),
         ) {

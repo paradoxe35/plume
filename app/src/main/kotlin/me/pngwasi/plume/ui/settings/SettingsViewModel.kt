@@ -20,6 +20,7 @@ import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ReviseSettings
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
+import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.data.TranslateSettings
 import me.pngwasi.plume.ime.KeyboardComponent
@@ -150,6 +151,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setTheme(mode: ThemeMode) = viewModelScope.launch {
         repository.update { it.copy(theme = mode) }
+        // Mirrored immediately so the next overlay draws the new theme on its first frame.
+        ThemeCache.write(context, mode)
     }
 
     fun toggleFavoriteLanguage(code: String) = viewModelScope.launch {
