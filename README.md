@@ -23,6 +23,14 @@ When the selection came from an editable field, Plume returns the result with
 a received message, a web page — Android provides no way to write back, so Plume shows the result
 with a Copy button instead. That is a platform limit, not a missing feature.
 
+Verified on device: replacement works in classic `EditText` fields (WhatsApp, Messages, most apps).
+Some apps, including anything using a Jetpack Compose text field, report even their own editable
+fields as read-only — there Plume falls back to Copy. The companion keyboard *can* replace text in
+those fields, because an `InputConnection` is a different channel from the selection menu.
+
+Both entries sit behind the ⋮ overflow in apps with many selection actions. Android orders that
+menu; apps cannot influence their position in it.
+
 ## Setup
 
 1. Install and open Plume.

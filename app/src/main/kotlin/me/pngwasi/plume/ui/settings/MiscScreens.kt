@@ -93,6 +93,11 @@ fun AboutScreen() {
                 "Android gives apps no way to write back. Plume shows the result and offers Copy " +
                 "instead. This is a platform limit, not a missing feature.",
         )
+        Paragraph(
+            "Some apps report even their own input fields as read-only, so Plume offers Copy there " +
+                "too. The Plume keyboard can still replace text in those fields, because it works " +
+                "through a different channel.",
+        )
 
         SectionLabel("If the menu does not appear")
         Paragraph(
