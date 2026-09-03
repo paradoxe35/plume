@@ -187,13 +187,14 @@ fun main() {
 /**
  * The size of the settings window, which cannot be resized.
  *
- * Height is capped against the screen rather than fixed outright: a window that will not fit and
- * will not resize is a window with its bottom off the desktop and no way to get it back. 1366×768
- * laptops are still common, and 800dp plus a title bar does not fit one.
+ * Narrow on purpose: one column of rows reads better than a stretched one, and the content scrolls.
+ *
+ * Height is capped against the screen rather than fixed outright, because a window that will not
+ * fit and will not resize is one with its bottom off the desktop and no way to get it back.
  */
 internal fun settingsWindowSize(
     screenHeight: Int = runCatching { Toolkit.getDefaultToolkit().screenSize.height }.getOrDefault(1080),
-): DpSize = DpSize(560.dp, (screenHeight - 160).coerceIn(520, 640).dp)
+): DpSize = DpSize(485.dp, (screenHeight - 160).coerceIn(520, 660).dp)
 
 /**
  * The tray: what shows that Plume is running, and how to reach settings or quit.
