@@ -74,7 +74,7 @@ fun TranslateScreen(
     ) {
         item {
             Text(
-                text = "Pinned languages appear as one-tap chips when you translate. Everything " +
+                text = "Pinned languages appear as chips when you translate. Everything " +
                     "else stays reachable through search.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

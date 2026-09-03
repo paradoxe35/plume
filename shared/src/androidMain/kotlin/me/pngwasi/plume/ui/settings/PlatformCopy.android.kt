@@ -42,6 +42,9 @@ actual fun platformCopy(): PlatformCopy = PlatformCopy(
         ),
     ),
     aboutSubtitle = "Where the menu appears, and where it can't",
+    replacementNote = "In an editable field the result replaces your selection directly. Where the " +
+        "text cannot be written back, Plume offers Copy instead.",
+    keyStorageNote = "Encrypted with a key held in the Android Keystore.",
     themeNote = "The theme also applies to the overlays Plume shows on top of other apps.",
     systemThemeIcon = PlumeIcons.PhoneAndroid,
 )

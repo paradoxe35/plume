@@ -22,6 +22,10 @@ data class PlatformCopy(
     val about: List<AboutSection>,
     /** The one-line summary under "How Plume works" on the home screen. */
     val aboutSubtitle: String,
+    /** What happens to the text once a result comes back. */
+    val replacementNote: String,
+    /** Under the API key field, where that key is actually kept. */
+    val keyStorageNote: String,
     /** Where the theme applies beyond this window. */
     val themeNote: String,
     /** "Follow system" is a phone on a phone and a machine on a desktop. */

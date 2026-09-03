@@ -17,14 +17,27 @@ class PlatformCopyTest {
     private fun prose(os: DesktopOs): String =
         desktopCopy(os).about.flatMap { it.paragraphs + it.steps }.joinToString(" ")
 
+    /** Every string the seam carries, not just the page: the same wording leaked into the API key
+     *  field, which told desktop users their key was in the Android Keystore. */
+    private fun allCopy(os: DesktopOs): String = with(desktopCopy(os)) {
+        listOf(prose(os), aboutSubtitle, replacementNote, keyStorageNote, themeNote).joinToString(" ")
+    }
+
     @Test
     fun `no desktop reads about a phone`() {
         DesktopOs.entries.forEach { os ->
-            val text = prose(os)
-            listOf("Android", "iOS", "selection toolbar", "Tap ", "your device").forEach { phrase ->
-                assertFalse(text.contains(phrase), "$os still mentions \"$phrase\"")
+            val text = allCopy(os)
+            listOf("Android", "iOS", "selection toolbar", "Tap ", "tap ", "your device").forEach {
+                assertFalse(text.contains(it), "$os still mentions \"$it\"")
             }
         }
+    }
+
+    @Test
+    fun `the key field names the store this system actually uses`() {
+        assertTrue(desktopCopy(DesktopOs.MacOs).keyStorageNote.contains("keychain"))
+        assertTrue(desktopCopy(DesktopOs.Windows).keyStorageNote.contains("DPAPI"))
+        assertTrue(desktopCopy(DesktopOs.Linux).keyStorageNote.contains("keyring"))
     }
 
     /** The permission that has to be granted is different on each, and naming the wrong one wastes

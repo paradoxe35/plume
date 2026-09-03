@@ -47,7 +47,7 @@ fun HistoryScreen(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        item { SectionLabel("This session") }
+        item { SectionLabel("This session, last $MAX_HISTORY kept") }
 
         items(history) { entry ->
             SettingsCard(modifier = Modifier.padding(bottom = 10.dp)) {

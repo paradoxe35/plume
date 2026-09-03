@@ -66,7 +66,17 @@ fun DiagnosticsScreen(onCopy: (String) -> Unit) {
             }
         }
 
-        item { SectionLabel(if (lines.isEmpty()) "Nothing logged yet" else "Most recent last") }
+        // The count is shown because this is a tail, not the file: saying "most recent last" while
+        // quietly dropping everything older is how someone concludes a log is missing entries.
+        item {
+            SectionLabel(
+                if (lines.isEmpty()) {
+                    "Nothing logged yet"
+                } else {
+                    "Last ${lines.size} lines, most recent last"
+                },
+            )
+        }
 
         items(lines) { line ->
             Text(

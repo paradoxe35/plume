@@ -19,7 +19,10 @@ internal fun httpError(status: Int, body: String, providerLabel: String): AiExce
     return when (status) {
         401, 403 -> AiException(
             AiException.Kind.Auth,
-            "$providerLabel rejected the API key. Check it in Settings.",
+            // No "check it in Settings": this same text is shown inside Settings, under the
+            // key field, where that reads as nonsense. Callers that have nowhere to click add
+            // their own hint.
+            "$providerLabel rejected the API key.",
             status = status,
         )
         404 -> AiException(

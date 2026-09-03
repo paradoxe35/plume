@@ -162,7 +162,7 @@ fun ProviderEditScreen(
                 }
             },
             supportingText = {
-                Text(validation.apiKey ?: "Encrypted with a key held in the Android Keystore.")
+                Text(validation.apiKey ?: platformCopy().keyStorageNote)
             },
         )
 

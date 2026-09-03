@@ -1,6 +1,7 @@
 package me.pngwasi.plume.ui.settings
 
 import me.pngwasi.plume.data.DesktopOs
+import me.pngwasi.plume.desktop.MAX_HISTORY
 import me.pngwasi.plume.ui.icons.PlumeIcons
 
 actual fun platformCopy(): PlatformCopy = desktopCopy(DesktopOs.current)
@@ -30,20 +31,16 @@ internal fun desktopCopy(os: DesktopOs): PlatformCopy = PlatformCopy(
         AboutSection(
             title = "Plume keeps running",
             paragraphs = listOf(
+                "The shortcuts only work while Plume is running, so closing this window does not " +
+                    "quit it. Use Quit Plume, below the settings.",
                 when (os) {
-                    DesktopOs.MacOs ->
-                        "Closing this window leaves Plume in the menu bar, because the shortcuts " +
-                            "are the point and they only work while it is running. Quit from the " +
-                            "menu bar, or with Quit Plume below the settings."
+                    DesktopOs.MacOs -> "It waits in the menu bar."
                     DesktopOs.Windows ->
-                        "Closing this window leaves Plume in the notification area, because the " +
-                            "shortcuts are the point and they only work while it is running. " +
-                            "Windows hides new tray icons behind the ⌃ arrow until you drag them out."
+                        "It waits in the notification area. Windows hides new icons there behind " +
+                            "the ⌃ arrow until you drag them out."
                     DesktopOs.Linux ->
-                        "Closing this window leaves Plume in the tray, because the shortcuts are " +
-                            "the point and they only work while it is running. GNOME ships no tray " +
-                            "by default: without one Plume keeps this window, so that it cannot " +
-                            "disappear with no way back to it."
+                        "It waits in the tray. GNOME ships no tray by default, so without one " +
+                            "Plume keeps this window rather than vanishing with no way back."
                 },
             ),
         ),
@@ -52,26 +49,24 @@ internal fun desktopCopy(os: DesktopOs): PlatformCopy = PlatformCopy(
             paragraphs = when (os) {
                 DesktopOs.MacOs -> listOf(
                     "macOS will not deliver key presses from other applications until you allow " +
-                        "it. Open System Settings → Privacy & Security → Accessibility and switch " +
-                        "Plume on.",
-                    "The permission is granted to the copy of Plume you allowed. Moving or " +
-                        "replacing the application means granting it again.",
+                        "it: System Settings → Privacy & Security → Accessibility, then switch " +
+                        "Plume on. The permission follows the copy you allowed, so moving or " +
+                        "replacing the app means granting it again.",
                 )
 
                 DesktopOs.Windows -> listOf(
-                    "Windows needs no permission for this, so the usual cause is another " +
-                        "application already holding the same combination. Anything that was " +
-                        "refused is listed at the top of the Shortcuts page — give it a different " +
-                        "one.",
-                    "Plume also cannot send keys to a window running as administrator unless Plume " +
-                        "is running as administrator too. There the shortcut is received and the " +
+                    "Windows needs no permission, so the usual cause is another application " +
+                        "already holding the combination. Anything refused is listed at the top " +
+                        "of the Shortcuts page — give it a different one.",
+                    "Plume also cannot type into a window running as administrator unless it is " +
+                        "running as administrator too. There the shortcut fires and the " +
                         "replacement never arrives.",
                 )
 
                 DesktopOs.Linux -> listOf(
                     "On X11 they work as they are. On Wayland the compositor will not let an " +
                         "ordinary application watch the keyboard, so Plume reads the input devices " +
-                        "directly — and that needs your user in the input group: run " +
+                        "directly, which needs your user in the input group: run " +
                         "sudo usermod -aG input \$USER, then log out and back in.",
                     "Combinations your desktop has already claimed are refused rather than shared. " +
                         "Anything refused is listed at the top of the Shortcuts page.",
@@ -91,16 +86,23 @@ internal fun desktopCopy(os: DesktopOs): PlatformCopy = PlatformCopy(
                             "account, and never leave the machine."
                     DesktopOs.Linux ->
                         "API keys are kept in your keyring through the Secret Service — GNOME " +
-                            "Keyring or KWallet on most systems. Where no keyring answers, Plume " +
-                            "falls back to an encrypted file in its own configuration directory."
+                            "Keyring or KWallet on most systems. With no keyring, Plume falls back " +
+                            "to an encrypted file in its own configuration directory."
                 },
-                "What Plume replaced is kept under Recent changes so you can put it back. That " +
-                    "list holds the last twenty changes, in memory only, and is gone once Plume " +
-                    "quits. The log records what happened and never what you wrote.",
+                "Recent changes keeps the last $MAX_HISTORY originals so you can put one back. It " +
+                    "is held in memory only and is gone when Plume quits. The log records what " +
+                    "happened, never what you wrote.",
             ),
         ),
     ),
     aboutSubtitle = "Shortcuts, permissions and where your keys are kept",
+    replacementNote = "The result replaces your selection where it stands, and your clipboard is " +
+        "put back as it was.",
+    keyStorageNote = when (os) {
+        DesktopOs.MacOs -> "Kept in your login keychain."
+        DesktopOs.Windows -> "Encrypted with DPAPI, tied to your Windows account."
+        DesktopOs.Linux -> "Kept in your keyring, or an encrypted file where no keyring answers."
+    },
     themeNote = "The theme applies to this window. The tray icon follows your desktop instead.",
     systemThemeIcon = PlumeIcons.Settings,
 )

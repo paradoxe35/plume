@@ -27,7 +27,8 @@ fun ReviseScreen(
             .padding(bottom = 40.dp),
     ) {
         Text(
-            text = "Revise corrects the selection in the language it is already in. In an editable field the corrected text replaces your selection directly.",
+            text = "Revise corrects the selection in the language it is already in. " +
+                platformCopy().replacementNote,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),

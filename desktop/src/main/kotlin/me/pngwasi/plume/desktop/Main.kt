@@ -18,6 +18,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.kdroid.composetray.tray.api.Tray
+import java.awt.Toolkit
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import kotlinx.coroutines.CoroutineScope
@@ -118,7 +119,7 @@ fun main() {
 
         if (windowVisible && loaded != null) {
             val state = rememberWindowState(
-                size = DpSize(560.dp, 800.dp),
+                size = remember { settingsWindowSize() },
                 position = WindowPosition.Aligned(Alignment.Center),
             )
             Window(
@@ -134,6 +135,10 @@ fun main() {
                     }
                 },
                 title = "Plume",
+                // A settings window with one column of rows has no second layout to widen into,
+                // and dragging it wider only stretches the rows. MyReviser fixed its window for
+                // the same reason.
+                resizable = false,
                 state = state,
             ) {
                 // Not the `icon` parameter: that carries a single bitmap, which the taskbar then
@@ -168,6 +173,17 @@ fun main() {
         }
     }
 }
+
+/**
+ * The size of the settings window, which cannot be resized.
+ *
+ * Height is capped against the screen rather than fixed outright: a window that will not fit and
+ * will not resize is a window with its bottom off the desktop and no way to get it back. 1366×768
+ * laptops are still common, and 800dp plus a title bar does not fit one.
+ */
+internal fun settingsWindowSize(
+    screenHeight: Int = runCatching { Toolkit.getDefaultToolkit().screenSize.height }.getOrDefault(1080),
+): DpSize = DpSize(560.dp, (screenHeight - 140).coerceIn(560, 780).dp)
 
 /**
  * The tray: what shows that Plume is running, and how to reach settings or quit.

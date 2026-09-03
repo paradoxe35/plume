@@ -24,6 +24,15 @@ sealed interface ActionOutcome {
 }
 
 /** One entry of the desktop's answer to undo. */
+/**
+ * How many changes are kept.
+ *
+ * Each entry holds the text it replaced, so this is a memory bound as much as a UI one: twenty is
+ * enough to undo something noticed a few actions later, and small enough that even at the largest
+ * character limit the whole list stays under a megabyte.
+ */
+const val MAX_HISTORY = 20
+
 data class HistoryEntry(
     val label: String,
     val original: String,
@@ -43,7 +52,7 @@ class DesktopActions(
     private val repository: SettingsRepository,
     private val secrets: SecretStore,
     private val captureFactory: () -> TextCapture?,
-    private val maxHistory: Int = 20,
+    private val maxHistory: Int = MAX_HISTORY,
 ) {
 
     private val _outcome = MutableStateFlow<ActionOutcome>(ActionOutcome.Idle)
@@ -148,7 +157,14 @@ class DesktopActions(
         } catch (e: AiException) {
             withContext(Dispatchers.IO) { capture.abandon() }
             PlumeLog.error("$label: ${e.kind} from the provider", e)
-            _outcome.value = ActionOutcome.Failed(e.message ?: "Something went wrong.")
+            // A desktop failure is reported in a system notification, which has nothing to click,
+            // so the way out is spelled out here rather than in the shared message.
+            val hint = if (e.kind == AiException.Kind.Auth || e.kind == AiException.Kind.NotConfigured) {
+                " Open Plume to fix it."
+            } else {
+                ""
+            }
+            _outcome.value = ActionOutcome.Failed((e.message ?: "Something went wrong.") + hint)
             return
         } catch (e: Exception) {
             withContext(Dispatchers.IO) { capture.abandon() }

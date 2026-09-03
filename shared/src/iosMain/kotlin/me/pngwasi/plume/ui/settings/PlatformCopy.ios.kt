@@ -42,6 +42,8 @@ actual fun platformCopy(): PlatformCopy = PlatformCopy(
         ),
     ),
     aboutSubtitle = "What the keyboard can reach, and what it needs",
+    replacementNote = "The result replaces what is in the field you are typing in.",
+    keyStorageNote = "Held in the iOS Keychain.",
     themeNote = "The theme applies to this app and to the Plume keyboard.",
     systemThemeIcon = PlumeIcons.PhoneAndroid,
 )
