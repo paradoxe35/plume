@@ -48,13 +48,22 @@ Categories=Utility;
 Terminal=false
 ENTRY
 
-# jpackage leaves an icon in the app image; falling back to a generated one keeps the build honest
-# rather than failing over a picture.
-if [ -f "$APP_IMAGE_DIR/lib/$APP_NAME.png" ]; then
-    cp "$APP_IMAGE_DIR/lib/$APP_NAME.png" "$APP_DIR/plume.png"
-else
-    echo "warning: no icon in the app image; generating a placeholder" >&2
-    printf '\x89PNG\r\n\x1a\n' > "$APP_DIR/plume.png"
+# The icon AppImage looks for at the root of the AppDir, taken from the source artwork rather than
+# from the app image: it is the same picture, and it is always there.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ICONS="$REPO_ROOT/desktop/icons"
+
+if [ ! -f "$ICONS/plume.png" ]; then
+    echo "No icon at $ICONS/plume.png — run python3 desktop/icons/generate.py." >&2
+    exit 1
+fi
+cp "$ICONS/plume.png" "$APP_DIR/plume.png"
+
+# And the icon theme, which is what a desktop reads once the AppImage is integrated. Without it the
+# launcher has only the one large icon to shrink for every size it needs.
+if [ -d "$ICONS/hicolor" ]; then
+    mkdir -p "$APP_DIR/usr/share/icons"
+    cp -a "$ICONS/hicolor" "$APP_DIR/usr/share/icons/"
 fi
 
 TOOL="$WORK_DIR/appimagetool"

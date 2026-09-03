@@ -126,9 +126,10 @@ compose.desktop {
  * directory and clears it as part of its own task, so the package is rewritten afterwards instead.
  */
 fun Task.rewriteDebScripts(debDirectory: Provider<Directory>) {
-    // Declared so that editing a maintainer script rebuilds the package rather than leaving a
-    // stale one in place.
+    // Declared so that editing a maintainer script or an icon rebuilds the package rather than
+    // leaving a stale one in place.
     inputs.dir(layout.projectDirectory.dir("jpackage"))
+    inputs.dir(layout.projectDirectory.dir("icons/hicolor"))
     doLast {
     val debs = debDirectory.get().asFile.listFiles { file -> file.extension == "deb" }.orEmpty()
     debs.forEach { deb ->
@@ -146,8 +147,23 @@ fun Task.rewriteDebScripts(debDirectory: Provider<Directory>) {
             target.setExecutable(true, false)
         }
 
+        // The icon theme, as packaged files rather than something postinst copies: dpkg then owns
+        // them and takes them away on removal. jpackage ships a single 256px icon, which leaves
+        // every desktop to shrink it for the panel and the dash itself.
+        layout.projectDirectory.dir("icons/hicolor").asFile
+            .copyRecursively(File(unpacked, "usr/share/icons/hicolor"), overwrite = true)
+
+        // `--root-owner-group` because unpacking as an ordinary user rewrites every file to that
+        // user, and rebuilding would then record it: the installed application would be owned by
+        // whoever happens to hold uid 1000 on the target machine rather than by root.
         providers.exec {
-            commandLine("dpkg-deb", "--build", unpacked.absolutePath, deb.absolutePath)
+            commandLine(
+                "dpkg-deb",
+                "--root-owner-group",
+                "--build",
+                unpacked.absolutePath,
+                deb.absolutePath,
+            )
         }.result.get().assertNormalExitValue()
 
         logger.lifecycle("Rewrote the maintainer scripts in ${deb.name}")

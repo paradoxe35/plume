@@ -18,7 +18,6 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.kdroid.composetray.tray.api.Tray
-import com.kdroid.composetray.utils.IconRenderProperties
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import kotlinx.coroutines.CoroutineScope
@@ -199,10 +198,10 @@ private fun ApplicationScope.PlumeTray(
         // ended up dark on a dark panel and all but invisible.
         icon = remember { PlumeMark.vector() },
         tint = if (busy) BusyTint else null,
-        // Drawn straight at the size the tray asks for. The default renders to a larger scene and
-        // scales down, which on a small panel icon reads as a big picture squeezed into a little
-        // box rather than as an icon.
-        iconRenderProperties = IconRenderProperties.withoutScalingAndAliasing(),
+        // The render properties are left at their default, which draws a 192px scene and resamples
+        // it to what the platform's panel actually wants — 24px on Linux, 32 on Windows, 44 on
+        // macOS. `withoutScalingAndAliasing` skips that step and hands the panel the full 192px
+        // image, which is the oversized, scaled-by-someone-else look it is meant to avoid.
         tooltip = when (outcome) {
             is ActionOutcome.Working -> "Plume — ${outcome.label}…"
             is ActionOutcome.Failed -> "Plume — ${outcome.message}"

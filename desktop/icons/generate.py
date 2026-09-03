@@ -121,10 +121,21 @@ def write_icns(path, sizes):
     path.write_bytes(b"icns" + struct.pack(">I", len(chunks) + 8) + chunks)
 
 
+# The sizes a freedesktop icon theme is asked for: a panel wants 24, a dash 48, a switcher 128.
+HICOLOR = (16, 24, 32, 48, 64, 128, 256)
+
+
 def main():
     here = Path(__file__).parent
 
     render(1024).save(here / "plume.png", "PNG")
+
+    # An icon theme, rather than one large PNG for every desktop to shrink itself. Each size is
+    # rendered from the artwork, so a 24px panel entry is drawn rather than resampled from 256.
+    for size in HICOLOR:
+        target = here / "hicolor" / f"{size}x{size}" / "apps"
+        target.mkdir(parents=True, exist_ok=True)
+        render(size).save(target / "plume.png", "PNG")
 
     # Windows reads the size it needs out of the .ico, so all of them are embedded.
     render(256).save(
@@ -137,6 +148,7 @@ def main():
 
     for name in ("plume.png", "plume.ico", "plume.icns"):
         print(f"{name}: {(here / name).stat().st_size:,} bytes")
+    print(f"hicolor: {len(HICOLOR)} sizes")
 
 
 if __name__ == "__main__":

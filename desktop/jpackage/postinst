@@ -6,23 +6,16 @@
 # writable menu directory — and a failing postinst leaves the package half-configured, so the files
 # land but nothing appears in the launcher. That is what "the app installs but has no icon" was.
 #
-# This installs the desktop entry and the icon directly, and treats every optional step as
-# optional: an unusual desktop must not fail the installation.
+# This installs the desktop entry directly, and treats every optional step as optional: an unusual
+# desktop must not fail the installation. The icons themselves are packaged files.
 set -e
 
 APP_DIR=/opt/plume
-ICON_SOURCE="$APP_DIR/lib/Plume.png"
 DESKTOP_SOURCE="$APP_DIR/lib/plume-Plume.desktop"
 APPLICATIONS=/usr/share/applications
-ICONS=/usr/share/icons/hicolor/256x256/apps
 
 case "$1" in
     configure)
-        if [ -f "$ICON_SOURCE" ]; then
-            mkdir -p "$ICONS"
-            cp -f "$ICON_SOURCE" "$ICONS/plume.png"
-        fi
-
         if [ -f "$DESKTOP_SOURCE" ]; then
             mkdir -p "$APPLICATIONS"
             # Point the entry at the themed icon by name rather than by absolute path. Both are
