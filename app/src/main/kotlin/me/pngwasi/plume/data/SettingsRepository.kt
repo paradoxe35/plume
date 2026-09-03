@@ -84,14 +84,27 @@ class SettingsRepository(private val store: DataStore<AppSettings>) {
         it.copy(translate = it.translate.copy(recents = it.translate.recents.withRecentTarget(code)))
     }
 
+    /**
+     * Pins or unpins a language.
+     *
+     * Unpinning also drops it from recents. The keyboard picker offers recents and pinned languages
+     * together, so leaving it in recents would keep it on screen after the user had just removed
+     * it — the two screens would appear to disagree.
+     */
     suspend fun toggleFavoriteLanguage(code: String) = update { settings ->
         val favorites = settings.translate.favorites
+        val pinned = favorites.any { it.equals(code, ignoreCase = true) }
         settings.copy(
             translate = settings.translate.copy(
-                favorites = if (favorites.any { it.equals(code, ignoreCase = true) }) {
+                favorites = if (pinned) {
                     favorites.filterNot { it.equals(code, ignoreCase = true) }
                 } else {
                     favorites + code
+                },
+                recents = if (pinned) {
+                    settings.translate.recents.filterNot { it.equals(code, ignoreCase = true) }
+                } else {
+                    settings.translate.recents
                 },
             ),
         )

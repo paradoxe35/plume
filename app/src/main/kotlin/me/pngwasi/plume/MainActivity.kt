@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -176,7 +177,9 @@ private fun SettingsApp(
                 fadeIn(tween(140)) togetherWith fadeOut(tween(140))
             },
             label = "screen",
-            modifier = Modifier.padding(padding),
+            // Applied once here so no screen has to remember it. Screens that scroll can then let
+            // the keyboard push their content up instead of covering it.
+            modifier = Modifier.padding(padding).imePadding(),
         ) { destination ->
             when (destination) {
                 Destination.Home -> HomeScreen(

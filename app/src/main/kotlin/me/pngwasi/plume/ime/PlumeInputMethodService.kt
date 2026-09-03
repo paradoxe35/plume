@@ -125,8 +125,6 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         owner.onStart()
-        // Settings may have changed since the panel was last shown.
-        controller.invalidateSettings()
         controller.refresh()
     }
 

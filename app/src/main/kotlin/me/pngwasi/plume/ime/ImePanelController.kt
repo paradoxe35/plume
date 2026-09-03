@@ -85,7 +85,6 @@ class ImePanelController(
     val state: StateFlow<ImeState> = _state.asStateFlow()
 
     private var running: Job? = null
-    private var cached: AppSettings? = null
 
     /**
      * Re-reads the field. Called whenever the panel is shown or the input target changes, so the
@@ -311,38 +310,44 @@ class ImePanelController(
         }
     }
 
-    private suspend fun settingsOrNull(): AppSettings? {
-        cached?.let { return it }
-        return runCatching { loadSettings() }
-            .onSuccess { cached = it }
+    /**
+     * Always read through rather than cached: settings can change in the app while the panel is
+     * open, and a stale snapshot showed languages the user had just unpinned. DataStore holds the
+     * value in memory, so this costs nothing worth saving.
+     */
+    private suspend fun settingsOrNull(): AppSettings? =
+        runCatching { loadSettings() }
             .onFailure {
                 _state.value = ImeState.Failed("Could not read Plume settings.", true, null)
             }
             .getOrNull()
-    }
-
-    /** Settings may have changed while the panel was hidden. */
-    fun invalidateSettings() {
-        cached = null
-    }
 }
 
 /**
- * Targets offered by the keyboard picker: recents first, then pinned, then the device defaults.
+ * Targets offered by the keyboard picker: the pinned languages, most recently used first.
  *
- * The final fallback is what stops the picker dead-ending. There is no room in a keyboard panel for
- * a search field, and no way to open settings from inside the picker, so a user who unpinned every
- * language would otherwise be stuck with no way to translate at all.
+ * Pinning is the only thing that decides what appears here. An earlier version also offered recent
+ * languages, which meant unpinning something you had just used left it on screen — the settings
+ * screen said it was gone and the keyboard still showed it. Recency now only sorts; it never adds.
+ * That also makes the promise on the settings screen literally true.
+ *
+ * The fallback is what stops the picker dead-ending. There is no room in a keyboard panel for a
+ * search field, and no way to reach settings from inside the picker, so a user with nothing pinned
+ * would otherwise have no way to translate at all.
  */
 fun pickerOptions(
     recents: List<String>,
     favorites: List<String>,
     fallback: List<String> = Languages.defaultFavorites(),
     max: Int = 12,
-): List<String> = (recents + favorites)
-    .distinctBy { it.lowercase() }
-    .ifEmpty { fallback }
-    .take(max)
+): List<String> {
+    if (favorites.isEmpty()) return fallback.distinctBy { it.lowercase() }.take(max)
+    val recency = recents.mapIndexed { index, code -> code.lowercase() to index }.toMap()
+    return favorites
+        .distinctBy { it.lowercase() }
+        .sortedBy { recency[it.lowercase()] ?: Int.MAX_VALUE }
+        .take(max)
+}
 
 /** Field text goes into a one-line preview, so newlines and runs of spaces would break the layout. */
 internal fun String.collapseWhitespace(): String =
