@@ -293,6 +293,36 @@ before any of this ran: `enigo`'s `wayland`/`x11rb` features and `arboard`'s `wa
 look Linux-only, but both crates gate those dependencies by target, so enabling them elsewhere is
 harmless. That was the assumption most likely to break the other two platforms.
 
+### Where the download size goes
+
+A self-contained desktop app carries its own runtime, and that is most of it. Uncompressed:
+
+| | Size |
+|---|---|
+| Bundled JVM (`lib/modules` + `libjvm.so`) | 68 MB |
+| Skia, via `libskiko-linux-x64.so` | 28 MB |
+| Compose and Kotlin jars | ~15 MB |
+| Plume, including the Rust library | ~4 MB |
+
+So roughly three quarters is the JVM and Skia, neither of which packaging choices can touch. The
+jlink module set is already minimal — `java.base`, `java.datatransfer`, `java.desktop`,
+`java.logging`, `java.prefs`, `java.xml`, `jdk.crypto.ec` — and `java.desktop` is the large one
+Compose cannot do without.
+
+`packageRelease*` runs ProGuard over the app's own jars and takes the `.deb` from 60 MB to 45 MB.
+**Optimisation is disabled** in `desktop/proguard-rules.pro`, and not out of caution: with it on,
+ProGuard rewrote `okio`'s `Okio__JvmOkioKt.source` to return `okio.Source` where the signature
+says `InputStreamSource`, and the JVM threw `VerifyError: Bad return type` the first time DataStore
+read the settings file — on a background thread, so the app started and simply had no settings.
+Shrinking alone is where the size comes from.
+
+### The desktop app has been run, not just built
+
+Under `Xvfb` with `SKIKO_RENDER_API=SOFTWARE`, both the plain and minified Linux builds start,
+load settings, load the Rust library through JNA, register all three hotkeys, detect the X11
+session, and render the settings window. That covers the whole chain end to end on Linux. Windows
+and macOS are still only compiled, not run.
+
 The desktop's key storage falls back to the encrypted file whenever the platform store fails a
 write-read-delete probe at startup. "The tool is installed" is not "the tool works" — a locked
 keychain or a refusing keyring daemon fails on write, and saving a key is fire-and-forget from the

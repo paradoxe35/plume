@@ -98,27 +98,40 @@ jobs:
       - name: Test
         run: ./gradlew :shared:desktopTest :desktop:test --stacktrace
 
+      # Both variants are built so they can be compared. `release` runs ProGuard over the app's
+      # own jars and takes roughly a third off the download; it cannot touch the bundled JVM or
+      # Skia, which are most of the size. Minification can only break things at runtime, so the
+      # unminified build is kept as the known-good reference.
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
           ./gradlew :desktop:packageDeb :desktop:packageRpm :desktop:createDistributable --stacktrace
+          ./gradlew :desktop:packageReleaseDeb :desktop:packageReleaseRpm \
+            :desktop:createReleaseDistributable --stacktrace
           ./.github/scripts/build-appimage.sh \
             desktop/build/compose/binaries/main/app/Plume \
             desktop/build/appimage
+          ARCH=x86_64 ./.github/scripts/build-appimage.sh \
+            desktop/build/compose/binaries/main-release/app/Plume \
+            desktop/build/appimage-release
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew :desktop:packageMsi :desktop:packageExe --stacktrace
+        run: |
+          ./gradlew :desktop:packageMsi :desktop:packageExe --stacktrace
+          ./gradlew :desktop:packageReleaseMsi :desktop:packageReleaseExe --stacktrace
 
       # Unsigned: enough to install and run locally after allowing it in Gatekeeper. Shipping to
       # other people needs a Developer ID and notarisation, which needs secrets this does not have.
       - name: Package (macOS)
         if: runner.os == 'macOS'
-        run: ./gradlew :desktop:packageDmg --stacktrace
+        run: |
+          ./gradlew :desktop:packageDmg --stacktrace
+          ./gradlew :desktop:packageReleaseDmg --stacktrace
 
       - name: List what was produced
         run: |
-          find desktop/build/compose/binaries desktop/build/appimage -type f \
+          find desktop/build/compose/binaries desktop/build/appimage* -type f \
             \( -name '*.deb' -o -name '*.rpm' -o -name '*.msi' -o -name '*.exe' \
                -o -name '*.dmg' -o -name '*.AppImage' \) -exec ls -lh {} + || true
 
@@ -134,6 +147,12 @@ jobs:
             desktop/build/compose/binaries/main/exe/*.exe
             desktop/build/compose/binaries/main/dmg/*.dmg
             desktop/build/appimage/*.AppImage
+            desktop/build/compose/binaries/main-release/deb/*.deb
+            desktop/build/compose/binaries/main-release/rpm/*.rpm
+            desktop/build/compose/binaries/main-release/msi/*.msi
+            desktop/build/compose/binaries/main-release/exe/*.exe
+            desktop/build/compose/binaries/main-release/dmg/*.dmg
+            desktop/build/appimage-release/*.AppImage
 
       - name: Upload test reports
         if: failure()

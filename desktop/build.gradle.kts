@@ -18,7 +18,6 @@ dependencies {
     // hand results back to it.
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.jna)
-    implementation(libs.jna.platform)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
@@ -57,6 +56,13 @@ val copyNativeLibrary by tasks.registering(Copy::class) {
 compose.desktop {
     application {
         mainClass = "me.pngwasi.plume.desktop.MainKt"
+
+        // Minification is opt-in, through the `packageRelease*` tasks. Most of the download is the
+        // bundled JVM and Skia, neither of which ProGuard can touch, so this trims our own jars
+        // rather than transforming the size.
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("proguard-rules.pro"))
+        }
 
         nativeDistributions {
             // jpackage only produces packages for the host it runs on, so shipping all of these

@@ -59,7 +59,6 @@ ktor-client-darwin = { group = "io.ktor", name = "ktor-client-darwin", version.r
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
-jna-platform = { group = "net.java.dev.jna", name = "jna-platform", version.ref = "jna" }
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 
 # test
