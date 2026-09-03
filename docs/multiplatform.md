@@ -46,12 +46,60 @@ calls the shared `ImePanelController` through KMP. Compose Multiplatform is stil
 This is the one place the "share the UI" story is knowingly abandoned, and it is abandoned on
 purpose.
 
-### Desktop global hotkeys are the hard part
+### Desktop: reuse MyReviser's Rust layer rather than re-solving it
 
-System-wide hotkeys are not something the JVM offers, and library support is thin. MyReviser
-already solved this with a Rust FFI layer; that approach, or JNA per platform, is the likely answer.
-This is the single largest piece of genuinely new work and should be prototyped before the desktop
-UI is built, not after.
+System-wide hotkeys are not a JVM capability and JVM library support is thin, so the desktop build
+does not try. MyReviser already has a working native layer and it is the right thing to carry over
+rather than reinvent — it is small, it is proven on three platforms, and the hard parts are the
+platform quirks it already handles.
+
+Its C contract is twenty functions across three concerns:
+
+```
+clipboard_new / get_text / set_text / save / restore / free
+hotkey_manager_new / clear / register(binding, action, callback) / start / stop / free
+simulator_new / simulate_select_all / simulate_copy / simulate_paste / free
+get_last_error / free_string
+```
+
+Built on `rdev` (a RustDesk fork, for Wayland support), `arboard` for clipboard and `enigo` for
+keystroke simulation.
+
+**What changes for Kotlin.** The crate is currently `crate-type = ["staticlib"]` for Go's cgo. The
+JVM needs a dynamic library, so it becomes `cdylib`, loaded through **JNA** — which maps the C
+functions to a Kotlin interface directly and supports the `void(*)(const char*)` hotkey callback
+without any hand-written glue. No C shim, no JNI boilerplate.
+
+**The flow is the same as Android's, with a different bridge.** There is no `InputConnection` on the
+desktop, so the `EditorBridge` implementation is: save clipboard → simulate select-all and copy →
+read clipboard → send to the model → set clipboard → simulate paste → restore clipboard. MyReviser's
+processor already sequences this, including the sleeps that make it reliable.
+
+### Desktop needs platform permissions, and they need UI
+
+None of this works silently, and each platform fails differently. The desktop settings must state
+plainly where it stands and how to fix it — the same treatment the Android keyboard checklist gets.
+
+| Platform | Requirement | Failure mode without it |
+|---|---|---|
+| macOS | Accessibility permission (TCC) | Hotkeys never fire; must be granted in System Settings |
+| Linux / Wayland | User in the `input` group (`rdev` grabs via evdev) | Hotkeys never fire until re-login after `usermod` |
+| Linux / X11 | None | Works out of the box |
+| Windows | None | Works out of the box |
+
+MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_DISPLAY`, and picks
+`start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
+"open Accessibility preferences" deep link. All of that is carried over.
+
+### Desktop-only settings
+
+Things the Android build has no concept of, which the desktop needs:
+
+- **Hotkey bindings** — one for "revise selection", one for "select all and revise"; MyReviser's
+  defaults are a sensible start, and a translate binding is new.
+- **Permission status** — granted / not granted, with the button that fixes it.
+- **Start on login**, **start minimised**, **close to tray**.
+- **Character limit and timeout** already exist and stay shared.
 
 ### Secrets differ everywhere
 
