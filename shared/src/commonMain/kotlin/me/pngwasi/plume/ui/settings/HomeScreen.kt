@@ -35,6 +35,10 @@ fun HomeScreen(
     settings: AppSettings,
     keyedProviders: Set<String>,
     onOpen: (Destination) -> Unit,
+    /** How the user reaches Plume here, which is the one thing that differs per platform. */
+    intro: String = "Select text in any app, then pick Revise or Translate from the selection menu.",
+    /** Rows only one platform has: the companion keyboard on Android, shortcuts on the desktop. */
+    platformRows: @Composable () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -43,7 +47,7 @@ fun HomeScreen(
             .padding(horizontal = 16.dp)
             .padding(bottom = 32.dp),
     ) {
-        Header()
+        Header(intro)
         ReadinessCard(
             settings = settings,
             keyedProviders = keyedProviders,
@@ -78,14 +82,7 @@ fun HomeScreen(
                 showChevron = true,
                 onClick = { onOpen(Destination.Providers) },
             )
-            RowDivider()
-            SettingsRow(
-                title = "Plume keyboard",
-                subtitle = if (settings.keyboardEnabled) "On" else "Off · optional second way in",
-                icon = PlumeIcons.Keyboard,
-                showChevron = true,
-                onClick = { onOpen(Destination.Keyboard) },
-            )
+            platformRows()
             RowDivider()
             SettingsRow(
                 title = "Appearance",
@@ -111,14 +108,14 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header() {
+private fun Header(intro: String) {
     Column(
         modifier = Modifier.padding(top = 4.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("Plume", style = MaterialTheme.typography.displaySmall)
         Text(
-            text = "Select text in any app, then pick Revise or Translate from the selection menu.",
+            text = intro,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

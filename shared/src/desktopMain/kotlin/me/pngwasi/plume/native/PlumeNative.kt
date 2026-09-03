@@ -82,7 +82,7 @@ object PlumeNative {
 }
 
 /** Reads and frees a string the Rust side allocated. */
-internal fun PlumeNativeLibrary.takeString(pointer: Pointer?): String? {
+fun PlumeNativeLibrary.takeString(pointer: Pointer?): String? {
     if (pointer == null) return null
     return try {
         pointer.getString(0)
@@ -91,5 +91,5 @@ internal fun PlumeNativeLibrary.takeString(pointer: Pointer?): String? {
     }
 }
 
-internal fun PlumeNativeLibrary.lastError(): String =
+fun PlumeNativeLibrary.lastError(): String =
     takeString(plume_get_last_error()) ?: "unknown error"

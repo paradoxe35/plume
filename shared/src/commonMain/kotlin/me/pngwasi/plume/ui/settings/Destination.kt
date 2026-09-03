@@ -33,8 +33,19 @@ sealed interface Destination {
         override val title = "Translation prompt"
     }
 
+    /** Android only: the companion keyboard's setup checklist. */
     data object Keyboard : Destination {
         override val title = "Plume keyboard"
+    }
+
+    /** Desktop only: shortcuts, permissions and launch behaviour. */
+    data object Hotkeys : Destination {
+        override val title = "Shortcuts"
+    }
+
+    /** Desktop only: what Plume changed, so the user can put it back. */
+    data object History : Destination {
+        override val title = "Recent changes"
     }
 
     data object Appearance : Destination {

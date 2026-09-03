@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 rootProject.name = "Plume"
 include(":shared")
 include(":app")
+include(":desktop")

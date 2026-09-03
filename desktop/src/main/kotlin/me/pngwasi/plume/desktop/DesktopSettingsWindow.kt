@@ -1,19 +1,10 @@
-package me.pngwasi.plume
+package me.pngwasi.plume.desktop
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,118 +16,64 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.view.WindowCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.BuiltInProviders
-import me.pngwasi.plume.data.ThemeMode
-import me.pngwasi.plume.ime.KeyboardComponent
 import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.icons.PlumeIcons
 import me.pngwasi.plume.ui.settings.AboutScreen
 import me.pngwasi.plume.ui.settings.AddProviderDialog
-import me.pngwasi.plume.ui.settings.AndroidSettingsViewModel
 import me.pngwasi.plume.ui.settings.AppearanceScreen
 import me.pngwasi.plume.ui.settings.Destination
 import me.pngwasi.plume.ui.settings.HomeScreen
-import me.pngwasi.plume.ui.settings.KeyboardScreen
 import me.pngwasi.plume.ui.settings.ProviderEditScreen
 import me.pngwasi.plume.ui.settings.ProvidersScreen
 import me.pngwasi.plume.ui.settings.ReviseScreen
+import me.pngwasi.plume.ui.settings.SettingsViewModel
 import me.pngwasi.plume.ui.settings.TranslatePromptScreen
 import me.pngwasi.plume.ui.settings.TranslateScreen
-import me.pngwasi.plume.ui.theme.PlumeTheme
 
-class MainActivity : ComponentActivity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-
-        val landing = when (intent?.getStringExtra(EXTRA_DESTINATION)) {
-            DESTINATION_TRANSLATE -> Destination.Translate
-            DESTINATION_PROVIDERS -> Destination.Providers
-            else -> null
-        }
-
-        setContent {
-            val viewModel: AndroidSettingsViewModel = viewModel()
-            val settings by viewModel.settings.collectAsStateWithLifecycle()
-
-            PlumeTheme(mode = settings?.theme ?: ThemeMode.System) {
-                val dark = when (settings?.theme ?: ThemeMode.System) {
-                    ThemeMode.System -> isSystemInDarkTheme()
-                    ThemeMode.Light -> false
-                    ThemeMode.Dark -> true
-                }
-                SideEffect {
-                    WindowCompat.getInsetsController(window, window.decorView)
-                        .isAppearanceLightStatusBars = !dark
-                }
-                val loaded = settings
-                if (loaded == null) {
-                    Box(modifier = Modifier.fillMaxSize())
-                } else {
-                    SettingsApp(viewModel = viewModel, settings = loaded, landing = landing)
-                }
-            }
-        }
-    }
-
-    companion object {
-        const val EXTRA_DESTINATION = "me.pngwasi.plume.DESTINATION"
-        const val DESTINATION_TRANSLATE = "translate"
-        const val DESTINATION_PROVIDERS = "providers"
-    }
-}
-
+/**
+ * The desktop settings window.
+ *
+ * Every screen except Shortcuts and Recent changes is the same composable the Android app renders;
+ * what differs is the frame around them and the two destinations that only make sense with a tray
+ * and a global hotkey behind them.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsApp(
-    viewModel: AndroidSettingsViewModel,
+fun DesktopSettingsWindow(
+    controller: DesktopController,
     settings: AppSettings,
-    landing: Destination?,
+    history: List<HistoryEntry>,
+    outcome: ActionOutcome,
 ) {
-    val stack = remember {
-        mutableStateListOf<Destination>(Destination.Home).apply { landing?.let { add(it) } }
+    val viewModel = remember(controller) {
+        SettingsViewModel(controller.repository, controller.secrets)
     }
-    val current = stack.last()
-    val keyed by viewModel.keyedProviders.collectAsStateWithLifecycle()
-    val probe by viewModel.probe.collectAsStateWithLifecycle()
-    val models by viewModel.models.collectAsStateWithLifecycle()
-    val keyboardStatus by viewModel.keyboardStatus.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
+    val stack = remember { mutableStateListOf<Destination>(Destination.Home) }
+    val current = stack.last()
+    val keyed by viewModel.keyedProviders.collectAsState()
+    val probe by viewModel.probe.collectAsState()
+    val models by viewModel.models.collectAsState()
     var showAddProvider by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     fun push(destination: Destination) = stack.add(destination)
     fun pop() {
         if (stack.size > 1) stack.removeAt(stack.lastIndex)
     }
 
-    BackHandler(enabled = stack.size > 1) { pop() }
-
-    // The model catalogue belongs to whichever provider is open; drop it on the way out.
-    // Enabling the keyboard happens in Android's settings, so the answer changes while Plume is in
-    // the background. Navigation alone would leave the checklist stale on the way back.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        viewModel.refreshKeyboardStatus()
-    }
-
     LaunchedEffect(current) {
-        if (current is Destination.Keyboard) viewModel.refreshKeyboardStatus()
         if (current !is Destination.ProviderEdit) {
             viewModel.resetModels()
             viewModel.clearProbe()
@@ -147,8 +84,6 @@ private fun SettingsApp(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    // Home carries its own large title, so repeating it in the bar just says
-                    // "Plume" twice on the first screen anyone sees.
                     val barTitle = when (current) {
                         Destination.Home -> ""
                         is Destination.ProviderEdit -> settings.labelOf(current.providerId)
@@ -174,33 +109,56 @@ private fun SettingsApp(
     ) { padding ->
         AnimatedContent(
             targetState = current,
-            transitionSpec = {
-                fadeIn(tween(140)) togetherWith fadeOut(tween(140))
-            },
+            transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(140)) },
             label = "screen",
-            // Applied once here so no screen has to remember it. Screens that scroll can then let
-            // the keyboard push their content up instead of covering it.
-            modifier = Modifier.padding(padding).imePadding(),
+            modifier = Modifier.padding(padding),
         ) { destination ->
             when (destination) {
                 Destination.Home -> HomeScreen(
                     settings = settings,
                     keyedProviders = keyed,
                     onOpen = ::push,
+                    intro = "Select text anywhere, then press a Plume shortcut. " +
+                        "Plume stays in the tray.",
                     platformRows = {
                         RowDivider()
                         SettingsRow(
-                            title = "Plume keyboard",
-                            subtitle = if (settings.keyboardEnabled) {
-                                "On"
-                            } else {
-                                "Off · optional second way in"
-                            },
+                            title = "Shortcuts",
+                            subtitle = shortcutSubtitle(controller),
                             icon = PlumeIcons.Keyboard,
                             showChevron = true,
-                            onClick = { push(Destination.Keyboard) },
+                            onClick = { push(Destination.Hotkeys) },
+                        )
+                        RowDivider()
+                        SettingsRow(
+                            title = "Recent changes",
+                            subtitle = if (history.isEmpty()) {
+                                "Nothing yet this session"
+                            } else {
+                                "${history.size} kept, with the original text"
+                            },
+                            icon = PlumeIcons.Refresh,
+                            showChevron = true,
+                            onClick = { push(Destination.History) },
                         )
                     },
+                )
+
+                Destination.Hotkeys -> HotkeysScreen(
+                    settings = settings.desktop,
+                    defaults = hotkeyDefaultsFor(),
+                    availability = controller.availability,
+                    rejectedBindings = controller.rejectedBindings,
+                    onChange = { updated ->
+                        scope.launch {
+                            controller.repository.update { it.copy(desktop = updated) }
+                        }
+                    },
+                )
+
+                Destination.History -> HistoryScreen(
+                    history = history,
+                    onCopy = { text -> controller.copyToClipboard(text) },
                 )
 
                 Destination.Providers -> ProvidersScreen(
@@ -255,16 +213,6 @@ private fun SettingsApp(
                     onChange = { transform -> viewModel.updateTranslate(transform) },
                 )
 
-                Destination.Keyboard -> KeyboardScreen(
-                    enabled = settings.keyboardEnabled,
-                    status = keyboardStatus,
-                    onToggle = viewModel::setKeyboardEnabled,
-                    onOpenSystemSettings = {
-                        context.startActivity(KeyboardComponent.systemKeyboardSettings())
-                    },
-                    onShowPicker = viewModel::showKeyboardPicker,
-                )
-
                 Destination.Appearance -> AppearanceScreen(
                     current = settings.theme,
                     onSelect = viewModel::setTheme,
@@ -272,9 +220,8 @@ private fun SettingsApp(
 
                 Destination.About -> AboutScreen()
 
-                // Desktop-only destinations; unreachable here, and better to say so than to route
-                // them somewhere misleading.
-                Destination.Hotkeys, Destination.History -> Unit
+                // Android's companion keyboard; there is no input-method list to join here.
+                Destination.Keyboard -> Unit
             }
         }
     }
@@ -291,3 +238,11 @@ private fun SettingsApp(
         )
     }
 }
+
+private fun shortcutSubtitle(controller: DesktopController): String =
+    when (val availability = controller.availability) {
+        HotkeyAvailability.Ready ->
+            if (controller.rejectedBindings.isEmpty()) "Active" else "Some shortcuts were refused"
+        is HotkeyAvailability.NeedsPermission -> availability.summary
+        is HotkeyAvailability.Unavailable -> "Unavailable"
+    }
