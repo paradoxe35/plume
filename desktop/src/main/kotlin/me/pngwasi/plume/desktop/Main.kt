@@ -70,6 +70,7 @@ fun main() {
         }
 
         val theme = loaded?.theme ?: ThemeMode.System
+        val windowIcon = rememberWindowIcon()
 
         // The result appears in someone else's window, so without this a failure is
         // indistinguishable from the shortcut never having fired.
@@ -97,9 +98,6 @@ fun main() {
                     controller.shutdown()
                     exitApplication()
                 },
-                onRevise = { controller.actions.reviseSelection() },
-                onReviseAll = { controller.actions.reviseEverything() },
-                onTranslate = { code -> controller.actions.translateSelection(code) },
             )
         }
 
@@ -121,6 +119,8 @@ fun main() {
                     }
                 },
                 title = "Plume",
+                // Without this the window and the taskbar show Compose's own logo.
+                icon = windowIcon,
                 state = state,
             ) {
                 PlumeTheme(mode = theme) {
@@ -140,13 +140,17 @@ fun main() {
 }
 
 /**
- * The tray is the desktop app's real front door: the window is optional, but something has to show
- * that Plume is running, report what a shortcut just did, and offer a translate target without
- * making the user open a window for it.
+ * The tray: what shows that Plume is running, and how to reach settings or quit.
+ *
+ * It deliberately carries no Revise or Translate action. Opening a tray menu moves the input focus
+ * away from the window the user was working in, so by the time the item is clicked there is no
+ * selection left to act on — the action would run against the wrong window, or nothing at all. The
+ * shortcuts exist precisely because they do not steal focus, and they are the only honest way to
+ * trigger the actions.
  *
  * This uses the desktop's own status-notifier protocol rather than `androidx.compose.ui.window.Tray`,
- * which goes through `java.awt.PopupMenu` — a heavyweight X11 widget drawn in Motif style. It
- * ignores the GTK theme and the user's fonts, and there is no way to style it.
+ * which goes through `java.awt.PopupMenu` — a heavyweight X11 widget drawn in Motif style that
+ * ignores the GTK theme and cannot be styled.
  */
 @Composable
 private fun ApplicationScope.PlumeTray(
@@ -154,9 +158,6 @@ private fun ApplicationScope.PlumeTray(
     settings: AppSettings?,
     onOpen: () -> Unit,
     onQuit: () -> Unit,
-    onRevise: () -> Unit,
-    onReviseAll: () -> Unit,
-    onTranslate: (String) -> Unit,
 ) {
     val dark = when (settings?.theme ?: ThemeMode.System) {
         ThemeMode.System -> isSystemInDarkTheme()
@@ -174,26 +175,8 @@ private fun ApplicationScope.PlumeTray(
         },
         primaryAction = onOpen,
     ) {
-        Item(label = "Revise selection", isEnabled = !busy, onClick = onRevise)
-        Item(label = "Revise everything", isEnabled = !busy, onClick = onReviseAll)
-
-        // The pinned languages, so translating never requires opening a window.
-        val favorites = settings?.translate?.favorites.orEmpty().take(6)
-        if (favorites.isNotEmpty()) {
-            Divider()
-            SubMenu(label = "Translate selection") {
-                favorites.forEach { code ->
-                    Item(
-                        label = Languages.resolve(code).displayName(),
-                        isEnabled = !busy,
-                        onClick = { onTranslate(code) },
-                    )
-                }
-            }
-        }
-
-        Divider()
         Item(label = "Settings…", onClick = onOpen)
+        Divider()
         Item(label = "Quit Plume", onClick = onQuit)
     }
 }

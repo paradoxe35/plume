@@ -118,4 +118,9 @@ tasks.named("processResources") { dependsOn(copyNativeLibrary) }
 
 sourceSets.main {
     resources.srcDir(layout.buildDirectory.dir("native"))
+    // The window and taskbar icon is loaded from the classpath at runtime; jpackage's iconFile
+    // only covers the launcher and the desktop entry. Only the PNG is needed there — the .ico and
+    // .icns are build inputs for jpackage, and the generator is not shipped at all.
+    resources.srcDir("icons")
+    resources.exclude("*.ico", "*.icns", "*.py")
 }
