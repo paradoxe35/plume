@@ -114,6 +114,10 @@ open class SettingsViewModel(
         repository.update { it.copy(translate = transform(it.translate)) }
     }
 
+    fun setProviderMentions(enabled: Boolean) = viewModelScope.launch {
+        repository.update { it.copy(providerMentions = enabled) }
+    }
+
     fun setTheme(mode: ThemeMode) = viewModelScope.launch {
         repository.update { it.copy(theme = mode) }
         onThemeChanged(mode)

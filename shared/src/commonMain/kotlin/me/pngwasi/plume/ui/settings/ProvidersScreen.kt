@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -38,6 +39,7 @@ fun ProvidersScreen(
     onEdit: (String) -> Unit,
     onSetActionProvider: (Action, String?) -> Unit,
     onAddCustom: () -> Unit,
+    onSetProviderMentions: (Boolean) -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -105,6 +107,22 @@ fun ProvidersScreen(
             settings = settings,
             onSelect = onSetActionProvider,
         )
+
+        SectionLabel("Overriding for one request")
+        SettingsCard {
+            SettingsRow(
+                title = "Allow @provider in the text",
+                subtitle = "Start with @${settings.providerIds().firstOrNull() ?: "openai"} to " +
+                    "send just that request elsewhere. A name that is not a provider is left alone.",
+                icon = PlumeIcons.SwapHoriz,
+                trailing = {
+                    Switch(
+                        checked = settings.providerMentions,
+                        onCheckedChange = onSetProviderMentions,
+                    )
+                },
+            )
+        }
     }
 }
 

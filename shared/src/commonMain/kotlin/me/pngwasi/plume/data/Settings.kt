@@ -204,6 +204,13 @@ data class AppSettings(
      * list, which nobody should get without asking for it.
      */
     val keyboardEnabled: Boolean = false,
+    /**
+     * Whether a leading `@provider` routes one request to a named provider.
+     *
+     * On by default, as in MyReviser: it costs nothing when unused, and an unknown mention is left
+     * as ordinary text rather than swallowed.
+     */
+    val providerMentions: Boolean = true,
     /** Ignored on mobile, where there are no hotkeys and no tray. */
     val desktop: DesktopSettings = DesktopSettings(),
 ) {

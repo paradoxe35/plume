@@ -22,6 +22,7 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
@@ -73,18 +74,35 @@ fun main() {
         val theme = loaded?.theme ?: ThemeMode.System
         val trayState = rememberTrayState()
 
-        // The result appears in someone else's window, so without this a failure is indis-
-        // tinguishable from the shortcut never having fired.
+        // The result appears in someone else's window, so without this a failure is
+        // indistinguishable from the shortcut never having fired.
+        //
+        // The desktop's own notification service is tried first. AWT's tray balloon is native on
+        // Windows but is Java's own drawing on Linux, which looks foreign and ignores do-not-
+        // disturb — so it is the fallback rather than the route.
+        val notifier = remember { PlatformNotifier() }
         LaunchedEffect(outcome) {
             if (loaded?.desktop?.notifyOnFinish != true) return@LaunchedEffect
-            when (val settled = outcome) {
-                is ActionOutcome.Failed -> trayState.sendNotification(
-                    Notification("Plume", settled.message, Notification.Type.Error),
+            val (body, level) = when (val settled = outcome) {
+                is ActionOutcome.Failed -> settled.message to NotificationLevel.Error
+                is ActionOutcome.Done -> "${settled.label} done" to NotificationLevel.Info
+                else -> return@LaunchedEffect
+            }
+            val delivered = withContext(Dispatchers.IO) {
+                notifier.notify("Plume", body, level)
+            }
+            if (!delivered && trayAvailable) {
+                trayState.sendNotification(
+                    Notification(
+                        "Plume",
+                        body,
+                        if (level == NotificationLevel.Error) {
+                            Notification.Type.Error
+                        } else {
+                            Notification.Type.Info
+                        },
+                    ),
                 )
-                is ActionOutcome.Done -> trayState.sendNotification(
-                    Notification("Plume", "${settled.label} done", Notification.Type.Info),
-                )
-                else -> Unit
             }
         }
 
@@ -129,6 +147,10 @@ fun main() {
                         controller = controller,
                         settings = loaded,
                         history = history,
+                        onQuit = {
+                            controller.shutdown()
+                            exitApplication()
+                        },
                     )
                 }
             }

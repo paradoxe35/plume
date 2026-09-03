@@ -24,6 +24,7 @@ fun DesktopSettingsWindow(
     controller: DesktopController,
     settings: AppSettings,
     history: List<HistoryEntry>,
+    onQuit: () -> Unit,
 ) {
     val viewModel = remember(controller) {
         SettingsViewModel(controller.repository, controller.secrets)
@@ -57,6 +58,16 @@ fun DesktopSettingsWindow(
                 showChevron = true,
                 onClick = { push(Destination.History) },
             )
+            RowDivider()
+            // Closing the window only hides it — the shortcuts are the product and they keep
+            // running. Without this the only way out is the tray, which is easy to miss and which
+            // some Linux desktops do not show at all.
+            SettingsRow(
+                title = "Quit Plume",
+                subtitle = "Stops the shortcuts until Plume is started again",
+                icon = PlumeIcons.Delete,
+                onClick = onQuit,
+            )
         },
         platformScreen = { destination, _ ->
             when (destination) {
@@ -72,6 +83,7 @@ fun DesktopSettingsWindow(
                             controller.repository.update { it.copy(desktop = updated) }
                         }
                     },
+                    onRecordingChange = controller::setListening,
                 )
 
                 Destination.History -> HistoryScreen(

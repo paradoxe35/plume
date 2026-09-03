@@ -40,7 +40,7 @@ class ProviderValidationTest {
         val result = validateProvider(complete.copy(baseUrl = "api.groq.com"), "sk-x", requireLabel = true)
 
         assertNotNull(result.baseUrl)
-        assertTrue(result.baseUrl!!.contains("http"))
+        assertTrue(assertNotNull(result.baseUrl).contains("http"))
     }
 
     @Test

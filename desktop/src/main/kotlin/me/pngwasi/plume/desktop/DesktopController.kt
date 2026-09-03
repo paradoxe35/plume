@@ -88,6 +88,17 @@ class DesktopController(
         System.getProperty("jpackage.app-path") != null
     }
 
+    /**
+     * Stops the listener while a shortcut is being recorded, and starts it again afterwards.
+     *
+     * Without this, pressing the combination you are trying to rebind fires the action bound to it
+     * — and the recording field never sees the keys, because the listener grabbed them.
+     */
+    fun setListening(listening: Boolean) {
+        val service = hotkeys ?: return
+        if (listening) service.start() else service.stop()
+    }
+
     /** Used by the history screen so the user can recover an original Plume replaced. */
     fun copyToClipboard(text: String) {
         systemInput?.setClipboardText(text)

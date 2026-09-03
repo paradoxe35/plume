@@ -28,22 +28,31 @@ class TextEngine(
         this(settings, { id -> secrets.getKey(id) })
 
     suspend fun revise(text: String): String {
-        val providerId = settings.providerIdFor(Action.Revise)
+        val mention = mention(text)
+        val providerId = mention.providerId ?: settings.providerIdFor(Action.Revise)
         val config = requireUsable(providerId)
-        val input = validate(text, settings.revise.characterLimit)
+        val input = validate(mention.text, settings.revise.characterLimit)
         val provider = build(providerId, config, settings.revise.timeoutSeconds)
         return finish(provider.complete(settings.revise.promptOrDefault(), input))
     }
 
     suspend fun translate(text: String, targetCode: String): String {
-        val providerId = settings.providerIdFor(Action.Translate)
+        val mention = mention(text)
+        val providerId = mention.providerId ?: settings.providerIdFor(Action.Translate)
         val config = requireUsable(providerId)
-        val input = validate(text, settings.translate.characterLimit)
+        val input = validate(mention.text, settings.translate.characterLimit)
         val provider = build(providerId, config, settings.translate.timeoutSeconds)
         val target = Languages.resolve(targetCode).promptName()
         val prompt = Prompts.renderTranslate(settings.translate.promptOrDefault(), target)
         return finish(provider.complete(prompt, input))
     }
+
+    /** `@openai fix this` sends one request to a named provider without changing any setting. */
+    private fun mention(text: String) = parseProviderMention(
+        text = text,
+        providerIds = settings.providers.keys,
+        enabled = settings.providerMentions,
+    )
 
     private fun requireUsable(providerId: String): ProviderConfig {
         val config = settings.providers[providerId] ?: throw AiException(

@@ -12,6 +12,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,7 +45,15 @@ fun HotkeysScreen(
     launchAtLoginAvailable: Boolean,
     onSetLaunchAtLogin: (Boolean) -> Boolean,
     onChange: (DesktopSettings) -> Unit,
+    /** Suspends the global listener while a shortcut is being recorded. */
+    onRecordingChange: (Boolean) -> Unit = {},
 ) {
+    // Which field is recording, if any. Pressing the combination you are rebinding would otherwise
+    // fire the action you are rebinding.
+    var recording by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(recording) { onRecordingChange(recording != null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -80,28 +89,33 @@ fun HotkeysScreen(
             settings.reviseAllOrDefault(defaults),
             settings.translateSelectionOrDefault(defaults),
         )
-        val duplicates = duplicateHotkeys(bindings)
 
-        HotkeyField(
+        HotkeyCaptureField(
             label = "Revise selection",
             help = "Fix spelling and grammar in whatever is selected.",
-            value = settings.reviseSelectionOrDefault(defaults),
-            duplicates = duplicates,
-            onValue = { onChange(settings.copy(reviseSelection = it)) },
+            binding = bindings[0],
+            otherBindings = listOf(bindings[1], bindings[2]),
+            recordingElsewhere = recording != null && recording != 0,
+            onRecordingChange = { active -> recording = if (active) 0 else null },
+            onBinding = { onChange(settings.copy(reviseSelection = it)) },
         )
-        HotkeyField(
+        HotkeyCaptureField(
             label = "Revise everything",
             help = "Select the whole field first, then revise it.",
-            value = settings.reviseAllOrDefault(defaults),
-            duplicates = duplicates,
-            onValue = { onChange(settings.copy(reviseAll = it)) },
+            binding = bindings[1],
+            otherBindings = listOf(bindings[0], bindings[2]),
+            recordingElsewhere = recording != null && recording != 1,
+            onRecordingChange = { active -> recording = if (active) 1 else null },
+            onBinding = { onChange(settings.copy(reviseAll = it)) },
         )
-        HotkeyField(
+        HotkeyCaptureField(
             label = "Translate selection",
             help = "Translate into your default target, or the first pinned language.",
-            value = settings.translateSelectionOrDefault(defaults),
-            duplicates = duplicates,
-            onValue = { onChange(settings.copy(translateSelection = it)) },
+            binding = bindings[2],
+            otherBindings = listOf(bindings[0], bindings[1]),
+            recordingElsewhere = recording != null && recording != 2,
+            onRecordingChange = { active -> recording = if (active) 2 else null },
+            onBinding = { onChange(settings.copy(translateSelection = it)) },
         )
 
         SectionLabel("Behaviour")

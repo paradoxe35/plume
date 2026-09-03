@@ -72,6 +72,11 @@ konan/
 .konan/
 kotlin-js-store/
 
+# JVM crash dumps, which land in whatever directory the app was started from.
+hs_err_pid*.log
+replay_pid*.log
+core.*
+
 # --- Environment -----------------------------------------------------------
 .env
 .env.*

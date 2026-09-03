@@ -128,6 +128,7 @@ fun SettingsNavHost(
                     onEdit = { push(Destination.ProviderEdit(it)) },
                     onSetActionProvider = viewModel::setActionProvider,
                     onAddCustom = { showAddProvider = true },
+                    onSetProviderMentions = viewModel::setProviderMentions,
                 )
 
                 is Destination.ProviderEdit -> {

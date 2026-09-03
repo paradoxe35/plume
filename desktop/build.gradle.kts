@@ -84,7 +84,10 @@ compose.desktop {
             vendor = "pngwasi"
             copyright = "© pngwasi"
 
+            // Without these jpackage substitutes Compose's own logo, so the installed app shows a
+            // Kotlin icon. Regenerate with `python3 desktop/icons/generate.py`.
             linux {
+                iconFile.set(project.file("icons/plume.png"))
                 menuGroup = "Utility"
                 appCategory = "Utility"
                 debMaintainer = "noreply@pngwasi.me"
@@ -93,11 +96,13 @@ compose.desktop {
                 shortcut = true
             }
             macOS {
+                iconFile.set(project.file("icons/plume.icns"))
                 bundleID = "me.pngwasi.plume"
                 // Menu-bar app: no Dock icon, no window on launch.
                 infoPlist { extraKeysRawXml = "<key>LSUIElement</key><true/>" }
             }
             windows {
+                iconFile.set(project.file("icons/plume.ico"))
                 menu = true
                 shortcut = true
                 upgradeUuid = "6d1a3f18-8c2f-4d0a-9d69-1f3f3a2e1b77"

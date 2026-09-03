@@ -50,7 +50,6 @@ class PlumeIconsTest {
     private fun pathNodeCount(node: VectorNode): Int = when (node) {
         is VectorPath -> node.pathData.size
         is VectorGroup -> node.sumOf { pathNodeCount(it) }
-        else -> 0
     }
 
     @Test
