@@ -95,7 +95,18 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
                 }
             }
         }
+
+        // Compose resolves its recomposer from the window's *root* view, not from the ComposeView,
+        // so the owners have to live on the IME window's decor as well. Attaching them only to the
+        // view returned here throws "ViewTreeLifecycleOwner not found from ...parentPanel" the
+        // first time the panel is shown — and since the IME shares the app's process, that takes
+        // the whole app down with it.
+        window?.window?.decorView?.let(owner::attachTo)
         owner.attachTo(view)
+
+        // Composition only runs once the lifecycle is resumed, and onCreateInputView can be
+        // followed by a show before onStartInputView lands.
+        owner.onStart()
         return view
     }
 
@@ -105,6 +116,25 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         // Settings may have changed since the panel was last shown.
         controller.invalidateSettings()
         controller.refresh()
+    }
+
+    /**
+     * Fires whenever the cursor, selection or text changes in the host app. Without this the panel
+     * shows whatever the field held when it opened, so typing or selecting leaves the actions
+     * disabled against text that is plainly there.
+     */
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int,
+    ) {
+        super.onUpdateSelection(
+            oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
+        )
+        controller.onFieldChanged()
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {

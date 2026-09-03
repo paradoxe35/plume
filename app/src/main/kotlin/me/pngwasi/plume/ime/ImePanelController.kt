@@ -119,6 +119,19 @@ class ImePanelController(
     /** Leaves the picker without running anything. */
     fun cancelPicker() = refresh()
 
+    /**
+     * Re-reads the field after the host app reports a change, without disturbing work in progress
+     * or a picker the user is looking at.
+     *
+     * The confirmation is carried over: replacing text is itself a selection change, so clearing it
+     * here would make "Revised" flash and vanish the instant it appeared.
+     */
+    fun onFieldChanged() {
+        val current = _state.value
+        if (current !is ImeState.Ready) return
+        refresh(confirmation = current.confirmation)
+    }
+
     private suspend fun recordTarget(code: String) {
         runCatching { onTargetUsed(code) }
     }

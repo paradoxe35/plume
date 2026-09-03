@@ -129,8 +129,11 @@ private fun ReadyBody(state: ImeState.Ready, onRevise: () -> Unit, onTranslate: 
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         when {
-            state.confirmation != null -> Confirmation(state.confirmation)
-            empty -> Hint("Type something, or select part of your text, then choose an action.")
+            state.confirmation != null -> Confirmation(state.confirmation, Modifier.weight(1f))
+            empty -> Hint(
+                "Type with your usual keyboard, then switch back here to fix or translate it.",
+                Modifier.weight(1f),
+            )
             else -> Preview(state.preview, Modifier.weight(1f))
         }
 
@@ -178,9 +181,9 @@ private fun Preview(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun Hint(text: String) {
+private fun Hint(text: String, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 60.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
@@ -192,9 +195,9 @@ private fun Hint(text: String) {
 }
 
 @Composable
-private fun Confirmation(text: String) {
+private fun Confirmation(text: String, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 60.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -235,7 +238,7 @@ private fun PickerBody(
         Text("Translate into", style = MaterialTheme.typography.titleMedium)
 
         if (options.isEmpty()) {
-            Hint("No languages available.")
+            Hint("No languages available.", Modifier.weight(1f))
         } else {
             Column(
                 modifier = Modifier.weight(1f),

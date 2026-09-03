@@ -42,20 +42,33 @@ object KeyboardComponent {
         }
     }
 
+    /**
+     * Compares an input-method id against a component.
+     *
+     * The system writes ids with `flattenToShortString`, which abbreviates a class name sharing the
+     * package prefix — `me.pngwasi.plume/.ime.PlumeInputMethodService`. Comparing that to
+     * `flattenToString` output never matches, so the id is parsed back into a ComponentName instead
+     * of string-matched; `unflattenFromString` expands the leading dot and both forms compare equal.
+     */
+    internal fun matches(imeId: String?, target: ComponentName): Boolean {
+        if (imeId.isNullOrBlank()) return false
+        return ComponentName.unflattenFromString(imeId) == target
+    }
+
     /** Whether the user has switched it on in Settings → On-screen keyboards. */
     fun isEnabledInSystem(context: Context): Boolean {
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
             ?: return false
-        val id = component(context).flattenToString()
-        return imm.enabledInputMethodList.any { it.id == id }
+        val target = component(context)
+        return imm.enabledInputMethodList.any { matches(it.id, target) }
     }
 
     /** Whether it is the keyboard currently in use. */
     fun isCurrentInputMethod(context: Context): Boolean {
         val current = runCatching {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-        }.getOrNull() ?: return false
-        return current.startsWith(context.packageName + "/")
+        }.getOrNull()
+        return matches(current, component(context))
     }
 
     /** Opens the system screen where a keyboard is switched on. */

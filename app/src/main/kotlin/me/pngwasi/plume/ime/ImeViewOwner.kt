@@ -36,12 +36,21 @@ class ImeViewOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwne
         registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
     }
 
+    /**
+     * Idempotent: the panel can be created and shown in either order, so this is called from both
+     * paths. Re-sending ON_START while already resumed would register as a pause.
+     */
     fun onStart() {
+        if (registry.currentState == Lifecycle.State.RESUMED) return
+        if (registry.currentState == Lifecycle.State.INITIALIZED) {
+            registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        }
         registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
     }
 
     fun onStop() {
+        if (registry.currentState != Lifecycle.State.RESUMED) return
         registry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
     }
