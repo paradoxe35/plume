@@ -6,6 +6,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.ui.components.RowDivider
+import me.pngwasi.plume.ui.components.SectionLabel
+import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.icons.PlumeIcons
 import me.pngwasi.plume.ui.settings.Destination
@@ -58,16 +60,20 @@ fun DesktopSettingsWindow(
                 showChevron = true,
                 onClick = { push(Destination.History) },
             )
-            RowDivider()
-            // Closing the window only hides it — the shortcuts are the product and they keep
-            // running. Without this the only way out is the tray, which is easy to miss and which
-            // some Linux desktops do not show at all.
-            SettingsRow(
-                title = "Quit Plume",
-                subtitle = "Stops the shortcuts until Plume is started again",
-                icon = PlumeIcons.Delete,
-                onClick = onQuit,
-            )
+        },
+        platformFooter = {
+            // Below the settings rather than among them. Closing the window only hides it — the
+            // shortcuts are the product and they keep running — so there has to be a way out that
+            // is not the tray, which is easy to miss and which some Linux desktops never show.
+            SectionLabel("Leaving")
+            SettingsCard {
+                SettingsRow(
+                    title = "Quit Plume",
+                    subtitle = "Stops the shortcuts until Plume is started again",
+                    icon = PlumeIcons.Delete,
+                    onClick = onQuit,
+                )
+            }
         },
         platformScreen = { destination, _ ->
             when (destination) {

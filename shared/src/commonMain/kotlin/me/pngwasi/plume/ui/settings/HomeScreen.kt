@@ -39,6 +39,11 @@ fun HomeScreen(
     intro: String = "Select text in any app, then pick Revise or Translate from the selection menu.",
     /** Rows only one platform has: the companion keyboard on Android, shortcuts on the desktop. */
     platformRows: @Composable () -> Unit = {},
+    /**
+     * Anything that belongs after the settings, separated from them. Quitting is not a setting, and
+     * sitting it between two navigation rows made it easy to hit by accident.
+     */
+    platformFooter: @Composable () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -104,6 +109,8 @@ fun HomeScreen(
                 onClick = { onOpen(Destination.About) },
             )
         }
+
+        platformFooter()
     }
 }
 

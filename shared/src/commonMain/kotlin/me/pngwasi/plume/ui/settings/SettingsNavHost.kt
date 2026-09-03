@@ -52,6 +52,8 @@ fun SettingsNavHost(
     intro: String,
     /** Rows added to the home screen's configuration card. */
     platformRows: @Composable (push: (Destination) -> Unit) -> Unit = {},
+    /** Anything that belongs below the settings rather than among them. */
+    platformFooter: @Composable () -> Unit = {},
     /** Screens for destinations this host does not know about. */
     platformScreen: @Composable (destination: Destination, push: (Destination) -> Unit) -> Unit =
         { _, _ -> },
@@ -120,6 +122,7 @@ fun SettingsNavHost(
                     onOpen = push,
                     intro = intro,
                     platformRows = { platformRows(push) },
+                    platformFooter = platformFooter,
                 )
 
                 Destination.Providers -> ProvidersScreen(
