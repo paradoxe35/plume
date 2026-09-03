@@ -14,6 +14,7 @@ import me.pngwasi.plume.data.TranslateSettings
 import kotlin.test.AfterTest
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.BeforeTest
@@ -203,6 +204,29 @@ class ClipboardTranslateTest {
         controller.startReadClipboard()
         controller.settle()
 
+        assertTrue(controller.state.value is PanelState.Reading)
+    }
+
+    /**
+     * The pinned-target path used to reach the work by calling readClipboard(), which begins by
+     * cancelling `running` — and `running` was the job making the call. It finished by luck, so it
+     * passed locally and failed under CI load. The job that starts the action must survive it.
+     */
+    @Test
+    fun `the pinned-target path does not cancel its own job`() {
+        server.enqueue(reply("Bonjour"))
+        val controller = controller(
+            FakeEditor("draft"),
+            FakeClipboard("Hello"),
+            settings(TranslateSettings(defaultTarget = "fr")),
+        )
+
+        controller.startReadClipboard()
+        val started = controller.inFlight
+        controller.settle()
+
+        assertNotNull(started)
+        assertFalse(started.isCancelled, "the action cancelled the job that was running it")
         assertTrue(controller.state.value is PanelState.Reading)
     }
 

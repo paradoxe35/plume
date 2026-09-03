@@ -97,7 +97,9 @@ class NativeBindingTest {
         library.plume_hotkey_stop(manager)
         library.plume_hotkey_manager_free(manager)
 
-        // These return null without a display, which is a valid answer, not a link failure.
+        // These return null on a headless machine, which is a valid answer rather than a link
+        // failure — the Rust layer logs "no successful connection" on the way, and that line in a
+        // CI log is expected rather than a problem.
         library.plume_clipboard_free(library.plume_clipboard_new())
         library.plume_simulator_free(library.plume_simulator_new())
     }

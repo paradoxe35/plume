@@ -168,8 +168,12 @@ class PanelController(
                     subject = TranslationSubject.Clipboard,
                 )
             } else {
+                // Executed inline rather than through readClipboard(), which begins by cancelling
+                // `running` — and `running` is this job. Cancelling itself here left the outcome
+                // depending on which coroutine won the race, so the pinned-target path passed on a
+                // fast machine and failed under CI load.
                 recordTarget(preset)
-                readClipboard(preset)
+                readClipboardInto(preset)
             }
         }
     }
@@ -182,40 +186,43 @@ class PanelController(
      */
     fun readClipboard(code: String) {
         running?.cancel()
-        running = scope.launch {
-            val copied = runCatching { clipboard?.read() }.getOrNull()
-            if (copied.isNullOrBlank()) {
-                _state.value = PanelState.Failed("There is no copied text yet.", settingsFix = false, retry = null)
-                return@launch
-            }
+        running = scope.launch { readClipboardInto(code) }
+    }
 
-            _state.value = PanelState.Working("Translating")
-            val settings = settingsOrNull() ?: return@launch
-            recordTarget(code)
+    /** The body, so callers already inside [running] can run it without cancelling themselves. */
+    private suspend fun readClipboardInto(code: String) {
+        val copied = runCatching { clipboard?.read() }.getOrNull()
+        if (copied.isNullOrBlank()) {
+            _state.value = PanelState.Failed("There is no copied text yet.", settingsFix = false, retry = null)
+            return
+        }
 
-            try {
-                val engine = TextEngine(settings, apiKeyFor, http)
-                _state.value = PanelState.Reading(
-                    original = copied,
-                    translated = engine.translate(copied, code),
-                    language = Languages.resolve(code).displayName(),
-                )
-            } catch (e: AiException) {
-                _state.value = PanelState.Failed(
-                    message = e.message ?: "Something went wrong.",
-                    settingsFix = e.kind == AiException.Kind.NotConfigured ||
-                        e.kind == AiException.Kind.Auth,
-                    retry = PanelState.Retry.ReadClipboard(code),
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _state.value = PanelState.Failed(
-                    e.message ?: "Unexpected error.",
-                    false,
-                    PanelState.Retry.ReadClipboard(code),
-                )
-            }
+        _state.value = PanelState.Working("Translating")
+        val settings = settingsOrNull() ?: return
+        recordTarget(code)
+
+        try {
+            val engine = TextEngine(settings, apiKeyFor, http)
+            _state.value = PanelState.Reading(
+                original = copied,
+                translated = engine.translate(copied, code),
+                language = Languages.resolve(code).displayName(),
+            )
+        } catch (e: AiException) {
+            _state.value = PanelState.Failed(
+                message = e.message ?: "Something went wrong.",
+                settingsFix = e.kind == AiException.Kind.NotConfigured ||
+                    e.kind == AiException.Kind.Auth,
+                retry = PanelState.Retry.ReadClipboard(code),
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _state.value = PanelState.Failed(
+                e.message ?: "Unexpected error.",
+                false,
+                PanelState.Retry.ReadClipboard(code),
+            )
         }
     }
 
