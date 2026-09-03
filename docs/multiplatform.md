@@ -303,9 +303,16 @@ whoever holds uid 1000 on the target machine rather than by root.
 ### CI is where Windows and macOS actually get built
 
 `.github/workflows/build-desktop.yml` runs on every push to `feature/multiplatform`, across
-`ubuntu-latest`, `windows-latest` and `macos-latest`. Each job builds the Rust crate natively, runs
-the tests, and packages for its own host. `fail-fast` is off — the point is finding out which
-platforms work, not stopping at the first that does not.
+`ubuntu-latest`, `windows-latest`, `macos-latest` and `macos-15-intel`. Each job builds the Rust
+crate natively, runs the tests, and packages for its own host. `fail-fast` is off — the point is
+finding out which platforms work, not stopping at the first that does not.
+
+**Two Macs, not one.** jpackage builds for the host and bundles a JVM for that architecture, and
+the Rust library is compiled for it as well, so nothing it produces is universal. `macos-latest` is
+Apple silicon, so for a while the only DMG on offer would not open on an Intel Mac at all. Intel
+needs its own runner: `macos-13` was retired in December 2025, and `macos-15-intel` is the
+replacement. Artifacts are named by architecture rather than by "macOS" so the two cannot be
+confused for one another.
 
 Three things it has to get right, none of them obvious:
 

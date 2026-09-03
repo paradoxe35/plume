@@ -25,11 +25,21 @@ jobs:
       matrix:
         include:
           - name: Linux
+            slug: linux
             os: ubuntu-latest
           - name: Windows
+            slug: windows
             os: windows-latest
-          - name: macOS
+          # Two Macs, because jpackage builds for the host and nothing else: it bundles a JVM for
+          # that architecture, and the Rust library is compiled for it too. `macos-latest` is Apple
+          # silicon, so a DMG built only there refuses to open on an Intel Mac. Neither is a
+          # universal binary, so both are shipped.
+          - name: macOS (Apple silicon)
+            slug: macos-arm64
             os: macos-latest
+          - name: macOS (Intel)
+            slug: macos-x64
+            os: macos-15-intel
 
     defaults:
       run:
@@ -153,7 +163,7 @@ jobs:
       - name: Upload installers
         uses: actions/upload-artifact@v7
         with:
-          name: plume-${{ matrix.name }}
+          name: plume-${{ matrix.slug }}
           if-no-files-found: error
           path: |
             desktop/build/compose/binaries/main/deb/*.deb
@@ -173,7 +183,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: reports-${{ matrix.name }}
+          name: reports-${{ matrix.slug }}
           path: |
             shared/build/reports/tests
             desktop/build/reports/tests

@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Action
+import me.pngwasi.plume.data.isReady
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
@@ -145,13 +146,8 @@ private fun ReadinessCard(
     keyedProviders: Set<String>,
     onFix: () -> Unit,
 ) {
-    fun ready(action: Action): Boolean {
-        val id = settings.providerIdFor(action)
-        return settings.providers[id]?.isConfigured() == true && id in keyedProviders
-    }
-
-    val reviseReady = ready(Action.Revise)
-    val translateReady = ready(Action.Translate)
+    val reviseReady = settings.isReady(Action.Revise, keyedProviders)
+    val translateReady = settings.isReady(Action.Translate, keyedProviders)
     val allReady = reviseReady && translateReady
 
     val container = if (allReady) {

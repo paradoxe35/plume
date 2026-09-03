@@ -28,6 +28,8 @@ import kotlinx.coroutines.withContext
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.data.isFullyConfigured
+import me.pngwasi.plume.data.keyedProviders
 import me.pngwasi.plume.native.PlumeNative
 import me.pngwasi.plume.ui.icons.PlumeMark
 import me.pngwasi.plume.ui.theme.PlumeTheme
@@ -56,10 +58,18 @@ fun main() {
         var started by remember { mutableStateOf(false) }
 
         LaunchedEffect(loaded != null) {
-            if (loaded != null && !started) {
-                started = true
-                windowVisible = !trayAvailable || !loaded.desktop.startMinimised
+            val settings = loaded ?: return@LaunchedEffect
+            if (started) return@LaunchedEffect
+            started = true
+
+            // Starting in the tray is right for a working Plume and wrong for one that cannot run
+            // yet: a shortcut that fails because no key was ever entered looks like a broken app,
+            // and the tray is the last place someone would look for the reason. Reads the secret
+            // store, so not on the UI thread.
+            val ready = withContext(Dispatchers.IO) {
+                settings.isFullyConfigured(settings.keyedProviders(controller.secrets))
             }
+            windowVisible = !trayAvailable || !settings.desktop.startMinimised || !ready
         }
 
         // Wired once settings are readable, and again whenever the bindings change.
@@ -183,7 +193,7 @@ fun main() {
  */
 internal fun settingsWindowSize(
     screenHeight: Int = runCatching { Toolkit.getDefaultToolkit().screenSize.height }.getOrDefault(1080),
-): DpSize = DpSize(560.dp, (screenHeight - 140).coerceIn(560, 780).dp)
+): DpSize = DpSize(560.dp, (screenHeight - 160).coerceIn(520, 640).dp)
 
 /**
  * The tray: what shows that Plume is running, and how to reach settings or quit.

@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Action
+import me.pngwasi.plume.data.isProviderReady
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.BuiltInProviders
 import me.pngwasi.plume.ui.components.PlumeFilterChip
@@ -187,7 +188,7 @@ private fun ProviderRow(
 ) {
     val config = settings.providers[id] ?: return
     val isDefault = settings.defaultProvider == id
-    val ready = config.isConfigured() && id in keyedProviders
+    val ready = settings.isProviderReady(id, keyedProviders)
 
     val uses = buildList {
         if (isDefault) add("default")
