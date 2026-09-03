@@ -24,9 +24,15 @@ kotlin {
     }
 
     if (appleTargetsAvailable) {
-        iosX64()
-        iosArm64()
-        iosSimulatorArm64()
+        listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
+            target.binaries.framework {
+                baseName = "PlumeShared"
+                // Static: the container app and the keyboard extension would otherwise each load
+                // their own copy of a dynamic framework, and the extension has roughly 60MB to
+                // live inside before iOS terminates it.
+                isStatic = true
+            }
+        }
     }
 
     sourceSets {

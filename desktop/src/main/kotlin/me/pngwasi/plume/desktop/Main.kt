@@ -129,7 +129,6 @@ fun main() {
                         controller = controller,
                         settings = loaded,
                         history = history,
-                        outcome = outcome,
                     )
                 }
             }

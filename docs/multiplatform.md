@@ -3,11 +3,11 @@
 Target: Android, iOS, Windows, macOS, Linux (deb/rpm), from one Kotlin codebase.
 
 This is the plan of record. It exists because the interesting parts of this migration are the
-places where sharing *stops*, and those are easy to discover too late.
+places where sharing _stops_, and those are easy to discover too late.
 
 ## What is actually shared
 
-Everything that decides *what to send and what to do with the answer* is already pure Kotlin and
+Everything that decides _what to send and what to do with the answer_ is already pure Kotlin and
 moves to `commonMain` unchanged:
 
 - `ai/` — providers, reasoning dialects and the fallback ladder, response cleaning, `TextEngine`
@@ -24,11 +24,11 @@ keyboard extension. See below.
 
 This is the product, and none of it is portable.
 
-| Platform | How the user reaches Plume |
-|---|---|
-| Android | `ACTION_PROCESS_TEXT` in the selection menu, plus the IME panel |
-| iOS | Keyboard extension (`UIInputViewController` + `UITextDocumentProxy`); no selection-menu equivalent exists |
-| Windows / macOS / Linux | Tray icon and a global hotkey, as MyReviser does today |
+| Platform                | How the user reaches Plume                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| Android                 | `ACTION_PROCESS_TEXT` in the selection menu, plus the IME panel                                           |
+| iOS                     | Keyboard extension (`UIInputViewController` + `UITextDocumentProxy`); no selection-menu equivalent exists |
+| Windows / macOS / Linux | Tray icon and a global hotkey, as MyReviser does today                                                    |
 
 `EditorBridge` is the seam. `InputConnectionBridge` (Android) is joined by a
 `TextDocumentProxyBridge` (iOS) and a clipboard-and-synthetic-keys bridge (desktop).
@@ -41,7 +41,7 @@ costs **15–20 MB** before Skia allocates anything.
 
 So the iOS keyboard's UI is **native SwiftUI**: a title, two buttons, a language row, a spinner. It
 calls the shared `ImePanelController` through KMP. Compose Multiplatform is still used for the iOS
-*container app* (settings), where there is no such ceiling.
+_container app_ (settings), where there is no such ceiling.
 
 This is the one place the "share the UI" story is knowingly abandoned, and it is abandoned on
 purpose.
@@ -82,7 +82,7 @@ misfires.
 
 **A copy that never landed is indistinguishable from a successful one.** The Go processor saved the
 clipboard, simulated copy, slept 150 ms, then read the clipboard. If the copy did not land — the app
-was busy, focus moved, the Wayland grab was slow — the clipboard still held *its previous contents*,
+was busy, focus moved, the Wayland grab was slow — the clipboard still held _its previous contents_,
 so the processor cheerfully revised whatever was there before and pasted it over the user's
 selection. No sleep length fixes this, because nothing is being checked.
 
@@ -92,7 +92,7 @@ reports honestly rather than mangling unrelated text.
 
 **Restore silently discarded non-text clipboard contents.** `save` stored `Option<String>`, so a
 clipboard holding an image saved as `None`, and `restore` treated `None` as "nothing to do" — which
-left *Plume's* text on the clipboard after having destroyed the image. Plume distinguishes empty
+left _Plume's_ text on the clipboard after having destroyed the image. Plume distinguishes empty
 from foreign content and clears rather than leaving its own text behind, so a borrow can never
 become a silent overwrite.
 
@@ -120,12 +120,12 @@ paste → restore clipboard.
 None of this works silently, and each platform fails differently. The desktop settings must state
 plainly where it stands and how to fix it — the same treatment the Android keyboard checklist gets.
 
-| Platform | Requirement | Failure mode without it |
-|---|---|---|
-| macOS | Accessibility permission (TCC) | Hotkeys never fire; must be granted in System Settings |
-| Linux / Wayland | User in the `input` group (`rdev` grabs via evdev) | Hotkeys never fire until re-login after `usermod` |
-| Linux / X11 | None | Works out of the box |
-| Windows | None | Works out of the box |
+| Platform        | Requirement                                        | Failure mode without it                                |
+| --------------- | -------------------------------------------------- | ------------------------------------------------------ |
+| macOS           | Accessibility permission (TCC)                     | Hotkeys never fire; must be granted in System Settings |
+| Linux / Wayland | User in the `input` group (`rdev` grabs via evdev) | Hotkeys never fire until re-login after `usermod`      |
+| Linux / X11     | None                                               | Works out of the box                                   |
+| Windows         | None                                               | Works out of the box                                   |
 
 MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_DISPLAY`, and picks
 `start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
@@ -159,20 +159,20 @@ Beyond parity, a few things only make sense once there is a always-running tray 
 
 `SecretStore` becomes `expect`/`actual`:
 
-| Platform | Backing |
-|---|---|
-| Android | Tink + Android Keystore (already built) |
-| iOS | Keychain |
-| macOS | Keychain |
-| Windows | DPAPI / Credential Manager |
-| Linux | Secret Service (libsecret), falling back to an encrypted file |
+| Platform | Backing                                                       |
+| -------- | ------------------------------------------------------------- |
+| Android  | Tink + Android Keystore (already built)                       |
+| iOS      | Keychain                                                      |
+| macOS    | Keychain                                                      |
+| Windows  | DPAPI / Credential Manager                                    |
+| Linux    | Secret Service (libsecret), falling back to an encrypted file |
 
 ### Smaller seams
 
 - **HTTP** — OkHttp gives way to Ktor (3.5.2), one engine per platform: OkHttp on Android and the
   JVM, Darwin on iOS. Tests move to Ktor's `MockEngine`, which runs in `commonTest` rather than
   only on the JVM as MockWebServer did.
-- **Settings storage** — DataStore supports KMP, but officially only *Preferences*. Plume uses a
+- **Settings storage** — DataStore supports KMP, but officially only _Preferences_. Plume uses a
   typed store with a custom serializer, so it goes through `datastore-core-okio`, whose
   `OkioSerializer` works on every target. Only the file location is `expect`/`actual`.
 - **`Languages`** — `java.util.Locale` is JVM-only; display names need an `expect`/`actual`.
@@ -212,36 +212,60 @@ Sharing the settings screens does not mean pretending the platforms are the same
 - **iOS** gets its own enable-the-keyboard walkthrough, including the "Allow Full Access" step that
   network access depends on.
 
+## Modules
+
+```
+shared/     commonMain: ai, data, panel, ui (settings screens, theme, icons)
+            androidMain / desktopMain / iosMain: secrets, locale, HTTP engine, platform stores
+app/        Android: activities, the IME service, the selection-menu entries
+desktop/    Compose Desktop: tray, shortcuts, window, packaging
+native/     the Rust hotkey/clipboard/keystroke library
+iosApp/     Xcode targets: container app + SwiftUI keyboard extension
+```
+
+The settings screens are one copy, driven by `SettingsNavHost` in `commonMain`. Each platform
+passes in the rows and screens only it has — the companion keyboard on Android, shortcuts and
+history on the desktop, the Full Access walkthrough on iOS — and shares everything else.
+
 ## Stages
 
-Each stage leaves the Android app shipping and its tests green. That constraint is the point: the
-Android app is device-verified today and must not spend weeks broken to reach a second platform.
+Each stage left the Android app shipping and its tests green. That constraint was the point: the
+Android app is device-verified and must not spend weeks broken to reach a second platform.
 
-1. **Logic to `commonMain`.** Create `:shared`, move `ai/` and `data/` and the panel controller,
-   swap OkHttp for Ktor, move the tests to `commonTest`. Android UI untouched.
-2. **Secrets and settings behind `expect`/`actual`.** Still Android-only, but the seams exist.
-3. **Compose Multiplatform for the shared UI.** Move the settings screens to
-   `org.jetbrains.compose`. Android continues to consume them.
-4. **Desktop app.** Tray, hotkey (prototype first), packaging to dmg/msi/deb/rpm via
-   `nativeDistributions`. This is where MyReviser is retired.
-5. **iOS.** Container app in Compose Multiplatform; keyboard extension in SwiftUI over the shared
-   controller.
+1. **Logic to `commonMain`.** `:shared` with `ai/`, `data/` and the panel controller, OkHttp
+   swapped for Ktor, tests moved to `commonTest`. Done.
+2. **Secrets and settings per platform.** `SecretStore` is an interface with a Keystore, Keychain,
+   DPAPI and Secret Service implementation behind it; settings moved to okio-backed DataStore.
+   Done.
+3. **Compose Multiplatform for the shared UI.** Settings screens, theme and icons in `commonMain`.
+   Done.
+4. **Desktop app.** Tray, shortcuts, history, `.deb` built and verified. Done.
+5. **iOS.** Container app over the shared screens; keyboard extension in SwiftUI over the shared
+   controller. Written, not compiled — see below.
 
 ## What this machine can and cannot build
 
-Worth stating plainly, because it shapes how the work can be verified:
+Worth stating plainly, because it shapes what can be claimed:
 
-- **iOS and macOS targets cannot be compiled here.** Kotlin/Native for Apple platforms requires
-  macOS and Xcode; this is a Linux VM. Apple-target code can be written, but not built or tested
-  without a Mac.
-- **Installers are host-specific.** `nativeDistributions` uses jpackage, which only produces
-  packages for the OS it runs on: `.deb`/`.rpm` here, `.msi` on Windows, `.dmg` on macOS. Shipping
-  all five means CI with a runner per OS.
-
-Android and a Linux desktop build are fully verifiable on this machine, including on the connected
-device.
+- **Android**: fully built and tested here, including on the connected device.
+- **Linux desktop**: built, tested, and packaged to a real `.deb`. The Rust library builds and its
+  symbols are exercised through JNA by a test.
+- **`.rpm`**: needs `rpmbuild`, which is not installed here. The Gradle configuration is in place.
+- **Windows and macOS**: `nativeDistributions` uses jpackage, which only produces packages for the
+  host it runs on, so `.msi` and `.dmg` need a runner per OS. The Rust crate also has to be built
+  per platform.
+- **iOS**: Kotlin/Native for Apple targets requires macOS and Xcode. The Apple targets are declared
+  only on a macOS host, so nothing under `iosMain/` or `iosApp/` has been compiled. It is written
+  against the documented APIs and should be treated as unverified until it builds on a Mac.
 
 ## Packaging
 
-`nativeDistributions` covers `.dmg`/`.pkg`, `.exe`/`.msi` and `.deb`/`.rpm` through jpackage, so
-Linux packaging is a build-config exercise rather than new code.
+`nativeDistributions` covers `.dmg`/`.pkg`, `.exe`/`.msi` and `.deb`/`.rpm` through jpackage.
+
+The Rust library travels inside the jar at JNA's own resource prefix
+(`linux-x86-64/libplume_native.so` and so on) rather than beside the binary. That way one mechanism
+covers `gradlew run`, the app image and every installer, with no library path to set and nothing
+for the jpackage step to drop.
+
+The Xcode project is generated by XcodeGen from `iosApp/project.yml` rather than committed: a
+`.pbxproj` is thousands of lines of generated state that merges badly and hides mistakes.

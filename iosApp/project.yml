@@ -1,0 +1,59 @@
+# XcodeGen spec.
+#
+# The Xcode project is generated rather than committed: a .pbxproj is thousands of lines of
+# generated state that merges badly and hides mistakes. Run `xcodegen` in this directory to
+# produce Plume.xcodeproj.
+#
+#   brew install xcodegen && cd iosApp && xcodegen
+#
+# The shared framework is built by Gradle first:
+#
+#   ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
+
+name: Plume
+options:
+  bundleIdPrefix: me.pngwasi
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    # Where Gradle leaves the Kotlin/Native framework.
+    FRAMEWORK_SEARCH_PATHS:
+      - $(inherited)
+      - $(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework
+      - $(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework
+
+targets:
+  # The container app: settings, and the walkthrough for enabling the keyboard.
+  Plume:
+    type: application
+    platform: iOS
+    sources:
+      - path: Plume
+    dependencies:
+      - framework: PlumeShared.framework
+        embed: false
+      - target: PlumeKeyboard
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.pngwasi.plume
+        INFOPLIST_FILE: Plume/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Plume/Plume.entitlements
+
+  # The keyboard extension. SwiftUI, not Compose: see docs/multiplatform.md.
+  PlumeKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PlumeKeyboard
+    dependencies:
+      - framework: PlumeShared.framework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.pngwasi.plume.keyboard
+        INFOPLIST_FILE: PlumeKeyboard/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PlumeKeyboard/PlumeKeyboard.entitlements
