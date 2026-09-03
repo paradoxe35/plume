@@ -4,6 +4,7 @@ set -e
 
 case "$1" in
     remove|upgrade|deconfigure)
+        rm -f /usr/bin/plume
         rm -f /usr/share/applications/plume.desktop
         rm -f /usr/share/icons/hicolor/256x256/apps/plume.png
         update-desktop-database /usr/share/applications >/dev/null 2>&1 || true

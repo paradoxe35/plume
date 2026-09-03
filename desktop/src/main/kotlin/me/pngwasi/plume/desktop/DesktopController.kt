@@ -69,6 +69,7 @@ class DesktopController(
         }?.also { hotkeys = it } ?: return
 
         val defaults = hotkeyDefaultsFor()
+        PlumeLog.info("Shortcut support: ${availability::class.simpleName}")
         rejectedBindings = service.register(
             mapOf(
                 HotkeyAction.ReviseSelection to settings.desktop.reviseSelectionOrDefault(defaults),
@@ -77,7 +78,10 @@ class DesktopController(
                     settings.desktop.translateSelectionOrDefault(defaults),
             ),
         )
-        service.start()
+        if (rejectedBindings.isNotEmpty()) {
+            PlumeLog.error("The system refused these shortcuts: ${rejectedBindings.joinToString()}")
+        }
+        if (!service.start()) PlumeLog.error("The shortcut listener did not start")
     }
 
     /**

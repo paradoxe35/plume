@@ -24,10 +24,14 @@ import kotlinx.coroutines.withContext
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.native.PlumeNative
 import me.pngwasi.plume.ui.icons.PlumeMark
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 fun main() {
+    // First, so that anything below it is recorded — including a failure to start.
+    PlumeLog.install(version = "1.0.0")
+
     // Before anything can touch JNA.
     NativeLibraryPath.configure()
 
@@ -99,6 +103,13 @@ fun main() {
                     controller.shutdown()
                     exitApplication()
                 },
+            )
+        }
+
+        LaunchedEffect(Unit) {
+            PlumeLog.info(
+                "Tray available: $trayAvailable, native input: " +
+                    (if (PlumeNative.library != null) "loaded" else "unavailable"),
             )
         }
 

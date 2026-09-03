@@ -38,6 +38,11 @@ case "$1" in
             echo "StartupWMClass=me-pngwasi-plume-desktop-MainKt" >> "$APPLICATIONS/plume.desktop"
         fi
 
+        # A lowercase name on PATH, so `plume` works from a terminal. jpackage installs the
+        # launcher as /opt/plume/bin/Plume and puts nothing on PATH at all, which also means there
+        # is no easy way to run it and watch its output.
+        ln -sf "$APP_DIR/bin/Plume" /usr/bin/plume
+
         # Caches. Missing tools are normal on a minimal system and are not a failure.
         update-desktop-database "$APPLICATIONS" >/dev/null 2>&1 || true
         gtk-update-icon-cache --force --quiet /usr/share/icons/hicolor >/dev/null 2>&1 || true

@@ -48,6 +48,11 @@ sealed interface Destination {
         override val title = "Recent changes"
     }
 
+    /** Desktop only: the log, for when a background application stops working. */
+    data object Diagnostics : Destination {
+        override val title = "Logs"
+    }
+
     data object Appearance : Destination {
         override val title = "Appearance"
     }

@@ -60,6 +60,14 @@ fun DesktopSettingsWindow(
                 showChevron = true,
                 onClick = { push(Destination.History) },
             )
+            RowDivider()
+            SettingsRow(
+                title = "Logs",
+                subtitle = "What Plume did, and what went wrong",
+                icon = PlumeIcons.Info,
+                showChevron = true,
+                onClick = { push(Destination.Diagnostics) },
+            )
         },
         platformFooter = {
             // Below the settings rather than among them. Closing the window only hides it — the
@@ -90,6 +98,10 @@ fun DesktopSettingsWindow(
                         }
                     },
                     onRecordingChange = controller::setListening,
+                )
+
+                Destination.Diagnostics -> DiagnosticsScreen(
+                    onCopy = { text -> controller.copyToClipboard(text) },
                 )
 
                 Destination.History -> HistoryScreen(
