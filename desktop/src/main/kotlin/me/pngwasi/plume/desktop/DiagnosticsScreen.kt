@@ -2,8 +2,9 @@ package me.pngwasi.plume.desktop
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -51,13 +52,11 @@ fun DiagnosticsScreen(onCopy: (String) -> Unit) {
         }
 
         item {
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedButton(onClick = { lines = PlumeLog.tail() }) { Text("Refresh") }
-            }
-        }
-
-        item {
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                 OutlinedButton(
                     onClick = { onCopy(lines.joinToString("\n")) },
                     enabled = lines.isNotEmpty(),
