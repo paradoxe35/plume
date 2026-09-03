@@ -178,6 +178,18 @@ Beyond parity, a few things only make sense once there is a always-running tray 
 - **`Languages`** — `java.util.Locale` is JVM-only; display names need an `expect`/`actual`.
 - **Clipboard** — trivial but platform-specific.
 
+### Compose Multiplatform is pinned to 1.11.x, and compileSdk stays at 36
+
+CMP 1.12 bundles Jetpack Compose 1.12, which refuses to be consumed below **compileSdk 37**. That
+in turn needs **AGP 9**, and AGP 9 is not a version bump — it removes the separate Kotlin plugin in
+favour of built-in Kotlin, and it rejects `com.android.library` on a Kotlin Multiplatform module
+outright, requiring `com.android.kotlin.multiplatform.library` and its different DSL.
+
+That is a migration in its own right, and stacking it on top of this one would mean debugging two
+unrelated things at once. CMP **1.11.1** resolves to Jetpack Compose 1.11.4, which is current — this
+is a sequencing decision, not a stale dependency. The AGP 9 move is worth doing on its own branch,
+where a failure is legible.
+
 ### Material icons are a dead end, so Plume ships its own
 
 JetBrains stopped publishing `org.jetbrains.compose.material:material-icons-extended` after

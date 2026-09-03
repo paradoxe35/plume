@@ -1,0 +1,239 @@
+package me.pngwasi.plume.data
+
+import java.io.File
+import java.security.SecureRandom
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
+import java.util.concurrent.TimeUnit
+
+/**
+ * Where a desktop API key actually lives.
+ *
+ * Each platform has a real credential store and it is the right place for a key; the encrypted
+ * file exists because none of them is guaranteed to be reachable — a Linux box with no keyring
+ * daemon, a locked login keychain, a headless session.
+ */
+internal interface KeyringBackend {
+    /** False when this backend cannot work here, so the caller can fall back. */
+    fun isAvailable(): Boolean
+    fun get(entry: String): String?
+    fun set(entry: String, value: String): Boolean
+    fun remove(entry: String)
+}
+
+class DesktopSecretStore(
+    private val directory: String = plumeConfigDirectory(),
+) : SecretStore {
+
+    private val backend: KeyringBackend by lazy {
+        val preferred = when (DesktopOs.current) {
+            DesktopOs.Linux -> SecretToolBackend()
+            DesktopOs.MacOs -> MacKeychainBackend()
+            DesktopOs.Windows -> DpapiFileBackend(directory)
+        }
+        if (preferred.isAvailable()) preferred else EncryptedFileBackend(directory)
+    }
+
+    override fun getKey(providerId: String): String =
+        runCatching { backend.get(secretEntryName(providerId)) }.getOrNull().orEmpty()
+
+    override fun setKey(providerId: String, value: String) {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) {
+            removeKey(providerId)
+            return
+        }
+        runCatching { backend.set(secretEntryName(providerId), trimmed) }
+    }
+
+    override fun removeKey(providerId: String) {
+        runCatching { backend.remove(secretEntryName(providerId)) }
+    }
+
+    override fun hasKey(providerId: String): Boolean = getKey(providerId).isNotEmpty()
+}
+
+// --- Linux: Secret Service through libsecret's CLI ---------------------------------------------
+
+/**
+ * `secret-tool` talks to whatever Secret Service is running (GNOME Keyring, KWallet's bridge).
+ * Using the CLI rather than binding libsecret avoids a native dependency for a handful of calls.
+ */
+internal class SecretToolBackend : KeyringBackend {
+
+    override fun isAvailable(): Boolean =
+        runCatching { run(listOf("secret-tool", "--version")).first == 0 }.getOrDefault(false)
+
+    override fun get(entry: String): String? {
+        val (code, out) = run(listOf("secret-tool", "lookup", "service", SERVICE, "account", entry))
+        return if (code == 0 && out.isNotEmpty()) out else null
+    }
+
+    override fun set(entry: String, value: String): Boolean {
+        val (code, _) = run(
+            listOf("secret-tool", "store", "--label=Plume ($entry)", "service", SERVICE, "account", entry),
+            stdin = value,
+        )
+        return code == 0
+    }
+
+    override fun remove(entry: String) {
+        run(listOf("secret-tool", "clear", "service", SERVICE, "account", entry))
+    }
+
+    private companion object {
+        const val SERVICE = "me.pngwasi.plume"
+    }
+}
+
+// --- macOS: the login keychain through `security` ----------------------------------------------
+
+internal class MacKeychainBackend : KeyringBackend {
+
+    override fun isAvailable(): Boolean =
+        runCatching { File("/usr/bin/security").canExecute() }.getOrDefault(false)
+
+    override fun get(entry: String): String? {
+        val (code, out) = run(
+            listOf("/usr/bin/security", "find-generic-password", "-s", SERVICE, "-a", entry, "-w"),
+        )
+        return if (code == 0 && out.isNotEmpty()) out else null
+    }
+
+    override fun set(entry: String, value: String): Boolean {
+        // -U updates in place; without it a second save fails with "already exists".
+        val (code, _) = run(
+            listOf(
+                "/usr/bin/security", "add-generic-password",
+                "-s", SERVICE, "-a", entry, "-w", value, "-U",
+            ),
+        )
+        return code == 0
+    }
+
+    override fun remove(entry: String) {
+        run(listOf("/usr/bin/security", "delete-generic-password", "-s", SERVICE, "-a", entry))
+    }
+
+    private companion object {
+        const val SERVICE = "me.pngwasi.plume"
+    }
+}
+
+// --- Windows: DPAPI, which ties the ciphertext to the Windows account ---------------------------
+
+/**
+ * DPAPI encrypts for the current user account, so the file is unreadable by anyone else on the
+ * machine even though it sits in an ordinary directory.
+ */
+internal class DpapiFileBackend(private val directory: String) : KeyringBackend {
+
+    override fun isAvailable(): Boolean =
+        DesktopOs.current == DesktopOs.Windows && runCatching { Dpapi.load() }.getOrDefault(false)
+
+    private fun file(entry: String) = File(directory, "secrets/$entry.dpapi")
+
+    override fun get(entry: String): String? {
+        val f = file(entry)
+        if (!f.exists()) return null
+        return runCatching { Dpapi.unprotect(f.readBytes()).decodeToString() }.getOrNull()
+    }
+
+    override fun set(entry: String, value: String): Boolean = runCatching {
+        val f = file(entry)
+        f.parentFile?.mkdirs()
+        f.writeBytes(Dpapi.protect(value.encodeToByteArray()))
+        true
+    }.getOrDefault(false)
+
+    override fun remove(entry: String) {
+        file(entry).delete()
+    }
+}
+
+// --- Fallback: AES-GCM in a file, with the key in a 0600 file ----------------------------------
+
+/**
+ * The honest fallback. This protects a key from casual reading and from anything that scrapes
+ * config files; it does not protect it from a process already running as this user, and nothing
+ * file-based can. It is reached only when the platform's own store is unavailable.
+ */
+internal class EncryptedFileBackend(directory: String) : KeyringBackend {
+
+    private val root = File(directory, "secrets").apply { mkdirs() }
+    private val keyFile = File(root, "master.key")
+
+    override fun isAvailable(): Boolean = true
+
+    private fun masterKey(): SecretKeySpec {
+        if (!keyFile.exists()) {
+            val generated = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+            keyFile.writeBytes(generated.encoded)
+            restrictToOwner(keyFile)
+        }
+        return SecretKeySpec(keyFile.readBytes(), "AES")
+    }
+
+    private fun file(entry: String) = File(root, "$entry.enc")
+
+    override fun get(entry: String): String? {
+        val f = file(entry)
+        if (!f.exists()) return null
+        return runCatching {
+            val raw = Base64.getDecoder().decode(f.readText())
+            val iv = raw.copyOfRange(0, IV_BYTES)
+            val body = raw.copyOfRange(IV_BYTES, raw.size)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, masterKey(), GCMParameterSpec(TAG_BITS, iv))
+            cipher.updateAAD(entry.encodeToByteArray())
+            cipher.doFinal(body).decodeToString()
+        }.getOrNull()
+    }
+
+    override fun set(entry: String, value: String): Boolean = runCatching {
+        val iv = ByteArray(IV_BYTES).also { SecureRandom().nextBytes(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, masterKey(), GCMParameterSpec(TAG_BITS, iv))
+        cipher.updateAAD(entry.encodeToByteArray())
+        val body = cipher.doFinal(value.encodeToByteArray())
+        val f = file(entry)
+        f.writeText(Base64.getEncoder().encodeToString(iv + body))
+        restrictToOwner(f)
+        true
+    }.getOrDefault(false)
+
+    override fun remove(entry: String) {
+        file(entry).delete()
+    }
+
+    private fun restrictToOwner(f: File) {
+        runCatching {
+            f.setReadable(false, false)
+            f.setWritable(false, false)
+            f.setReadable(true, true)
+            f.setWritable(true, true)
+        }
+    }
+
+    private companion object {
+        const val IV_BYTES = 12
+        const val TAG_BITS = 128
+    }
+}
+
+/** Runs a command, returning its exit code and trimmed stdout. */
+private fun run(command: List<String>, stdin: String? = null): Pair<Int, String> {
+    val process = ProcessBuilder(command).redirectErrorStream(false).start()
+    stdin?.let { process.outputStream.use { out -> out.write(it.encodeToByteArray()) } }
+        ?: process.outputStream.close()
+    val out = process.inputStream.bufferedReader().readText()
+    // Bounded: a keyring prompt can hang, and hanging the settings screen is worse than failing.
+    if (!process.waitFor(20, TimeUnit.SECONDS)) {
+        process.destroyForcibly()
+        return -1 to ""
+    }
+    return process.exitValue() to out.trim()
+}

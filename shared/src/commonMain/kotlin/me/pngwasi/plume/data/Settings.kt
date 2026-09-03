@@ -109,6 +109,85 @@ data class TranslateSettings(
     fun promptOrDefault(): String = systemPrompt.ifBlank { Prompts.TRANSLATE }
 }
 
+/**
+ * Desktop-only preferences.
+ *
+ * They live in the shared settings document rather than a second store: one file is one thing to
+ * back up and one thing to keep consistent, and the mobile builds simply never read these.
+ *
+ * The hotkey defaults are MyReviser's, so anyone moving over keeps their muscle memory. The
+ * translate binding is new.
+ */
+@Serializable
+data class DesktopSettings(
+    /** Revise whatever is selected. */
+    val reviseSelection: String = "",
+    /** Select the whole field first, then revise it. */
+    val reviseAll: String = "",
+    /** Translate whatever is selected. */
+    val translateSelection: String = "",
+    val startOnLogin: Boolean = false,
+    val startMinimised: Boolean = true,
+    val closeToTray: Boolean = true,
+    /**
+     * The hotkey fires into another app, so the outcome is invisible without this. Off means
+     * silent success and, worse, silent failure.
+     */
+    val notifyOnFinish: Boolean = true,
+) {
+    fun reviseSelectionOrDefault(defaults: HotkeyDefaults) =
+        reviseSelection.ifBlank { defaults.reviseSelection }
+
+    fun reviseAllOrDefault(defaults: HotkeyDefaults) = reviseAll.ifBlank { defaults.reviseAll }
+
+    fun translateSelectionOrDefault(defaults: HotkeyDefaults) =
+        translateSelection.ifBlank { defaults.translateSelection }
+}
+
+/** Per-platform hotkey defaults, since the modifier that is idiomatic differs by desktop. */
+data class HotkeyDefaults(
+    val reviseSelection: String,
+    val reviseAll: String,
+    val translateSelection: String,
+)
+
+/**
+ * Two actions on the same binding means one of them silently never fires, so this is rejected at
+ * the point of editing rather than discovered later.
+ */
+fun duplicateHotkeys(bindings: List<String>): Set<String> {
+    val seen = mutableSetOf<String>()
+    val duplicates = mutableSetOf<String>()
+    bindings.filter { it.isNotBlank() }.forEach { binding ->
+        val normalised = normaliseHotkey(binding)
+        if (!seen.add(normalised)) duplicates += normalised
+    }
+    return duplicates
+}
+
+/** Order and case must not make two identical bindings look different. */
+fun normaliseHotkey(binding: String): String =
+    binding.split('+')
+        .map { it.trim().lowercase() }
+        .filter { it.isNotEmpty() }
+        .sorted()
+        .joinToString("+")
+
+/**
+ * A binding needs at least one modifier and one key, or it would fire on ordinary typing.
+ * Modifier-only combinations are allowed because MyReviser shipped them and they work.
+ */
+fun validateHotkey(binding: String): String? {
+    val parts = binding.split('+').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+    if (parts.isEmpty()) return "Enter a shortcut"
+    if (parts.size < 2) return "Use at least two keys, such as ctrl+alt+r"
+    if (parts.distinct().size != parts.size) return "The same key is listed twice"
+    if (parts.none { it in HOTKEY_MODIFIERS }) return "Include a modifier such as ctrl or alt"
+    return null
+}
+
+val HOTKEY_MODIFIERS = setOf("ctrl", "control", "alt", "option", "shift", "meta", "super", "win", "cmd")
+
 @Serializable
 data class AppSettings(
     /** Used by any action without its own override. */
@@ -125,6 +204,8 @@ data class AppSettings(
      * list, which nobody should get without asking for it.
      */
     val keyboardEnabled: Boolean = false,
+    /** Ignored on mobile, where there are no hotkeys and no tray. */
+    val desktop: DesktopSettings = DesktopSettings(),
 ) {
     /**
      * Resolves which provider runs [action], falling back to the default when the override points
