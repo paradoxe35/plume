@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +35,7 @@ import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
  * Manages the translate targets: which languages are pinned to the picker, and whether the picker
@@ -92,7 +89,7 @@ fun TranslateScreen(
                     subtitle = settings.defaultTarget
                         ?.let { "${Languages.resolve(it).displayName()} · picker skipped" }
                         ?: "Off — Plume asks each time",
-                    icon = Icons.Outlined.PushPin,
+                    icon = PlumeIcons.PushPin,
                     trailing = {
                         Checkbox(
                             checked = settings.defaultTarget != null,
@@ -108,7 +105,7 @@ fun TranslateScreen(
                 SettingsRow(
                     title = "Prompt and limits",
                     subtitle = "Translation instructions, selection cap, timeout",
-                    icon = Icons.Outlined.Tune,
+                    icon = PlumeIcons.Tune,
                     showChevron = true,
                     onClick = onOpenPrompt,
                 )
@@ -143,7 +140,7 @@ fun TranslateScreen(
                 placeholder = { Text("Search languages") },
                 leadingIcon = {
                     Icon(
-                        Icons.Outlined.Search,
+                        PlumeIcons.Search,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                     )

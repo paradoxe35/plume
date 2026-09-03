@@ -5,18 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,6 +42,7 @@ import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.BuiltInProviders
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.ime.KeyboardComponent
+import me.pngwasi.plume.ui.icons.PlumeIcons
 import me.pngwasi.plume.ui.settings.AboutScreen
 import me.pngwasi.plume.ui.settings.AddProviderDialog
 import me.pngwasi.plume.ui.settings.AppearanceScreen
@@ -53,7 +52,7 @@ import me.pngwasi.plume.ui.settings.KeyboardScreen
 import me.pngwasi.plume.ui.settings.ProviderEditScreen
 import me.pngwasi.plume.ui.settings.ProvidersScreen
 import me.pngwasi.plume.ui.settings.ReviseScreen
-import me.pngwasi.plume.ui.settings.SettingsViewModel
+import me.pngwasi.plume.ui.settings.AndroidSettingsViewModel
 import me.pngwasi.plume.ui.settings.TranslatePromptScreen
 import me.pngwasi.plume.ui.settings.TranslateScreen
 import me.pngwasi.plume.ui.theme.PlumeTheme
@@ -71,7 +70,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val viewModel: SettingsViewModel = viewModel()
+            val viewModel: AndroidSettingsViewModel = viewModel()
             val settings by viewModel.settings.collectAsStateWithLifecycle()
 
             PlumeTheme(mode = settings?.theme ?: ThemeMode.System) {
@@ -104,7 +103,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsApp(
-    viewModel: SettingsViewModel,
+    viewModel: AndroidSettingsViewModel,
     settings: AppSettings,
     landing: Destination?,
 ) {
@@ -160,7 +159,7 @@ private fun SettingsApp(
                 navigationIcon = {
                     if (stack.size > 1) {
                         IconButton(onClick = ::pop) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                            Icon(PlumeIcons.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },

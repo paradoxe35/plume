@@ -1,7 +1,6 @@
 package me.pngwasi.plume.ui.settings
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,16 +15,13 @@ import me.pngwasi.plume.ai.TextEngine
 import me.pngwasi.plume.data.Action
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.Languages
-import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ReviseSettings
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
-import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.data.TranslateSettings
-import me.pngwasi.plume.ime.KeyboardComponent
-import me.pngwasi.plume.ime.TypingKeyboard
+import kotlin.coroutines.cancellation.CancellationException
 
 /** Outcome of the "Test connection" button on a provider. */
 sealed interface ProbeState {
@@ -48,13 +44,18 @@ sealed interface ModelsState {
     data class Unavailable(val reason: String) : ModelsState
 }
 
-class SettingsViewModel(app: Application) : AndroidViewModel(app) {
-
-    private val repository = PlumeStores.settings(app)
-    private val secrets = PlumeStores.secrets(app)
-
-    /** `app` is a constructor parameter, not a property, so member functions go through this. */
-    private val context: Application get() = getApplication()
+/**
+ * Everything the settings screens do that is the same on every platform.
+ *
+ * Open, so Android can add the keyboard-integration state no other platform has. The stores are
+ * injected rather than built from a `Context`, which is what lets this live in common code.
+ */
+open class SettingsViewModel(
+    protected val repository: SettingsRepository,
+    protected val secrets: SecretStore,
+    /** Lets Android mirror the theme where a cold start can read it synchronously. */
+    private val onThemeChanged: (ThemeMode) -> Unit = {},
+) : ViewModel() {
 
     val settings: StateFlow<AppSettings?> = repository.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -67,63 +68,18 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Which providers currently hold a key. Read from the encrypted store rather than settings, and
-     * refreshed explicitly because SharedPreferences is not a flow.
+     * refreshed explicitly because a keychain is not a flow.
      */
     private val _keyed = MutableStateFlow<Set<String>>(emptySet())
     val keyedProviders: StateFlow<Set<String>> = _keyed.asStateFlow()
 
     private var modelJob: Job? = null
 
-    private val _keyboardStatus = MutableStateFlow(readKeyboardStatus())
-    val keyboardStatus: StateFlow<KeyboardStatus> = _keyboardStatus.asStateFlow()
-
     init {
-        viewModelScope.launch {
-            refreshKeyed()
-            reconcileKeyboardComponent()
-        }
+        viewModelScope.launch { refreshKeyed() }
     }
 
-    private fun readKeyboardStatus() = KeyboardStatus(
-        available = KeyboardComponent.isAvailable(context),
-        enabledInSystem = KeyboardComponent.isEnabledInSystem(context),
-        isCurrent = KeyboardComponent.isCurrentInputMethod(context),
-    )
-
-    /**
-     * The component's enabled state is what the system actually acts on, so it — not the stored
-     * flag — is the truth. A restore to a new device brings settings across but not component
-     * state, which would otherwise leave the toggle on and the keyboard missing.
-     */
-    private suspend fun reconcileKeyboardComponent() {
-        val wanted = repository.current().keyboardEnabled
-        if (KeyboardComponent.isAvailable(context) != wanted) {
-            KeyboardComponent.setAvailable(context, wanted)
-        }
-        _keyboardStatus.value = readKeyboardStatus()
-    }
-
-    /** System state changes outside the app, so it is re-read whenever the screen is shown. */
-    fun refreshKeyboardStatus() {
-        // Opening Plume usually happens while the user's own keyboard is selected — the moment to
-        // note where the panel's "Keyboard" button should return to.
-        TypingKeyboard.noteCurrent(context)
-        _keyboardStatus.value = readKeyboardStatus()
-    }
-
-    fun setKeyboardEnabled(enabled: Boolean) = viewModelScope.launch {
-        KeyboardComponent.setAvailable(context, enabled)
-        repository.update { it.copy(keyboardEnabled = enabled) }
-        _keyboardStatus.value = readKeyboardStatus()
-    }
-
-    fun showKeyboardPicker() {
-        // They are on their own keyboard right now and about to switch away from it.
-        TypingKeyboard.noteCurrent(context)
-        KeyboardComponent.showPicker(context)
-    }
-
-    private suspend fun refreshKeyed() {
+    protected suspend fun refreshKeyed() {
         val ids = repository.current().providers.keys
         _keyed.value = ids.filter { secrets.hasKey(it) && secrets.getKey(it).isNotBlank() }.toSet()
     }
@@ -160,8 +116,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setTheme(mode: ThemeMode) = viewModelScope.launch {
         repository.update { it.copy(theme = mode) }
-        // Mirrored immediately so the next overlay draws the new theme on its first frame.
-        ThemeCache.write(context, mode)
+        onThemeChanged(mode)
     }
 
     fun toggleFavoriteLanguage(code: String) = viewModelScope.launch {
@@ -195,7 +150,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: AiException) {
                 ModelsState.Unavailable(e.message ?: "Could not load models.")
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 ModelsState.Unavailable("Could not load models. Type one instead.")
@@ -228,6 +183,8 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             ProbeState.Ok(engine.translate("Bonjour", Languages.resolve("en").code).take(80))
         } catch (e: AiException) {
             ProbeState.Failed(e.message ?: "Failed")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ProbeState.Failed(e.message ?: "Failed")
         }

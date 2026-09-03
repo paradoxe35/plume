@@ -16,15 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.Backspace
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -47,6 +38,7 @@ import me.pngwasi.plume.panel.ActionScope
 import me.pngwasi.plume.panel.PanelState
 import me.pngwasi.plume.panel.TranslationSubject
 import me.pngwasi.plume.panel.pickerOptions
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
  * The keyboard panel.
@@ -120,17 +112,17 @@ private fun Header(
 
         TextButton(onClick = onClearField, enabled = canClear, contentPadding = TightPadding) {
             Icon(
-                Icons.Outlined.Backspace,
+                PlumeIcons.Backspace,
                 contentDescription = "Clear the field",
                 modifier = Modifier.size(16.dp),
             )
         }
         TextButton(onClick = onOpenSettings, contentPadding = TightPadding) {
-            Icon(Icons.Outlined.Settings, contentDescription = "Plume settings", modifier = Modifier.size(16.dp))
+            Icon(PlumeIcons.Settings, contentDescription = "Plume settings", modifier = Modifier.size(16.dp))
         }
         TextButton(onClick = onBackToKeyboard, contentPadding = TightPadding) {
             Icon(
-                Icons.AutoMirrored.Outlined.KeyboardReturn,
+                PlumeIcons.KeyboardReturn,
                 contentDescription = "Back to keyboard",
                 modifier = Modifier.size(16.dp),
             )
@@ -183,7 +175,7 @@ private fun ReadyBody(
                 enabled = !empty,
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
-                Icon(Icons.Outlined.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(PlumeIcons.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Revise")
             }
             OutlinedButton(
@@ -191,7 +183,7 @@ private fun ReadyBody(
                 enabled = !empty,
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
-                Icon(Icons.Outlined.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(PlumeIcons.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Translate")
             }
         }
@@ -204,7 +196,7 @@ private fun ReadyBody(
             modifier = Modifier.fillMaxWidth().height(44.dp),
         ) {
             Icon(
-                Icons.Outlined.ContentPaste,
+                PlumeIcons.ContentPaste,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
             )
@@ -306,7 +298,7 @@ private fun Confirmation(text: String, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(
-            Icons.Outlined.CheckCircle,
+            PlumeIcons.CheckCircle,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
@@ -395,7 +387,7 @@ private fun FailedBody(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(
-                Icons.Outlined.ErrorOutline,
+                PlumeIcons.ErrorOutline,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(20.dp),

@@ -9,10 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -26,6 +22,7 @@ import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 @Composable
 fun AppearanceScreen(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
@@ -40,9 +37,9 @@ fun AppearanceScreen(current: ThemeMode, onSelect: (ThemeMode) -> Unit) {
                         ThemeMode.Dark -> "Dark"
                     },
                     icon = when (mode) {
-                        ThemeMode.System -> Icons.Outlined.PhoneAndroid
-                        ThemeMode.Light -> Icons.Outlined.LightMode
-                        ThemeMode.Dark -> Icons.Outlined.DarkMode
+                        ThemeMode.System -> PlumeIcons.PhoneAndroid
+                        ThemeMode.Light -> PlumeIcons.LightMode
+                        ThemeMode.Dark -> PlumeIcons.DarkMode
                     },
                     trailing = {
                         RadioButton(selected = current == mode, onClick = { onSelect(mode) })

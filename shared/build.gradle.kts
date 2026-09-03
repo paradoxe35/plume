@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.kotlin.compose)
 }
 
 // Apple targets need a macOS host and Xcode. Declaring them unconditionally would leave
@@ -35,6 +37,15 @@ kotlin {
             implementation(libs.datastore.core)
             implementation(libs.datastore.core.okio)
             implementation(libs.okio)
+
+            // The settings UI is shared, so these are api rather than implementation: the app and
+            // desktop modules compose against the same Compose types.
+            api(compose.runtime)
+            api(compose.foundation)
+            api(compose.material3)
+            api(compose.ui)
+            api(libs.compose.lifecycle.viewmodel)
+            api(libs.compose.lifecycle.runtime)
         }
 
         commonTest.dependencies {

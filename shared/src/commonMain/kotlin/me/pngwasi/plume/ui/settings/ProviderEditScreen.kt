@@ -9,11 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,22 +32,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 import kotlinx.coroutines.delay
+import me.pngwasi.plume.ai.Reasoning
+import me.pngwasi.plume.ai.ReasoningStyle
 import me.pngwasi.plume.data.BuiltInProviders
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ProviderKind
 import me.pngwasi.plume.data.ReasoningDialect
 import me.pngwasi.plume.data.ReasoningMode
 import me.pngwasi.plume.data.isLocalEndpoint
-import me.pngwasi.plume.ai.Reasoning
-import me.pngwasi.plume.ai.ReasoningStyle
 import me.pngwasi.plume.data.validateProvider
 import me.pngwasi.plume.ui.components.PlumeFilterChip
 import me.pngwasi.plume.ui.components.PlumeSlider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
-import java.util.Locale
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
  * Edits one provider: credentials, endpoint, model and sampling, plus a live connection test.
@@ -160,7 +156,7 @@ fun ProviderEditScreen(
             trailingIcon = {
                 IconButton(onClick = { revealKey = !revealKey }) {
                     Icon(
-                        imageVector = if (revealKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        imageVector = if (revealKey) PlumeIcons.VisibilityOff else PlumeIcons.Visibility,
                         contentDescription = if (revealKey) "Hide key" else "Show key",
                     )
                 }
@@ -311,7 +307,7 @@ fun ProviderEditScreen(
                 onClick = { confirmDelete = true },
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
             ) {
-                Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(PlumeIcons.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Remove provider")
             }
         }
@@ -341,7 +337,7 @@ private fun DefaultBanner(isDefault: Boolean, enabled: Boolean, onSetDefault: ()
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Outlined.CheckCircle,
+                PlumeIcons.CheckCircle,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),

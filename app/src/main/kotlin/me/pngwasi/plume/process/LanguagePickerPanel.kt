@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Language
 import me.pngwasi.plume.data.Languages
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
  * Asks which language to translate into.
@@ -76,7 +75,7 @@ fun LanguagePickerPanel(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search languages") },
             leadingIcon = {
-                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(PlumeIcons.Search, contentDescription = null, modifier = Modifier.size(20.dp))
             },
             singleLine = true,
         )

@@ -8,12 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
-import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +22,7 @@ import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
  * Provider list plus per-action routing.
@@ -84,7 +79,7 @@ fun ProvidersScreen(
             SettingsRow(
                 title = "Add a provider",
                 subtitle = "Any OpenAI-compatible endpoint: Groq, Mistral, DeepSeek, Together, Ollama, your own gateway",
-                icon = Icons.Outlined.Add,
+                icon = PlumeIcons.Add,
                 showChevron = true,
                 onClick = onAddCustom,
             )
@@ -129,9 +124,9 @@ private fun ActionRouting(
         ) {
             androidx.compose.material3.Icon(
                 imageVector = if (action == Action.Revise) {
-                    Icons.Outlined.AutoFixHigh
+                    PlumeIcons.AutoFixHigh
                 } else {
-                    Icons.Outlined.Translate
+                    PlumeIcons.Translate
                 },
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
@@ -188,7 +183,7 @@ private fun ProviderRow(
             append(config.model.ifBlank { "no model" })
             if (uses.isNotEmpty()) append(" · ${uses.joinToString(", ")}")
         },
-        icon = if (isDefault) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+        icon = if (isDefault) PlumeIcons.CheckCircle else PlumeIcons.RadioButtonUnchecked,
         trailing = { ReadyPill(ready) },
         showChevron = true,
         onClick = { onEdit(id) },

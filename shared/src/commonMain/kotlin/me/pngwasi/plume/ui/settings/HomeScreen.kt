@@ -11,13 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Hub
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,6 +28,7 @@ import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.components.StatusPill
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 @Composable
 fun HomeScreen(
@@ -61,7 +55,7 @@ fun HomeScreen(
             SettingsRow(
                 title = "Revise",
                 subtitle = "Spelling, grammar and accents. Prompt and limits.",
-                icon = Icons.Outlined.AutoFixHigh,
+                icon = PlumeIcons.AutoFixHigh,
                 showChevron = true,
                 onClick = { onOpen(Destination.Revise) },
             )
@@ -69,7 +63,7 @@ fun HomeScreen(
             SettingsRow(
                 title = "Translate",
                 subtitle = translateSubtitle(settings),
-                icon = Icons.Outlined.Translate,
+                icon = PlumeIcons.Translate,
                 showChevron = true,
                 onClick = { onOpen(Destination.Translate) },
             )
@@ -80,7 +74,7 @@ fun HomeScreen(
             SettingsRow(
                 title = "AI providers",
                 subtitle = providerSubtitle(settings),
-                icon = Icons.Outlined.Hub,
+                icon = PlumeIcons.Hub,
                 showChevron = true,
                 onClick = { onOpen(Destination.Providers) },
             )
@@ -88,7 +82,7 @@ fun HomeScreen(
             SettingsRow(
                 title = "Plume keyboard",
                 subtitle = if (settings.keyboardEnabled) "On" else "Off · optional second way in",
-                icon = Icons.Outlined.Keyboard,
+                icon = PlumeIcons.Keyboard,
                 showChevron = true,
                 onClick = { onOpen(Destination.Keyboard) },
             )
@@ -100,7 +94,7 @@ fun HomeScreen(
                     ThemeMode.Light -> "Light"
                     ThemeMode.Dark -> "Dark"
                 },
-                icon = Icons.Outlined.DarkMode,
+                icon = PlumeIcons.DarkMode,
                 showChevron = true,
                 onClick = { onOpen(Destination.Appearance) },
             )
@@ -108,7 +102,7 @@ fun HomeScreen(
             SettingsRow(
                 title = "How Plume works",
                 subtitle = "Where the menu appears, and where it can't",
-                icon = Icons.Outlined.Info,
+                icon = PlumeIcons.Info,
                 showChevron = true,
                 onClick = { onOpen(Destination.About) },
             )
@@ -177,7 +171,7 @@ private fun ReadinessCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = if (allReady) Icons.Outlined.AutoFixHigh else Icons.Outlined.Info,
+                imageVector = if (allReady) PlumeIcons.AutoFixHigh else PlumeIcons.Info,
                 contentDescription = null,
                 tint = onContainer,
                 modifier = Modifier.size(22.dp),

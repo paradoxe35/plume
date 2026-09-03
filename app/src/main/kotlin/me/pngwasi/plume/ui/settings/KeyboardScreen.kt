@@ -5,10 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -19,6 +15,7 @@ import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /** What the system currently thinks of Plume's keyboard, refreshed each time the screen is shown. */
 data class KeyboardStatus(
@@ -66,7 +63,7 @@ fun KeyboardScreen(
                 } else {
                     "Off — nothing is added to your keyboards"
                 },
-                icon = Icons.Outlined.Keyboard,
+                icon = PlumeIcons.Keyboard,
                 trailing = { Switch(checked = enabled, onCheckedChange = onToggle) },
                 onClick = { onToggle(!enabled) },
             )
@@ -82,7 +79,7 @@ fun KeyboardScreen(
                     } else {
                         "Open Android's keyboard list and switch Plume on"
                     },
-                    icon = Icons.Outlined.OpenInNew,
+                    icon = PlumeIcons.OpenInNew,
                     showChevron = true,
                     onClick = onOpenSystemSettings,
                 )
@@ -94,7 +91,7 @@ fun KeyboardScreen(
                         status.enabledInSystem -> "Opens the keyboard picker"
                         else -> "Finish step 1 first"
                     },
-                    icon = Icons.Outlined.SwapHoriz,
+                    icon = PlumeIcons.SwapHoriz,
                     enabled = status.enabledInSystem,
                     showChevron = true,
                     onClick = onShowPicker,

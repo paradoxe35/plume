@@ -10,9 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
  * Model field backed by the provider's live catalogue.
@@ -67,7 +65,7 @@ fun ModelField(
                         strokeWidth = 2.dp,
                     )
                     else -> IconButton(onClick = onReload) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "Reload models")
+                        Icon(PlumeIcons.Refresh, contentDescription = "Reload models")
                     }
                 }
             },
@@ -152,7 +150,7 @@ private fun ModelBrowser(models: List<String>, selected: String, onPick: (String
                             )
                             if (model == selected) {
                                 Icon(
-                                    Icons.Outlined.Check,
+                                    PlumeIcons.Check,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp),
