@@ -15,15 +15,23 @@ internal object Dpapi {
 
     @Suppress("FunctionName")
     private interface Crypt32 : StdCallLibrary {
+        // The description is LPCWSTR and there is no ANSI variant of this entry point, so a JNA
+        // String — which maps to char* — would be read as wide characters and produce garbage.
+        // Null is allowed and the description only ever appears in a prompt Plume never triggers.
         fun CryptProtectData(
-            input: Blob, description: String?, entropy: Blob?, reserved: Pointer?,
+            input: Blob, description: Pointer?, entropy: Blob?, reserved: Pointer?,
             prompt: Pointer?, flags: Int, output: Blob,
         ): Boolean
 
         fun CryptUnprotectData(
-            input: Blob, description: Array<String?>?, entropy: Blob?, reserved: Pointer?,
+            input: Blob, description: Pointer?, entropy: Blob?, reserved: Pointer?,
             prompt: Pointer?, flags: Int, output: Blob,
         ): Boolean
+    }
+
+    @Suppress("FunctionName")
+    private interface Kernel32 : StdCallLibrary {
+        fun LocalFree(handle: Pointer?): Pointer?
     }
 
     @Structure.FieldOrder("cbData", "pbData")
@@ -51,15 +59,26 @@ internal object Dpapi {
 
     fun protect(data: ByteArray): ByteArray {
         val output = Blob()
-        val ok = library.CryptProtectData(blobOf(data), "Plume API key", null, null, null, 0, output)
+        val ok = library.CryptProtectData(blobOf(data), null, null, null, null, 0, output)
         check(ok) { "CryptProtectData failed" }
-        return output.bytes()
+        return output.take()
     }
 
     fun unprotect(data: ByteArray): ByteArray {
         val output = Blob()
         val ok = library.CryptUnprotectData(blobOf(data), null, null, null, null, 0, output)
         check(ok) { "CryptUnprotectData failed" }
-        return output.bytes()
+        return output.take()
+    }
+
+    /** DPAPI allocates the output with LocalAlloc, so the caller owns it. */
+    private fun Blob.take(): ByteArray {
+        val copy = bytes()
+        runCatching { kernel32.LocalFree(pbData) }
+        return copy
+    }
+
+    private val kernel32: Kernel32 by lazy {
+        Native.load("Kernel32", Kernel32::class.java)
     }
 }

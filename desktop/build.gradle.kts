@@ -61,7 +61,16 @@ compose.desktop {
         nativeDistributions {
             // jpackage only produces packages for the host it runs on, so shipping all of these
             // means one CI runner per operating system.
-            targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Msi, TargetFormat.Dmg)
+            //
+            // Windows gets both: the .msi is what deploys through group policy, the .exe is what
+            // someone downloading it expects to double-click. Both go through WiX 3.
+            targetFormats(
+                TargetFormat.Deb,
+                TargetFormat.Rpm,
+                TargetFormat.Msi,
+                TargetFormat.Exe,
+                TargetFormat.Dmg,
+            )
 
             packageName = "Plume"
             packageVersion = "1.0.0"

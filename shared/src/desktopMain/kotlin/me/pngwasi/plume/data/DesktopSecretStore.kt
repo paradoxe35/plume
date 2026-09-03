@@ -24,18 +24,33 @@ internal interface KeyringBackend {
     fun remove(entry: String)
 }
 
-class DesktopSecretStore(
-    private val directory: String = plumeConfigDirectory(),
+/**
+ * Writes a value, reads it back, and removes it.
+ *
+ * "The tool is installed" is not the same as "the tool works": a locked keychain, a keyring daemon
+ * that is running but refusing, a DPAPI call that is subtly wrong. All of those fail on write, and
+ * because saving a key is fire-and-forget from the UI's point of view, the user would find out when
+ * their provider stopped being configured. Proving the round trip once at startup costs a few
+ * milliseconds and turns a silent loss into a fallback.
+ */
+internal fun KeyringBackend.roundTrips(): Boolean = runCatching {
+    val probe = "plume_probe"
+    val value = "plume-probe-value"
+    if (!set(probe, value)) return@runCatching false
+    val readBack = get(probe)
+    remove(probe)
+    readBack == value
+}.getOrDefault(false)
+
+class DesktopSecretStore private constructor(
+    private val directory: String,
+    private val chooseBackend: (String) -> KeyringBackend,
 ) : SecretStore {
 
-    private val backend: KeyringBackend by lazy {
-        val preferred = when (DesktopOs.current) {
-            DesktopOs.Linux -> SecretToolBackend()
-            DesktopOs.MacOs -> MacKeychainBackend()
-            DesktopOs.Windows -> DpapiFileBackend(directory)
-        }
-        if (preferred.isAvailable()) preferred else EncryptedFileBackend(directory)
-    }
+    constructor(directory: String = plumeConfigDirectory()) :
+        this(directory, ::preferredBackend)
+
+    private val backend: KeyringBackend by lazy { chooseBackend(directory) }
 
     override fun getKey(providerId: String): String =
         runCatching { backend.get(secretEntryName(providerId)) }.getOrNull().orEmpty()
@@ -54,6 +69,26 @@ class DesktopSecretStore(
     }
 
     override fun hasKey(providerId: String): Boolean = getKey(providerId).isNotEmpty()
+
+    internal companion object {
+        /** Test seam: keeps a test run out of the developer's real keyring. */
+        internal fun withBackend(directory: String, backend: KeyringBackend) =
+            DesktopSecretStore(directory) { backend }
+    }
+}
+
+/** The platform's own store when it works, the encrypted file when it does not. */
+private fun preferredBackend(directory: String): KeyringBackend {
+    val preferred = when (DesktopOs.current) {
+        DesktopOs.Linux -> SecretToolBackend()
+        DesktopOs.MacOs -> MacKeychainBackend()
+        DesktopOs.Windows -> DpapiFileBackend(directory)
+    }
+    return if (preferred.isAvailable() && preferred.roundTrips()) {
+        preferred
+    } else {
+        EncryptedFileBackend(directory)
+    }
 }
 
 // --- Linux: Secret Service through libsecret's CLI ---------------------------------------------
