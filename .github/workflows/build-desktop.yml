@@ -49,6 +49,20 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # The wrapper fetches its own distribution from services.gradle.org on the first Gradle
+      # invocation, and that download has no retry: a reset connection fails the whole job with a
+      # stack trace from `org.gradle.wrapper.Install`, which looks like a build failure and is not
+      # one. Fetching it here, with retries, keeps a transient network fault out of the build
+      # steps — and once it is fetched, setup-gradle caches it for later runs.
+      - name: Fetch the Gradle distribution
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version; then exit 0; fi
+            echo "Gradle bootstrap failed (attempt $attempt of 3), retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -79,7 +93,8 @@ jobs:
         shell: pwsh
         run: |
           $url = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\wix.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\wix.zip" `
+            -MaximumRetryCount 3 -RetryIntervalSec 10
           Expand-Archive -Path "$env:RUNNER_TEMP\wix.zip" -DestinationPath "$env:RUNNER_TEMP\wix3"
           "$env:RUNNER_TEMP\wix3" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 

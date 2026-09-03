@@ -70,7 +70,9 @@ TOOL="$WORK_DIR/appimagetool"
 if command -v appimagetool >/dev/null 2>&1; then
     TOOL="$(command -v appimagetool)"
 else
-    curl -fsSL -o "$TOOL" \
+    # Retried: a reset connection here fails the packaging step, and it has nothing to do with the
+    # build.
+    curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$TOOL" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$ARCH.AppImage"
     chmod +x "$TOOL"
 fi
