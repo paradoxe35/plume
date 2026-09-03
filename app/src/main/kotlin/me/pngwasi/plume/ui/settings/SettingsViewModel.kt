@@ -24,6 +24,7 @@ import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.data.TranslateSettings
 import me.pngwasi.plume.ime.KeyboardComponent
+import me.pngwasi.plume.ime.TypingKeyboard
 
 /** Outcome of the "Test connection" button on a provider. */
 sealed interface ProbeState {
@@ -103,6 +104,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     /** System state changes outside the app, so it is re-read whenever the screen is shown. */
     fun refreshKeyboardStatus() {
+        // Opening Plume usually happens while the user's own keyboard is selected — the moment to
+        // note where the panel's "Keyboard" button should return to.
+        TypingKeyboard.noteCurrent(context)
         _keyboardStatus.value = readKeyboardStatus()
     }
 
@@ -112,7 +116,11 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         _keyboardStatus.value = readKeyboardStatus()
     }
 
-    fun showKeyboardPicker() = KeyboardComponent.showPicker(context)
+    fun showKeyboardPicker() {
+        // They are on their own keyboard right now and about to switch away from it.
+        TypingKeyboard.noteCurrent(context)
+        KeyboardComponent.showPicker(context)
+    }
 
     private suspend fun refreshKeyed() {
         val ids = repository.current().providers.keys

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import me.pngwasi.plume.MainActivity
 import me.pngwasi.plume.data.SettingsRepository
 import me.pngwasi.plume.data.ThemeCache
+import me.pngwasi.plume.ime.TypingKeyboard
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
@@ -55,6 +56,10 @@ abstract class TextActionActivity : ComponentActivity() {
             return
         }
         request = parsed
+
+        // A selection action runs while the user's own keyboard is selected, so this is a reliable
+        // place to learn which one it is.
+        TypingKeyboard.noteCurrent(this)
 
         setContent {
             val viewModel: TextActionViewModel = viewModel()

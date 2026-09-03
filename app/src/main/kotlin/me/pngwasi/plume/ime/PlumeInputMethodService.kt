@@ -155,9 +155,25 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         super.onDestroy()
     }
 
-    /** Returns the user to whichever keyboard they were using before. */
+    /**
+     * Returns the user to whichever keyboard they type with.
+     *
+     * Android's own switching history is tried first, since it knows exactly where the user came
+     * from. It can come up empty — notably on the first switch after a restart — so the keyboard
+     * Plume noted for itself stands behind it. If neither knows, the picker is shown: guessing at a
+     * keyboard the user never chose would be worse than asking.
+     */
     private fun switchAway() {
-        val switched = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (switchToPrevious()) return
+
+        val target = TypingKeyboard.resolveTarget(this)
+        if (target != null && switchTo(target)) return
+
+        KeyboardComponent.showPicker(this)
+    }
+
+    private fun switchToPrevious(): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             switchToPreviousInputMethod()
         } else {
             @Suppress("DEPRECATION")
@@ -165,11 +181,20 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
             val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
             token != null && imm?.switchToLastInputMethod(token) == true
         }
-        // No previous method to go back to (single keyboard installed): let the user choose.
-        if (!switched) {
-            KeyboardComponent.showPicker(this)
+    }.getOrDefault(false)
+
+    private fun switchTo(imeId: String): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            switchInputMethod(imeId)
+        } else {
+            @Suppress("DEPRECATION")
+            val token = window?.window?.attributes?.token ?: return false
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager ?: return false
+            @Suppress("DEPRECATION")
+            imm.setInputMethod(token, imeId)
         }
-    }
+        true
+    }.getOrDefault(false)
 
     private fun openSettings() {
         startActivity(
