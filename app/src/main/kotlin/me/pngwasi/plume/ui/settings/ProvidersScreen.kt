@@ -14,7 +14,6 @@ import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Translate
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Action
 import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.BuiltInProviders
+import me.pngwasi.plume.ui.components.PlumeFilterChip
 import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
@@ -152,17 +152,10 @@ private fun ActionRouting(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 row.forEach { (label, id) ->
-                    FilterChip(
+                    PlumeFilterChip(
                         selected = override == id,
                         onClick = { onSelect(action, id) },
-                        label = {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
+                        label = label,
                         modifier = Modifier.weight(1f),
                     )
                 }

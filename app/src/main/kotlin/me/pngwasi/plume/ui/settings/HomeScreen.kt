@@ -119,7 +119,7 @@ fun HomeScreen(
 @Composable
 private fun Header() {
     Column(
-        modifier = Modifier.padding(top = 24.dp, bottom = 20.dp),
+        modifier = Modifier.padding(top = 4.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("Plume", style = MaterialTheme.typography.displaySmall)

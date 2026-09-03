@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -17,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.components.PlumeFilterChip
 import me.pngwasi.plume.data.ProviderConfig
 import me.pngwasi.plume.data.ProviderKind
 import me.pngwasi.plume.data.validateCustomProviderName
@@ -111,9 +111,9 @@ fun AddProviderDialog(
 
 @Composable
 private fun PresetChip(option: Preset, selected: Preset?, onSelect: (Preset) -> Unit) {
-    FilterChip(
+    PlumeFilterChip(
         selected = selected?.name == option.name,
         onClick = { onSelect(option) },
-        label = { Text(option.name, style = MaterialTheme.typography.labelSmall) },
+        label = option.name,
     )
 }

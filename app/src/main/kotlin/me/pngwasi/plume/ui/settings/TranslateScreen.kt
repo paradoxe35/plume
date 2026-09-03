@@ -1,5 +1,7 @@
 package me.pngwasi.plume.ui.settings
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,14 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,11 +29,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Language
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.TranslateSettings
+import me.pngwasi.plume.ui.components.PlumeFilterChip
 import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
@@ -104,28 +109,21 @@ fun TranslateScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 favorites.take(4).forEach { code ->
-                    FilterChip(
+                    PlumeFilterChip(
                         selected = settings.defaultTarget.equals(code, ignoreCase = true),
                         onClick = { onSetDefaultTarget(code) },
-                        label = {
-                            Text(
-                                Languages.resolve(code).displayName(),
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
+                        label = Languages.resolve(code).displayName(),
                     )
                 }
             }
         }
 
-        SectionLabel("Pinned languages (${favorites.size})")
+        SectionLabel("Languages · ${favorites.size} pinned")
 
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             placeholder = { Text("Search languages") },
             leadingIcon = {
                 Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -133,8 +131,17 @@ fun TranslateScreen(
             singleLine = true,
         )
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(results, key = { it.code }) { language ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(16.dp))
+                .border(
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    RoundedCornerShape(16.dp),
+                )
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            itemsIndexed(results, key = { _, item -> item.code }) { index, language ->
                 val pinned = favorites.any { it.equals(language.code, ignoreCase = true) }
                 val name = language.displayName()
                 val endonym = language.endonym()
@@ -158,6 +165,7 @@ fun TranslateScreen(
                         },
                         onClick = { onToggleFavorite(language.code) },
                     )
+                    if (index != results.lastIndex) RowDivider()
                 }
             }
         }

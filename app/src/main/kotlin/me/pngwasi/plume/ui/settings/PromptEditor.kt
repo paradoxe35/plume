@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.DEFAULT_CHARACTER_LIMIT
 import me.pngwasi.plume.data.MAX_TIMEOUT_SECONDS
+import me.pngwasi.plume.ui.components.PlumeSlider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.theme.PromptEditorStyle
 import kotlin.math.roundToInt
@@ -80,7 +80,7 @@ fun CharacterLimitControl(value: Int, onChange: (Int) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Slider(
+        PlumeSlider(
             value = value.toFloat(),
             onValueChange = { onChange((it / 250f).roundToInt() * 250) },
             valueRange = 250f..12000f,
@@ -107,7 +107,7 @@ fun TimeoutControl(value: Int, onChange: (Int) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Slider(
+        PlumeSlider(
             value = value.toFloat(),
             onValueChange = { onChange(it.roundToInt()) },
             valueRange = 15f..MAX_TIMEOUT_SECONDS.toFloat(),

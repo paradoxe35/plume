@@ -145,14 +145,16 @@ private fun SettingsApp(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        text = if (current is Destination.ProviderEdit) {
-                            settings.labelOf(current.providerId)
-                        } else {
-                            current.title
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                    )
+                    // Home carries its own large title, so repeating it in the bar just says
+                    // "Plume" twice on the first screen anyone sees.
+                    val barTitle = when (current) {
+                        Destination.Home -> ""
+                        is Destination.ProviderEdit -> settings.labelOf(current.providerId)
+                        else -> current.title
+                    }
+                    if (barTitle.isNotEmpty()) {
+                        Text(text = barTitle, style = MaterialTheme.typography.titleLarge)
+                    }
                 },
                 navigationIcon = {
                     if (stack.size > 1) {

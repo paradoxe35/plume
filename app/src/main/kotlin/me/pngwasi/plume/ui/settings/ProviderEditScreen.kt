@@ -17,13 +17,11 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +47,8 @@ import me.pngwasi.plume.data.isLocalEndpoint
 import me.pngwasi.plume.ai.Reasoning
 import me.pngwasi.plume.ai.ReasoningStyle
 import me.pngwasi.plume.data.validateProvider
+import me.pngwasi.plume.ui.components.PlumeFilterChip
+import me.pngwasi.plume.ui.components.PlumeSlider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
@@ -129,11 +129,11 @@ fun ProviderEditScreen(
         SectionLabel("Credentials")
         SettingsCard {
             SettingsRow(
-                title = "This provider needs an API key",
+                title = "Requires an API key",
                 subtitle = if (authRequired) {
                     "Plume will not run without one"
                 } else {
-                    "For local runtimes like Ollama or LM Studio"
+                    "Off — for local runtimes like Ollama or LM Studio"
                 },
                 trailing = {
                     Switch(
@@ -223,7 +223,7 @@ fun ProviderEditScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Slider(
+            PlumeSlider(
                 value = temperature,
                 onValueChange = { temperature = it },
                 onValueChangeFinished = { commit() },
@@ -378,10 +378,10 @@ private fun DialectSelector(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ReasoningDialect.entries.forEach { option ->
-                FilterChip(
+                PlumeFilterChip(
                     selected = option == selected,
                     onClick = { onSelect(option) },
-                    label = { Text(dialectLabel(option), style = MaterialTheme.typography.labelSmall) },
+                    label = dialectLabel(option),
                 )
             }
         }
@@ -428,10 +428,10 @@ private fun KindSelector(selected: ProviderKind, onSelect: (ProviderKind) -> Uni
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ProviderKind.entries.forEach { option ->
-                FilterChip(
+                PlumeFilterChip(
                     selected = option == selected,
                     onClick = { onSelect(option) },
-                    label = { Text(kindLabel(option), style = MaterialTheme.typography.labelSmall) },
+                    label = kindLabel(option),
                 )
             }
         }
