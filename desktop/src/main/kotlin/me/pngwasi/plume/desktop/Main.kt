@@ -277,8 +277,6 @@ private fun ApplicationScope.PlumeTray(
     onOpen: () -> Unit,
     onQuit: () -> Unit,
 ) {
-    val busy = outcome is ActionOutcome.Working
-
     Tray(
         // Plume's own teal, at rest and while working alike — the mark reads as Plume rather than as
         // one more monochrome glyph. Which teal depends on the panel: the bright one disappears into
