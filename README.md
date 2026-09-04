@@ -123,6 +123,28 @@ is the product.
 More on the multiplatform decisions, including the ones that went wrong first, in
 [docs/multiplatform.md](docs/multiplatform.md).
 
+## Credits
+
+Plume's desktop half grew out of [MyReviser](https://github.com/paradoxe35/MyReviser), which did
+this job with a hotkey before Plume existed. Its Rust layer is the ancestor of `native/`, and its
+shortcut defaults are still Plume's, because they had already been proven in daily use. Reading it
+closely also turned up the clipboard bugs worth not repeating: a copy that never landed being taken
+for a real one, a saved image quietly replaced by text, and the trigger's own modifiers leaking into
+the keystrokes that followed.
+
+The desktop leans on work by other people too:
+
+- [rdev](https://github.com/rustdesk-org/rdev), RustDesk's fork, for global shortcuts that also
+  work on Wayland
+- [arboard](https://github.com/1Password/arboard) for the clipboard
+- [enigo](https://github.com/enigo-rs/enigo) for keystroke simulation
+- [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform), which is why Android,
+  the desktop and iOS share one UI
+- [ComposeNativeTray](https://github.com/kdroidFilter/ComposeNativeTray) for a tray that follows the
+  desktop's own look instead of Java's
+- [Ktor](https://ktor.io), [okio](https://github.com/square/okio), DataStore and
+  [JNA](https://github.com/java-native-access/jna)
+
 ## Status
 
 Android and Linux are the two I use daily. Windows and macOS build and test in CI on every change,
