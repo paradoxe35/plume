@@ -107,6 +107,10 @@ class TextEngine(
                 providerId, label, key, config.baseUrl, config.model, config.temperature,
                 timeoutSeconds, config.reasoning, http,
             )
+            ProviderKind.Anthropic -> AnthropicProvider(
+                providerId, label, key, config.baseUrl, config.model, config.temperature,
+                timeoutSeconds, http,
+            )
         }
     }
 

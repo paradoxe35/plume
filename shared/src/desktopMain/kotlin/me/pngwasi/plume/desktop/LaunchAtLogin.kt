@@ -40,12 +40,7 @@ object LaunchAtLogin {
      * Gradle it is absent, and there is no launcher to register — reporting that honestly beats
      * writing an entry that would try to start a JVM with no classpath.
      */
-    private fun launcherPath(): String? =
-        System.getProperty("jpackage.app-path")
-            ?.takeIf { File(it).exists() }
-            // Canonical, because the deb puts a `plume` symlink on PATH and an entry pointing at a
-            // symlink breaks the moment the package is upgraded.
-            ?.let { runCatching { File(it).canonicalPath }.getOrDefault(it) }
+    private fun launcherPath(): String? = AppRelaunch.launcherPath()
 
     /** What the settings screen and the log should say when the toggle cannot work. */
     fun diagnostics(): String {
@@ -108,11 +103,7 @@ object LaunchAtLogin {
      * bundle: it gets no bundle identity, and Accessibility is granted per bundle — so the
      * permission the user already gave would not apply to the copy that starts at login.
      */
-    internal fun macAppBundle(executable: String): String {
-        val marker = ".app/Contents/MacOS/"
-        val index = executable.indexOf(marker)
-        return if (index >= 0) executable.substring(0, index + ".app".length) else executable
-    }
+    internal fun macAppBundle(executable: String): String = AppRelaunch.macAppBundle(executable)
 
     private fun macName(bundle: String) = File(bundle).name.removeSuffix(".app")
 

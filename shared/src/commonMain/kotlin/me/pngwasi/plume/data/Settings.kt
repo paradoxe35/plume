@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
  * chat-completions format; Gemini is the one common exception worth its own client.
  */
 @Serializable
-enum class ProviderKind { OpenAiCompatible, Gemini }
+enum class ProviderKind { OpenAiCompatible, Gemini, Anthropic }
 
 @Serializable
 enum class ThemeMode { System, Light, Dark }

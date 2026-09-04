@@ -8,8 +8,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per pull request. Pushing again cancels the run still in flight rather than queueing a
+# second one: `head_ref` keys on the branch for a PR, `ref` covers a manual dispatch.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 permissions:

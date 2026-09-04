@@ -72,12 +72,17 @@ fun main() {
             if (started) return@LaunchedEffect
             started = true
 
-            // An unconfigured Plume must show itself, or its shortcuts just fail silently. Reads
-            // the secret store, so not on the UI thread.
-            val ready = withContext(Dispatchers.IO) {
-                settings.isFullyConfigured(settings.keyedProviders(controller.secrets))
+            // A Plume that cannot work must show itself rather than hide in the tray, or its
+            // shortcuts fail silently and the tray is the last place anyone looks for the reason.
+            // Two ways to be unable to work: no provider configured, and macOS withholding the
+            // permissions the listener needs. Both read from outside, so not on the UI thread.
+            val blocked = withContext(Dispatchers.IO) {
+                val unconfigured =
+                    !settings.isFullyConfigured(settings.keyedProviders(controller.secrets))
+                val unpermitted = controller.availability !is HotkeyAvailability.Ready
+                unconfigured || unpermitted
             }
-            windowVisible = !trayAvailable || !settings.desktop.startMinimised || !ready
+            windowVisible = !trayAvailable || !settings.desktop.startMinimised || blocked
         }
 
         LaunchedEffect(loaded?.desktop) {
@@ -87,6 +92,9 @@ fun main() {
         LaunchedEffect(Unit) {
             controller.openRequests.collect { requestOpen() }
         }
+
+        // macOS says nothing when a privilege is granted, so the only way to notice is to look.
+        LaunchedEffect(Unit) { controller.watchPermissions() }
 
         // On macOS the Dock icon follows the window: no window means no Dock entry and no Cmd-Tab.
         LaunchedEffect(windowVisible) {
@@ -175,12 +183,7 @@ fun main() {
 
                 // On macOS an accessory app's window opens behind the active app with no focus, so
                 // the Dock activation has to happen before `toFront` means anything.
-                LaunchedEffect(openRequests) {
-                    state.isMinimized = false
-                    if (MacDock.isSupported) MacDock.showInDock()
-                    window.toFront()
-                    window.requestFocus()
-                }
+                LaunchedEffect(openRequests) { raiseWindow(window, state) }
 
                 PlumeTheme(mode = theme) {
                     val settingsUi = @Composable {

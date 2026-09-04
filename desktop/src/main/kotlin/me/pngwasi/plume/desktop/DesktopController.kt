@@ -1,5 +1,9 @@
 package me.pngwasi.plume.desktop
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -50,6 +54,43 @@ class DesktopController(
         private set
 
     val availability: HotkeyAvailability get() = hotkeyAvailability()
+
+    private val _permissions = MutableStateFlow(MacPermissions.current())
+
+    /**
+     * macOS privileges, polled.
+     *
+     * The system sends no notification when a switch is flipped, so the only way to notice is to
+     * ask. Without it the warning sits there looking stale while the user is in System Settings
+     * having just granted it.
+     */
+    val permissions: StateFlow<MacPermissionState> = _permissions.asStateFlow()
+
+    /**
+     * Whether a privilege was missing when Plume started.
+     *
+     * The listener is wired once at launch, so granting a permission afterwards does not reach it:
+     * the shortcuts stay dead until the process restarts. Remembering this is what lets the UI ask
+     * for a restart rather than leaving the user to work that out.
+     */
+    val permissionsMissingAtLaunch: Boolean = !_permissions.value.allGranted
+
+    fun watchPermissions() {
+        if (!MacPermissions.isSupported) return
+        scope.launch {
+            while (isActive) {
+                delay(PERMISSION_POLL)
+                val latest = MacPermissions.current()
+                if (latest != _permissions.value) {
+                    _permissions.value = latest
+                    PlumeLog.info("macOS permissions changed: missing ${latest.missing}")
+                }
+                // Once everything is granted there is nothing left to watch: what remains is the
+                // restart, and that is the user's to take.
+                if (latest.allGranted) return@launch
+            }
+        }
+    }
 
     fun applyHotkeys(settings: AppSettings) {
         val service = hotkeys ?: HotkeyService.createOrNull { action ->
@@ -108,9 +149,19 @@ class DesktopController(
         systemInput?.setClipboardText(text)
     }
 
+    /** Starts a fresh copy and stops this one, so the listener is wired with the new privileges. */
+    fun restart(): Boolean {
+        if (!AppRelaunch.relaunch()) return false
+        shutdown()
+        return true
+    }
+
     fun shutdown() {
         hotkeys?.close()
         hotkeys = null
         systemInput?.close()
     }
 }
+
+/** Slow enough to be invisible, quick enough that the card updates while the user watches. */
+private const val PERMISSION_POLL = 1_500L

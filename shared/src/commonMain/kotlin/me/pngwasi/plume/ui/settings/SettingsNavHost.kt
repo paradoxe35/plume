@@ -50,6 +50,8 @@ fun SettingsNavHost(
     settings: AppSettings,
     stack: SnapshotStateList<Destination>,
     intro: String,
+    /** Something the system is withholding, shown above everything else on the home screen. */
+    blocker: PlatformBlocker? = null,
     /** Rows added to the home screen's configuration card. */
     platformRows: @Composable (push: (Destination) -> Unit) -> Unit = {},
     /** Anything that belongs below the settings rather than among them. */
@@ -121,6 +123,7 @@ fun SettingsNavHost(
                     keyedProviders = keyed,
                     onOpen = push,
                     intro = intro,
+                    blocker = blocker,
                     platformRows = { platformRows(push) },
                     platformFooter = platformFooter,
                 )

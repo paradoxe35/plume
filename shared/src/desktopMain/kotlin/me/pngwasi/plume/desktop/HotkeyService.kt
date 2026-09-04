@@ -110,21 +110,28 @@ fun hotkeyAvailability(
         os: DesktopOs = DesktopOs.current,
         wayland: Boolean = isWaylandSession(),
         inInputGroup: () -> Boolean = ::userIsInInputGroup,
-        accessibilityGranted: () -> Boolean = MacAccessibility::isTrusted,
+        macPermissions: () -> MacPermissionState = MacPermissions::current,
 ): HotkeyAvailability {
     if (nativeState is PlumeNative.State.Unavailable) {
         return HotkeyAvailability.Unavailable(nativeState.reason)
     }
     return when (os) {
-        DesktopOs.MacOs ->
-                if (accessibilityGranted()) {
-                    HotkeyAvailability.Ready
-                } else {
-                    HotkeyAvailability.NeedsPermission(
-                            "Plume needs Accessibility access",
-                            "Open System Settings → Privacy & Security → Accessibility and allow Plume.",
-                    )
-                }
+        DesktopOs.MacOs -> {
+            // Both, and neither implies the other: Input Monitoring sees the shortcut and
+            // Accessibility replaces the text, so one alone leaves the other silently blocking.
+            val missing = macPermissions().missing
+            if (missing.isEmpty()) {
+                HotkeyAvailability.Ready
+            } else {
+                HotkeyAvailability.NeedsPermission(
+                    summary = "Plume needs " + missing.joinToString(" and ") { it.label },
+                    // What happens if they are not granted. The how is a button now, so repeating
+                    // "open System Settings" here would just be noise beside it.
+                    instruction = "Until both are allowed, the shortcuts cannot fire and nothing " +
+                        "will happen when you press one.",
+                )
+            }
+        }
         DesktopOs.Linux ->
                 if (!wayland || inInputGroup()) {
                     HotkeyAvailability.Ready
@@ -151,7 +158,6 @@ fun userIsInInputGroup(): Boolean =
                 }
                 .getOrDefault(false)
 
-/** MyReviser's defaults, so anyone moving over keeps their muscle memory. */
 /**
  * Revise keeps MyReviser's bindings exactly, on all three systems: they have been in daily use for
  * long enough to be worth more than any reasoning about what might clash.

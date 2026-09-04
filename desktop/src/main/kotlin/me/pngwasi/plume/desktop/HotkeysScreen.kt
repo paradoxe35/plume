@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.ui.components.rememberTrackedScrollState
-import me.pngwasi.plume.data.DesktopOs
 import me.pngwasi.plume.data.DesktopSettings
 import me.pngwasi.plume.data.duplicateHotkeys
 import me.pngwasi.plume.data.validateHotkey
@@ -194,18 +193,13 @@ private fun PermissionCard(availability: HotkeyAvailability) {
             )
         }
 
+        // Points at the home screen rather than repeating it. Permissions gate the whole app, so
+        // they are granted in one place; saying nothing here would just look broken.
         is HotkeyAvailability.NeedsPermission -> SettingsCard {
             SettingsRow(
-                title = availability.summary,
-                subtitle = availability.instruction,
+                title = "Waiting on permissions",
+                subtitle = "Grant them on the home screen, then these start working.",
                 icon = PlumeIcons.ErrorOutline,
-                // Only macOS has a pane to open; the Wayland fix is a command in a terminal.
-                showChevron = DesktopOs.current == DesktopOs.MacOs,
-                onClick = if (DesktopOs.current == DesktopOs.MacOs) {
-                    { MacAccessibility.openSettings() }
-                } else {
-                    null
-                },
             )
         }
 

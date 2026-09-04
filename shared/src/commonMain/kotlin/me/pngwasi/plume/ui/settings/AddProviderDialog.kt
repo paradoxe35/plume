@@ -28,12 +28,19 @@ private data class Preset(
     val model: String,
     /** Local runtimes accept anything or nothing, so they start with auth switched off. */
     val authRequired: Boolean = true,
+    /** Almost everything speaks OpenAI's format. Anthropic is the exception that needs its own. */
+    val kind: ProviderKind = ProviderKind.OpenAiCompatible,
 )
 
 private val Presets = listOf(
+    Preset(
+        name = "Anthropic",
+        baseUrl = "https://api.anthropic.com",
+        model = "claude-haiku-4-5",
+        kind = ProviderKind.Anthropic,
+    ),
     Preset("Groq", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
     Preset("Mistral", "https://api.mistral.ai/v1", "mistral-small-latest"),
-    Preset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"),
     Preset("Together", "https://api.together.xyz/v1", ""),
     Preset("Ollama", "http://localhost:11434/v1", "", authRequired = false),
     Preset("LM Studio", "http://localhost:1234/v1", "", authRequired = false),
@@ -91,7 +98,7 @@ fun AddProviderDialog(
                         name.trim(),
                         ProviderConfig(
                             label = name.trim(),
-                            kind = ProviderKind.OpenAiCompatible,
+                            kind = chosen?.kind ?: ProviderKind.OpenAiCompatible,
                             baseUrl = chosen?.baseUrl.orEmpty(),
                             model = chosen?.model.orEmpty(),
                             temperature = 1f,

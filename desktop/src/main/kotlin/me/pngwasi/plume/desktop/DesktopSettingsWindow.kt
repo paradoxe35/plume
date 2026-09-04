@@ -1,6 +1,8 @@
 package me.pngwasi.plume.desktop
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -11,6 +13,8 @@ import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.icons.PlumeIcons
 import me.pngwasi.plume.ui.settings.Destination
+import me.pngwasi.plume.ui.settings.BlockerFix
+import me.pngwasi.plume.ui.settings.PlatformBlocker
 import me.pngwasi.plume.ui.settings.SettingsNavHost
 import me.pngwasi.plume.ui.settings.SettingsViewModel
 import me.pngwasi.plume.ui.settings.rememberSettingsStack
@@ -33,12 +37,22 @@ fun DesktopSettingsWindow(
     }
     val scope = rememberCoroutineScope()
     val stack = rememberSettingsStack()
+    val permissions by controller.permissions.collectAsState()
 
     SettingsNavHost(
         viewModel = viewModel,
         settings = settings,
         stack = stack,
         intro = "Select text anywhere, then press a Plume shortcut. Plume stays in the tray.",
+        // Outranks a missing API key: no configuration helps while the system refuses to deliver
+        // the shortcut at all.
+        blocker = permissionBlocker(
+            availability = controller.availability,
+            permissions = permissions,
+            missingAtLaunch = controller.permissionsMissingAtLaunch,
+            onGrant = MacPermissions::request,
+            onRestart = { controller.restart() },
+        ),
         platformRows = { push ->
             RowDivider()
             SettingsRow(
@@ -116,10 +130,58 @@ fun DesktopSettingsWindow(
     )
 }
 
+/**
+ * Two states, one card.
+ *
+ * While something is missing it lists what to grant. Once everything is granted it asks for a
+ * restart, because the listener was wired at launch and a privilege given afterwards never reaches
+ * it — the shortcuts stay dead, which looks exactly like the permission not having worked.
+ */
+internal fun permissionBlocker(
+    availability: HotkeyAvailability,
+    permissions: MacPermissionState,
+    missingAtLaunch: Boolean,
+    supported: Boolean = MacPermissions.isSupported,
+    onGrant: (MacPermission) -> Unit,
+    onRestart: () -> Unit,
+): PlatformBlocker? {
+    if (supported && permissions.allGranted) {
+        if (!missingAtLaunch) return null
+        return PlatformBlocker(
+            summary = "Restart Plume to finish",
+            detail = "The permissions are granted. Plume reads them when it starts, so the " +
+                "shortcuts begin working after a restart.",
+            fixes = listOf(
+                BlockerFix(
+                    label = "Permissions granted",
+                    why = "Restart Plume so the shortcuts pick them up.",
+                    action = "Restart",
+                    onSelect = onRestart,
+                ),
+            ),
+        )
+    }
+
+    val needed = availability as? HotkeyAvailability.NeedsPermission ?: return null
+    return PlatformBlocker(
+        summary = needed.summary,
+        detail = needed.instruction,
+        // One row per privilege, because macOS grants them separately: a single button leaves the
+        // user guessing which switch is still off. Wayland has nothing to open, so no rows.
+        fixes = permissions.missing.map { permission ->
+            BlockerFix(
+                label = permission.label,
+                why = permission.why,
+                onSelect = { onGrant(permission) },
+            )
+        },
+    )
+}
+
 private fun shortcutSubtitle(controller: DesktopController): String =
     when (val availability = controller.availability) {
         HotkeyAvailability.Ready ->
             if (controller.rejectedBindings.isEmpty()) "Active" else "Some shortcuts were refused"
-        is HotkeyAvailability.NeedsPermission -> availability.summary
+        is HotkeyAvailability.NeedsPermission -> "Waiting on permissions"
         is HotkeyAvailability.Unavailable -> "Unavailable"
     }
