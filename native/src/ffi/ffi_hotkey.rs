@@ -190,6 +190,27 @@ impl SimpleHotkeyManager {
                         // Check bindings after modifier state update
                         let bindings_lock = bindings.lock();
 
+                        // A shortcut that never fires leaves nothing to look at, and the state is
+                        // only observable on the machine where it fails. Reported only for a key
+                        // some binding actually names, and only while a modifier is down, so this
+                        // cannot become a record of what the user typed.
+                        {
+                            let key_str = key_to_string(&key);
+                            let named = bindings_lock
+                                .iter()
+                                .any(|b| !b.key.is_empty() && b.key == key_str);
+                            if named && (*ctrl || *alt || *meta) {
+                                tracing::info!(
+                                    "Saw {} with ctrl={} alt={} shift={} meta={}",
+                                    key_str,
+                                    *ctrl,
+                                    *alt,
+                                    *shift,
+                                    *meta
+                                );
+                            }
+                        }
+
                         for binding in bindings_lock.iter() {
                             if binding.key.is_empty() {
                                 if matches_modifier_only_binding(
@@ -598,6 +619,38 @@ pub unsafe extern "C" fn plume_hotkey_manager_free(handle: HotkeyManagerHandle) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The exact combination a macOS user reports as dead: ctrl+option+space, with Option
+    /// arriving as `Key::Alt` and the space bar as "space".
+    #[test]
+    fn ctrl_option_space_matches_once_the_state_is_right() {
+        let modifiers = vec!["ctrl".to_string(), "option".to_string()];
+
+        assert!(matches_binding(&modifiers, "space", true, true, false, false, "space"));
+        assert!(matches_binding(
+            &["ctrl".to_string(), "option".to_string()],
+            "g",
+            true,
+            true,
+            false,
+            false,
+            "g"
+        ));
+    }
+
+    /// Every way the state can be wrong, so a failure upstream is told apart from a bad matcher.
+    #[test]
+    fn the_matcher_refuses_anything_but_an_exact_state() {
+        let modifiers = vec!["ctrl".to_string(), "option".to_string()];
+
+        // Option never observed — the shape of a modifier rdev did not report.
+        assert!(!matches_binding(&modifiers, "space", true, false, false, false, "space"));
+        // A stray modifier held as well.
+        assert!(!matches_binding(&modifiers, "space", true, true, false, true, "space"));
+        // The key arrived under another name.
+        assert!(!matches_binding(&modifiers, "space", true, true, false, false, "Space"));
+        assert!(!matches_binding(&modifiers, "space", true, true, false, false, "nbsp"));
+    }
 
     /// Suspending and resuming happens every time a shortcut is recorded. rdev's listener cannot be
     /// stopped, so resuming used to spawn a second one beside the first — both delivering the same
