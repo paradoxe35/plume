@@ -127,7 +127,8 @@ fun main() {
         LaunchedEffect(Unit) {
             PlumeLog.info(
                 "Tray available: $trayAvailable, native input: " +
-                    (if (PlumeNative.library != null) "loaded" else "unavailable"),
+                    (if (PlumeNative.library != null) "loaded" else "unavailable") +
+                    ", start with the system: " + LaunchAtLogin.diagnostics(),
             )
         }
 

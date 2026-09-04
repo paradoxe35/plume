@@ -150,22 +150,30 @@ fun userIsInInputGroup(): Boolean = runCatching {
 }.getOrDefault(false)
 
 /** MyReviser's defaults, so anyone moving over keeps their muscle memory. */
+/**
+ * Defaults chosen against what other software already claims, because a shortcut that opens a
+ * terminal instead of Plume reads as Plume being broken.
+ *
+ * Avoided: `ctrl+alt+t` (GNOME and KDE launch a terminal), `ctrl+alt+space` (VS Code toggles the
+ * suggestion widget), and `ctrl+alt+c`, `+f`, `+d`, `+l`, the arrows, Tab and Delete for the same
+ * reason. `shift` is what keeps the `t` mnemonic for translate while stepping around the terminal.
+ */
 fun hotkeyDefaultsFor(os: DesktopOs = DesktopOs.current): HotkeyDefaults = when (os) {
     DesktopOs.MacOs -> HotkeyDefaults(
         reviseSelection = "ctrl+cmd",
-        reviseAll = "ctrl+option+space",
-        translateSelection = "ctrl+option+t",
+        reviseAll = "ctrl+option+e",
+        translateSelection = "ctrl+option+shift+t",
     )
 
     DesktopOs.Windows -> HotkeyDefaults(
         reviseSelection = "ctrl+win",
-        reviseAll = "ctrl+alt+space",
-        translateSelection = "ctrl+alt+t",
+        reviseAll = "ctrl+alt+e",
+        translateSelection = "ctrl+alt+shift+t",
     )
 
     DesktopOs.Linux -> HotkeyDefaults(
         reviseSelection = "ctrl+super",
-        reviseAll = "ctrl+alt+space",
-        translateSelection = "ctrl+alt+t",
+        reviseAll = "ctrl+alt+e",
+        translateSelection = "ctrl+alt+shift+t",
     )
 }

@@ -19,7 +19,7 @@ object LaunchAtLogin {
     fun isEnabled(): Boolean = runCatching {
         when (DesktopOs.current) {
             DesktopOs.Linux -> linuxEntry().exists()
-            DesktopOs.MacOs -> macAgent().exists()
+            DesktopOs.MacOs -> macEnabled()
             DesktopOs.Windows -> windowsQuery()
         }
     }.getOrDefault(false)
@@ -28,7 +28,7 @@ object LaunchAtLogin {
     fun setEnabled(enabled: Boolean): Boolean = runCatching {
         when (DesktopOs.current) {
             DesktopOs.Linux -> if (enabled) writeLinux() else linuxEntry().delete().let { true }
-            DesktopOs.MacOs -> if (enabled) writeMac() else macAgent().delete().let { true }
+            DesktopOs.MacOs -> if (enabled) writeMac() else removeMac()
             DesktopOs.Windows -> if (enabled) writeWindows() else removeWindows()
         }
     }.getOrDefault(false)
@@ -41,7 +41,21 @@ object LaunchAtLogin {
      * writing an entry that would try to start a JVM with no classpath.
      */
     private fun launcherPath(): String? =
-        System.getProperty("jpackage.app-path")?.takeIf { File(it).exists() }
+        System.getProperty("jpackage.app-path")
+            ?.takeIf { File(it).exists() }
+            // Canonical, because the deb puts a `plume` symlink on PATH and an entry pointing at a
+            // symlink breaks the moment the package is upgraded.
+            ?.let { runCatching { File(it).canonicalPath }.getOrDefault(it) }
+
+    /** What the settings screen and the log should say when the toggle cannot work. */
+    fun diagnostics(): String {
+        val raw = System.getProperty("jpackage.app-path")
+        return when {
+            raw == null -> "unavailable (not a packaged build)"
+            !File(raw).exists() -> "unavailable (no launcher at $raw)"
+            else -> "available (${launcherPath()})"
+        }
+    }
 
     // --- Linux: an XDG autostart entry ---------------------------------------------------------
 
@@ -85,56 +99,89 @@ object LaunchAtLogin {
         return "\"$escaped\""
     }
 
-    // --- macOS: a LaunchAgent ------------------------------------------------------------------
+    // --- macOS: a login item on the bundle ------------------------------------------------------
 
-    private fun macAgent() = File(
-        System.getProperty("user.home"),
-        "Library/LaunchAgents/me.pngwasi.plume.plist",
-    )
+    /**
+     * The `.app`, not the executable inside it.
+     *
+     * A LaunchAgent pointing at `Plume.app/Contents/MacOS/Plume` starts the binary rather than the
+     * bundle: it gets no bundle identity, and Accessibility is granted per bundle — so the
+     * permission the user already gave would not apply to the copy that starts at login.
+     */
+    internal fun macAppBundle(executable: String): String {
+        val marker = ".app/Contents/MacOS/"
+        val index = executable.indexOf(marker)
+        return if (index >= 0) executable.substring(0, index + ".app".length) else executable
+    }
+
+    private fun macName(bundle: String) = File(bundle).name.removeSuffix(".app")
 
     private fun writeMac(): Boolean {
-        val path = launcherPath() ?: return false
-        macAgent().parentFile?.mkdirs()
-        macAgent().writeText(
-            """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
-            <dict>
-                <key>Label</key>
-                <string>me.pngwasi.plume</string>
-                <key>ProgramArguments</key>
-                <array>
-                    <string>${path.replace("&", "&amp;").replace("<", "&lt;")}</string>
-                </array>
-                <key>RunAtLoad</key>
-                <true/>
-            </dict>
-            </plist>
-            """.trimIndent() + "\n",
+        val bundle = macAppBundle(launcherPath() ?: return false)
+        // "Open at Login", the same list System Settings shows, so the user can see and undo it.
+        return osascript(
+            "tell application \"System Events\" to make new login item with properties " +
+                "{path:\"$bundle\", hidden:false} at end",
         )
-        return true
     }
+
+    private fun removeMac(): Boolean {
+        val bundle = macAppBundle(launcherPath() ?: return false)
+        return osascript(
+            "tell application \"System Events\" to delete login item \"${macName(bundle)}\"",
+        )
+    }
+
+    private fun macEnabled(): Boolean {
+        val bundle = launcherPath()?.let(::macAppBundle) ?: return false
+        val listed = run("osascript", "-e", "tell application \"System Events\" to get the name of every login item")
+        return listed?.contains(macName(bundle)) == true
+    }
+
+    private fun osascript(script: String): Boolean = run("osascript", "-e", script) != null
 
     // --- Windows: the per-user Run key ---------------------------------------------------------
 
     private const val RUN_KEY = """HKCU\Software\Microsoft\Windows\CurrentVersion\Run"""
     private const val RUN_NAME = "Plume"
 
-    private fun writeWindows(): Boolean {
-        val path = launcherPath() ?: return false
-        return reg("add", RUN_KEY, "/v", RUN_NAME, "/t", "REG_SZ", "/d", "\"$path\"", "/f")
+    /**
+     * Written through a `.reg` file rather than `reg add /d`.
+     *
+     * The stored value has to keep its surrounding quotes, or Windows guesses at a path containing
+     * spaces — `C:\Program Files\Plume\Plume.exe` would first be tried as `C:\Program`. Passing
+     * literal quotes as an argument through `ProcessBuilder` on Windows is unreliable, since Java
+     * re-quotes the command line on the way out. A file has no command line to mangle.
+     */
+    internal fun registryFile(executable: String): String {
+        val escaped = executable.replace("\\", "\\\\").replace("\"", "\\\"")
+        return """
+            Windows Registry Editor Version 5.00
+
+            [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run]
+            "$RUN_NAME"="\"$escaped\""
+        """.trimIndent() + "\n"
     }
 
-    private fun removeWindows(): Boolean = reg("delete", RUN_KEY, "/v", RUN_NAME, "/f")
+    private fun writeWindows(): Boolean {
+        val path = launcherPath() ?: return false
+        val file = File.createTempFile("plume-autostart", ".reg")
+        return try {
+            file.writeText(registryFile(path))
+            run("reg", "import", file.absolutePath) != null
+        } finally {
+            file.delete()
+        }
+    }
 
-    private fun windowsQuery(): Boolean = reg("query", RUN_KEY, "/v", RUN_NAME)
+    private fun removeWindows(): Boolean = run("reg", "delete", RUN_KEY, "/v", RUN_NAME, "/f") != null
 
-    private fun reg(vararg args: String): Boolean = runCatching {
-        val process = ProcessBuilder(listOf("reg") + args)
-            .redirectErrorStream(true)
-            .start()
-        process.inputStream.readBytes()
-        process.waitFor() == 0
-    }.getOrDefault(false)
+    private fun windowsQuery(): Boolean = run("reg", "query", RUN_KEY, "/v", RUN_NAME) != null
+
+    /** Output on success, null when the command is missing or exits non-zero. */
+    private fun run(vararg command: String): String? = runCatching {
+        val process = ProcessBuilder(command.toList()).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText()
+        if (process.waitFor() == 0) output else null
+    }.getOrNull()
 }
