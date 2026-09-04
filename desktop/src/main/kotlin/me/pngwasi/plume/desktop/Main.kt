@@ -156,14 +156,10 @@ fun main() {
                 size = size,
                 position = remember(size) { centredPosition(size) },
             )
-            // Closing is not quitting — the shortcuts keep working with nothing on screen. Without
-            // a tray it must quit, or there is no way back to the app.
+            // Closing is not quitting — the shortcuts keep working with nothing on screen, and the
+            // tray brings the window back. Without a tray it must quit, or there is no way back.
             val close: () -> Unit = {
-                if (loaded.desktop.closeToTray && trayAvailable) {
-                    windowVisible = false
-                } else {
-                    controller.quit()
-                }
+                if (trayAvailable) windowVisible = false else controller.quit()
             }
 
             Window(

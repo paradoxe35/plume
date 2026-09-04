@@ -5,13 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * What the "General" row says it holds.
- *
- * The one setting behind it that can leave someone unable to reach Plume again is "keep running
- * when the window closes", so turning it off has to be visible from the home screen rather than
- * discovered by closing the window and finding nothing left.
- */
+/** What the "General" row says it holds, so it does not read as an unexplained "General". */
 class GeneralSubtitleTest {
 
     private val defaults = DesktopSettings()
@@ -24,19 +18,10 @@ class GeneralSubtitleTest {
         )
     }
 
+    /** With no tray there is nowhere to close to, and closing the window has to quit. */
     @Test
-    fun `closing quitting Plume is said on the row`() {
-        val subtitle = generalSubtitle(defaults.copy(closeToTray = false), trayAvailable = true)
-
-        assertTrue(subtitle.contains("Closing quits Plume"), subtitle)
-    }
-
-    /** With no tray there is nowhere to close to, whatever the stored setting says. */
-    @Test
-    fun `a desktop without a tray says so instead`() {
-        val subtitle = generalSubtitle(defaults.copy(closeToTray = false), trayAvailable = false)
-
-        assertEquals("No tray on this desktop", subtitle)
+    fun `a desktop without a tray says so`() {
+        assertEquals("No tray on this desktop", generalSubtitle(defaults, trayAvailable = false))
     }
 
     @Test

@@ -109,7 +109,6 @@ data class DesktopSettings(
      * on a desktop with no visible tray there would be no way back to the window at all.
      */
     val startMinimised: Boolean = false,
-    val closeToTray: Boolean = true,
     /** The hotkey fires into another app, so off means silent success and silent failure alike. */
     val notifyOnFinish: Boolean = true,
 ) {

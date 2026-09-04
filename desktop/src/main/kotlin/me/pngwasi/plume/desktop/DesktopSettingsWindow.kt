@@ -208,13 +208,7 @@ private fun saveDesktop(
 internal fun generalSubtitle(settings: DesktopSettings, trayAvailable: Boolean): String {
     val parts = buildList {
         if (settings.startOnLogin) add("Starts with the system")
-        if (!trayAvailable) {
-            add("No tray on this desktop")
-        } else if (!settings.closeToTray) {
-            // The one setting that can leave a user unable to get back to Plume, so it is named
-            // on the row rather than left to be discovered by closing the window.
-            add("Closing quits Plume")
-        }
+        if (!trayAvailable) add("No tray on this desktop")
     }
     return parts.joinToString(" · ").ifEmpty { "Startup, tray and notifications" }
 }
