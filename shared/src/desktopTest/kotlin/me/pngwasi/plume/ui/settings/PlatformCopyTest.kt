@@ -3,6 +3,7 @@ package me.pngwasi.plume.ui.settings
 import me.pngwasi.plume.data.DesktopOs
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -67,6 +68,14 @@ class PlatformCopyTest {
                     "$os: \"${section.title}\" is empty",
                 )
             }
+        }
+    }
+
+    /** The limit is enforced on the desktop, so it must not carry a note saying it does not apply. */
+    @Test
+    fun `the character limit applies on every desktop`() {
+        DesktopOs.entries.forEach { os ->
+            assertNull(desktopCopy(os).characterLimitNote, "$os claims the limit does not apply")
         }
     }
 }

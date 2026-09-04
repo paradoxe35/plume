@@ -26,6 +26,8 @@ data class PlatformCopy(
     val replacementNote: String,
     /** Under the API key field, where that key is actually kept. */
     val keyStorageNote: String,
+    /** Set where the platform cannot deliver enough text for the limit to matter. */
+    val characterLimitNote: String? = null,
     /** Where the theme applies beyond this window. */
     val themeNote: String,
     /** "Follow system" is a phone on a phone and a machine on a desktop. */

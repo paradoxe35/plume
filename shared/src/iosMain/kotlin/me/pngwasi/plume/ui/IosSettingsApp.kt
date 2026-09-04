@@ -5,6 +5,7 @@ import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.icons.PlumeIcons
+import me.pngwasi.plume.data.KeyboardStatus
 import me.pngwasi.plume.ui.settings.Destination
 import me.pngwasi.plume.ui.settings.SettingsNavHost
 import me.pngwasi.plume.ui.settings.SettingsViewModel
@@ -36,7 +37,7 @@ fun IosSettingsApp(
             RowDivider()
             SettingsRow(
                 title = "Plume keyboard",
-                subtitle = "Enable it, and allow Full Access",
+                subtitle = if (KeyboardStatus.isConfirmed) "Working" else "Enable it, and allow Full Access",
                 icon = PlumeIcons.Keyboard,
                 showChevron = true,
                 onClick = { push(Destination.Keyboard) },
@@ -44,7 +45,10 @@ fun IosSettingsApp(
         },
         platformScreen = { destination, _ ->
             if (destination is Destination.Keyboard) {
-                IosKeyboardSetupScreen(onOpenSettings = ::openSystemSettings)
+                IosKeyboardSetupScreen(
+                    confirmed = KeyboardStatus.isConfirmed,
+                    onOpenSettings = ::openSystemSettings,
+                )
             }
         },
     )

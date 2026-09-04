@@ -26,7 +26,7 @@ import me.pngwasi.plume.ui.icons.PlumeIcons
  * conversation afterwards.
  */
 @Composable
-fun IosKeyboardSetupScreen(onOpenSettings: () -> Unit) {
+fun IosKeyboardSetupScreen(confirmed: Boolean, onOpenSettings: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -41,6 +41,25 @@ fun IosKeyboardSetupScreen(onOpenSettings: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
         )
+
+        // Confirmed by the keyboard itself, the only process that can see it. Never claims the
+        // negative: an unconfirmed keyboard may simply not have been opened yet.
+        SettingsCard {
+            if (confirmed) {
+                SettingsRow(
+                    title = "The keyboard is working",
+                    subtitle = "It has run with Full Access, so it can reach your provider.",
+                    icon = PlumeIcons.CheckCircle,
+                )
+            } else {
+                SettingsRow(
+                    title = "Not confirmed yet",
+                    subtitle = "Finish the two steps, then open any text field and switch to " +
+                        "Plume once. This turns green when the keyboard reports back.",
+                    icon = PlumeIcons.ErrorOutline,
+                )
+            }
+        }
 
         SectionLabel("Two steps")
         SettingsCard {

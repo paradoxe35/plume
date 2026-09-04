@@ -86,7 +86,9 @@ fun CharacterLimitControl(value: Int, onChange: (Int) -> Unit) {
             valueRange = 250f..12000f,
         )
         Text(
-            text = "Longer selections are refused before any request is sent. Default is $DEFAULT_CHARACTER_LIMIT.",
+            text = platformCopy().characterLimitNote
+                ?: "Longer selections are refused before any request is sent. " +
+                "Default is $DEFAULT_CHARACTER_LIMIT.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

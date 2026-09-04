@@ -62,6 +62,14 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+
+        // The container app cannot ask iOS whether Full Access was granted, so the answer is
+        // reported from here, where `hasFullAccess` exists. Only the yes is reportable: without
+        // Full Access there is no writable group container to report through.
+        if hasFullAccess {
+            KeyboardStatus.shared.confirmFullAccess()
+        }
+
         panel?.refresh()
     }
 
