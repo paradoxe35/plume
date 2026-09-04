@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.ui.components.rememberTrackedScrollState
+import me.pngwasi.plume.data.DesktopOs
 import me.pngwasi.plume.data.DesktopSettings
 import me.pngwasi.plume.data.duplicateHotkeys
 import me.pngwasi.plume.data.validateHotkey
@@ -198,6 +199,13 @@ private fun PermissionCard(availability: HotkeyAvailability) {
                 title = availability.summary,
                 subtitle = availability.instruction,
                 icon = PlumeIcons.ErrorOutline,
+                // Only macOS has a pane to open; the Wayland fix is a command in a terminal.
+                showChevron = DesktopOs.current == DesktopOs.MacOs,
+                onClick = if (DesktopOs.current == DesktopOs.MacOs) {
+                    { MacAccessibility.openSettings() }
+                } else {
+                    null
+                },
             )
         }
 

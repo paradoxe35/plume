@@ -94,4 +94,15 @@ class HotkeyDefaultsTest {
             assertEquals("ctrl+option+space", reviseAll)
         }
     }
+
+    /** Three keys, like revise. A four-key chord is a shortcut people stop reaching for. */
+    @Test
+    fun `no default asks for more than three keys`() {
+        DesktopOs.entries.forEach { os ->
+            defaults(os).forEach { binding ->
+                val keys = binding.split("+").size
+                assertTrue(keys <= 3, "$os ships $binding, which is $keys keys")
+            }
+        }
+    }
 }

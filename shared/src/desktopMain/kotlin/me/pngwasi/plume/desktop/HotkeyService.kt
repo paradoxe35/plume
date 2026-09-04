@@ -110,7 +110,7 @@ fun hotkeyAvailability(
         os: DesktopOs = DesktopOs.current,
         wayland: Boolean = isWaylandSession(),
         inInputGroup: () -> Boolean = ::userIsInInputGroup,
-        accessibilityGranted: () -> Boolean = { true },
+        accessibilityGranted: () -> Boolean = MacAccessibility::isTrusted,
 ): HotkeyAvailability {
     if (nativeState is PlumeNative.State.Unavailable) {
         return HotkeyAvailability.Unavailable(nativeState.reason)
@@ -157,8 +157,8 @@ fun userIsInInputGroup(): Boolean =
  * long enough to be worth more than any reasoning about what might clash.
  *
  * Translate is the one Plume invented, because MyReviser has no translate action to copy. It was
- * `ctrl+alt+t` and had to move, since GNOME and KDE both launch a terminal on it. Adding `shift`
- * keeps the mnemonic and is claimed by nothing.
+ * `ctrl+alt+t`, which GNOME and KDE both use to launch a terminal. `g` is three keys like the
+ * others, is bound by neither desktop nor by VS Code or a browser, and is under the left hand.
  */
 fun hotkeyDefaultsFor(os: DesktopOs = DesktopOs.current): HotkeyDefaults =
         when (os) {
@@ -166,18 +166,18 @@ fun hotkeyDefaultsFor(os: DesktopOs = DesktopOs.current): HotkeyDefaults =
                     HotkeyDefaults(
                             reviseSelection = "ctrl+cmd",
                             reviseAll = "ctrl+option+space",
-                            translateSelection = "ctrl+option+shift+t",
+                            translateSelection = "ctrl+option+g",
                     )
             DesktopOs.Windows ->
                     HotkeyDefaults(
                             reviseSelection = "ctrl+win",
                             reviseAll = "ctrl+alt+space",
-                            translateSelection = "ctrl+alt+shift+t",
+                            translateSelection = "ctrl+alt+g",
                     )
             DesktopOs.Linux ->
                     HotkeyDefaults(
                             reviseSelection = "ctrl+super",
                             reviseAll = "ctrl+alt+space",
-                            translateSelection = "ctrl+alt+shift+t",
+                            translateSelection = "ctrl+alt+g",
                     )
         }

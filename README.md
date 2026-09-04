@@ -15,22 +15,22 @@ You bring your own API key. There is no Plume account and no server of ours in t
 
 The mechanism differs on every platform, because each one allows only one thing.
 
-| | How Plume is invoked |
-| --- | --- |
-| Android | The text-selection toolbar, next to Cut and Copy. Plus an optional keyboard panel. |
-| Windows, macOS, Linux | A global shortcut. Plume waits in the tray. |
-| iOS | A keyboard extension. iOS has no selection menu for other apps to join. |
+|                       | How Plume is invoked                                                               |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| Android               | The text-selection toolbar, next to Cut and Copy. Plus an optional keyboard panel. |
+| Windows, macOS, Linux | A global shortcut. Plume waits in the tray.                                        |
+| iOS                   | A keyboard extension. iOS has no selection menu for other apps to join.            |
 
 ### On the desktop
 
 Select text in any application, press a shortcut, and Plume replaces the selection where it stands.
 Your clipboard is put back the way you left it.
 
-| Action | Default |
-| --- | --- |
-| Revise selection | `Ctrl` + `Super` |
-| Revise everything | `Ctrl` `Alt` `Space` |
-| Translate selection | `Ctrl` `Alt` `Shift` `T` |
+| Action              | Default              |
+| ------------------- | -------------------- |
+| Revise selection    | `Ctrl` + `Super`     |
+| Revise everything   | `Ctrl` `Alt` `Space` |
+| Translate selection | `Ctrl` `Alt` `G`     |
 
 All three are editable, and Plume tells you when the system refuses one because something else got
 there first. On macOS you will need to allow Plume under Privacy & Security → Accessibility. On
