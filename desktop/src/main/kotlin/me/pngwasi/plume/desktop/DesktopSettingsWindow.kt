@@ -11,6 +11,7 @@ import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.icons.PlumeIcons
 import me.pngwasi.plume.ui.settings.Destination
+import me.pngwasi.plume.ui.settings.BlockerFix
 import me.pngwasi.plume.ui.settings.PlatformBlocker
 import me.pngwasi.plume.ui.settings.SettingsNavHost
 import me.pngwasi.plume.ui.settings.SettingsViewModel
@@ -43,9 +44,21 @@ fun DesktopSettingsWindow(
         // Outranks a missing API key: no configuration helps while the system refuses to deliver
         // the shortcut at all.
         blocker = (controller.availability as? HotkeyAvailability.NeedsPermission)?.let {
-            PlatformBlocker(summary = it.summary, detail = it.instruction)
+            PlatformBlocker(
+                summary = it.summary,
+                detail = it.instruction,
+                // One row per privilege, because macOS grants them separately: a single button
+                // leaves the user guessing which switch is still off. Wayland has nothing to open,
+                // so it carries the instruction and no rows.
+                fixes = MacPermissions.current().missing.map { permission ->
+                    BlockerFix(
+                        label = permission.label,
+                        why = permission.why,
+                        onSelect = { MacPermissions.request(permission) },
+                    )
+                },
+            )
         },
-        onFixBlocker = { stack.add(Destination.Hotkeys) },
         platformRows = { push ->
             RowDivider()
             SettingsRow(
@@ -127,6 +140,6 @@ private fun shortcutSubtitle(controller: DesktopController): String =
     when (val availability = controller.availability) {
         HotkeyAvailability.Ready ->
             if (controller.rejectedBindings.isEmpty()) "Active" else "Some shortcuts were refused"
-        is HotkeyAvailability.NeedsPermission -> availability.summary
+        is HotkeyAvailability.NeedsPermission -> "Waiting on permissions"
         is HotkeyAvailability.Unavailable -> "Unavailable"
     }

@@ -125,8 +125,10 @@ fun hotkeyAvailability(
             } else {
                 HotkeyAvailability.NeedsPermission(
                     summary = "Plume needs " + missing.joinToString(" and ") { it.label },
-                    instruction = "Open System Settings → Privacy & Security and allow Plume " +
-                        "under each.",
+                    // What happens if they are not granted. The how is a button now, so repeating
+                    // "open System Settings" here would just be noise beside it.
+                    instruction = "Until both are allowed, the shortcuts cannot fire and nothing " +
+                        "will happen when you press one.",
                 )
             }
         }
@@ -156,7 +158,6 @@ fun userIsInInputGroup(): Boolean =
                 }
                 .getOrDefault(false)
 
-/** MyReviser's defaults, so anyone moving over keeps their muscle memory. */
 /**
  * Revise keeps MyReviser's bindings exactly, on all three systems: they have been in daily use for
  * long enough to be worth more than any reasoning about what might clash.

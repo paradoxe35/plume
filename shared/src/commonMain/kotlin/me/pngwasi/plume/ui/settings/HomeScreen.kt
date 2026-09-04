@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +34,7 @@ import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.components.StatusPill
 import me.pngwasi.plume.ui.icons.PlumeIcons
+import me.pngwasi.plume.ui.theme.LocalWarningColors
 
 @Composable
 fun HomeScreen(
@@ -41,7 +45,6 @@ fun HomeScreen(
     intro: String = "Select text in any app, then pick Revise or Translate from the selection menu.",
     /** Something the system is withholding, which no amount of configuration will fix. */
     blocker: PlatformBlocker? = null,
-    onFixBlocker: () -> Unit = {},
     /** Rows only one platform has: the companion keyboard on Android, shortcuts on the desktop. */
     platformRows: @Composable () -> Unit = {},
     /**
@@ -65,8 +68,27 @@ fun HomeScreen(
             keyedProviders = keyedProviders,
             blocker = blocker,
             onFix = { onOpen(Destination.Providers) },
-            onFixBlocker = onFixBlocker,
         )
+
+        if (blocker != null && blocker.fixes.isNotEmpty()) {
+            SectionLabel("Permissions required")
+            val warning = LocalWarningColors.current
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = warning.container,
+                border = BorderStroke(1.dp, warning.accent),
+            ) {
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    blocker.fixes.forEachIndexed { index, fix ->
+                        if (index > 0) {
+                            HorizontalDivider(color = warning.accent.copy(alpha = 0.25f))
+                        }
+                        PermissionRow(fix)
+                    }
+                }
+            }
+        }
 
         SectionLabel("Actions")
         SettingsCard {
@@ -145,35 +167,82 @@ private fun Header(intro: String) {
  * Readiness is per action, because the two can run on different providers and one of them being
  * misconfigured must not be hidden behind the other one working.
  */
+/** Named, so the user knows which switch is still off rather than being sent to hunt for it. */
+@Composable
+private fun PermissionRow(fix: BlockerFix) {
+    val warning = LocalWarningColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = PlumeIcons.ErrorOutline,
+            contentDescription = null,
+            tint = warning.accent,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = fix.label,
+                style = MaterialTheme.typography.titleSmall,
+                color = warning.onContainer,
+            )
+            Text(
+                text = fix.why,
+                style = MaterialTheme.typography.bodySmall,
+                color = warning.onContainer,
+            )
+        }
+        Button(
+            onClick = fix.onSelect,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = warning.accent,
+                contentColor = warning.container,
+            ),
+        ) {
+            Text("Grant")
+        }
+    }
+}
+
 @Composable
 private fun ReadinessCard(
     settings: AppSettings,
     keyedProviders: Set<String>,
     blocker: PlatformBlocker?,
     onFix: () -> Unit,
-    onFixBlocker: () -> Unit,
 ) {
     val reviseReady = settings.isReady(Action.Revise, keyedProviders)
     val translateReady = settings.isReady(Action.Translate, keyedProviders)
     val allReady = reviseReady && translateReady && blocker == null
 
-    val container = if (allReady) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer
+    // A withheld permission is a warning, not a to-do: nothing works until it is granted, and the
+    // banner should not look calmer than the rows beneath it.
+    val container = when {
+        blocker != null -> LocalWarningColors.current.container
+        allReady -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.secondaryContainer
     }
-    val onContainer = if (allReady) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer
+    val onContainer = when {
+        blocker != null -> LocalWarningColors.current.onContainer
+        allReady -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSecondaryContainer
     }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = container,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        onClick = if (blocker != null) onFixBlocker else onFix,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (blocker != null) {
+                LocalWarningColors.current.accent
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
+        onClick = onFix,
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -181,7 +250,11 @@ private fun ReadinessCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = if (allReady) PlumeIcons.AutoFixHigh else PlumeIcons.Info,
+                imageVector = when {
+                    blocker != null -> PlumeIcons.ErrorOutline
+                    allReady -> PlumeIcons.AutoFixHigh
+                    else -> PlumeIcons.Info
+                },
                 contentDescription = null,
                 tint = onContainer,
                 modifier = Modifier.size(22.dp),

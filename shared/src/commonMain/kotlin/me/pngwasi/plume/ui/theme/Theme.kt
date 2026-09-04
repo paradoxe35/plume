@@ -5,6 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import me.pngwasi.plume.data.ThemeMode
 
@@ -68,6 +71,30 @@ private val DarkColors = darkColorScheme(
     scrim = Color(0xFF000000),
 )
 
+/**
+ * Amber, for "you need to do something" as distinct from "something broke".
+ *
+ * Material 3 has no warning role, and the two nearest fits are both wrong: `error` red reads as a
+ * failure the user caused, and the secondary container is already what an ordinary unfinished
+ * setup looks like. A withheld permission is neither.
+ */
+@Immutable
+data class WarningColors(val container: Color, val onContainer: Color, val accent: Color)
+
+private val LightWarning = WarningColors(
+    container = Color(0xFFFBEBCC),
+    onContainer = Color(0xFF4A3005),
+    accent = Color(0xFFB0740F),
+)
+
+private val DarkWarning = WarningColors(
+    container = Color(0xFF4A3610),
+    onContainer = Color(0xFFFBEBCC),
+    accent = Color(0xFFE8C07C),
+)
+
+val LocalWarningColors = staticCompositionLocalOf { LightWarning }
+
 @Composable
 fun PlumeTheme(
     mode: ThemeMode = ThemeMode.System,
@@ -78,9 +105,11 @@ fun PlumeTheme(
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
     }
-    MaterialTheme(
-        colorScheme = if (dark) DarkColors else LightColors,
-        typography = PlumeTypography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalWarningColors provides if (dark) DarkWarning else LightWarning) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkColors else LightColors,
+            typography = PlumeTypography,
+            content = content,
+        )
+    }
 }

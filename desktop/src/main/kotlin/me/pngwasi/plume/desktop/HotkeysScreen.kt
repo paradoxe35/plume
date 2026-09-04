@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.ui.components.rememberTrackedScrollState
-import me.pngwasi.plume.data.DesktopOs
 import me.pngwasi.plume.data.DesktopSettings
 import me.pngwasi.plume.data.duplicateHotkeys
 import me.pngwasi.plume.data.validateHotkey
@@ -194,27 +193,14 @@ private fun PermissionCard(availability: HotkeyAvailability) {
             )
         }
 
+        // Points at the home screen rather than repeating it. Permissions gate the whole app, so
+        // they are granted in one place; saying nothing here would just look broken.
         is HotkeyAvailability.NeedsPermission -> SettingsCard {
             SettingsRow(
-                title = availability.summary,
-                subtitle = availability.instruction,
+                title = "Waiting on permissions",
+                subtitle = "Grant them on the home screen, then these start working.",
                 icon = PlumeIcons.ErrorOutline,
             )
-            // One row per permission, because macOS grants them separately and a single "open
-            // settings" leaves the user guessing which switch is still off. The Wayland fix is a
-            // command in a terminal, so there is nothing to open there.
-            if (MacPermissions.isSupported) {
-                MacPermissions.current().missing.forEach { permission ->
-                    RowDivider()
-                    SettingsRow(
-                        title = "Allow ${permission.label}",
-                        subtitle = permission.why,
-                        icon = PlumeIcons.OpenInNew,
-                        showChevron = true,
-                        onClick = { MacPermissions.request(permission) },
-                    )
-                }
-            }
         }
 
         is HotkeyAvailability.Unavailable -> SettingsCard {
