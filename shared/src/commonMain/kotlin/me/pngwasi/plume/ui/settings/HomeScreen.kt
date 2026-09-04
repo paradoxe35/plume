@@ -39,6 +39,9 @@ fun HomeScreen(
     onOpen: (Destination) -> Unit,
     /** How the user reaches Plume here, which is the one thing that differs per platform. */
     intro: String = "Select text in any app, then pick Revise or Translate from the selection menu.",
+    /** Something the system is withholding, which no amount of configuration will fix. */
+    blocker: PlatformBlocker? = null,
+    onFixBlocker: () -> Unit = {},
     /** Rows only one platform has: the companion keyboard on Android, shortcuts on the desktop. */
     platformRows: @Composable () -> Unit = {},
     /**
@@ -60,7 +63,9 @@ fun HomeScreen(
         ReadinessCard(
             settings = settings,
             keyedProviders = keyedProviders,
+            blocker = blocker,
             onFix = { onOpen(Destination.Providers) },
+            onFixBlocker = onFixBlocker,
         )
 
         SectionLabel("Actions")
@@ -144,11 +149,13 @@ private fun Header(intro: String) {
 private fun ReadinessCard(
     settings: AppSettings,
     keyedProviders: Set<String>,
+    blocker: PlatformBlocker?,
     onFix: () -> Unit,
+    onFixBlocker: () -> Unit,
 ) {
     val reviseReady = settings.isReady(Action.Revise, keyedProviders)
     val translateReady = settings.isReady(Action.Translate, keyedProviders)
-    val allReady = reviseReady && translateReady
+    val allReady = reviseReady && translateReady && blocker == null
 
     val container = if (allReady) {
         MaterialTheme.colorScheme.primaryContainer
@@ -166,7 +173,7 @@ private fun ReadinessCard(
         shape = RoundedCornerShape(16.dp),
         color = container,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        onClick = onFix,
+        onClick = if (blocker != null) onFixBlocker else onFix,
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -183,6 +190,9 @@ private fun ReadinessCard(
                 Text(
                     text = when {
                         allReady -> "Ready to use"
+                        // A blocked platform comes first: a key is no use if the system will not
+                        // let the shortcut through.
+                        blocker != null -> blocker.summary
                         !reviseReady && !translateReady -> "Setup needed"
                         !reviseReady -> "Revise needs setup"
                         else -> "Translate needs setup"
@@ -191,7 +201,7 @@ private fun ReadinessCard(
                     color = onContainer,
                 )
                 Text(
-                    text = readinessDetail(settings, reviseReady, translateReady),
+                    text = blocker?.detail ?: readinessDetail(settings, reviseReady, translateReady),
                     style = MaterialTheme.typography.bodySmall,
                     color = onContainer,
                 )

@@ -110,21 +110,26 @@ fun hotkeyAvailability(
         os: DesktopOs = DesktopOs.current,
         wayland: Boolean = isWaylandSession(),
         inInputGroup: () -> Boolean = ::userIsInInputGroup,
-        accessibilityGranted: () -> Boolean = MacAccessibility::isTrusted,
+        macPermissions: () -> MacPermissionState = MacPermissions::current,
 ): HotkeyAvailability {
     if (nativeState is PlumeNative.State.Unavailable) {
         return HotkeyAvailability.Unavailable(nativeState.reason)
     }
     return when (os) {
-        DesktopOs.MacOs ->
-                if (accessibilityGranted()) {
-                    HotkeyAvailability.Ready
-                } else {
-                    HotkeyAvailability.NeedsPermission(
-                            "Plume needs Accessibility access",
-                            "Open System Settings → Privacy & Security → Accessibility and allow Plume.",
-                    )
-                }
+        DesktopOs.MacOs -> {
+            // Both, and neither implies the other: Input Monitoring sees the shortcut and
+            // Accessibility replaces the text, so one alone leaves the other silently blocking.
+            val missing = macPermissions().missing
+            if (missing.isEmpty()) {
+                HotkeyAvailability.Ready
+            } else {
+                HotkeyAvailability.NeedsPermission(
+                    summary = "Plume needs " + missing.joinToString(" and ") { it.label },
+                    instruction = "Open System Settings → Privacy & Security and allow Plume " +
+                        "under each.",
+                )
+            }
+        }
         DesktopOs.Linux ->
                 if (!wayland || inInputGroup()) {
                     HotkeyAvailability.Ready

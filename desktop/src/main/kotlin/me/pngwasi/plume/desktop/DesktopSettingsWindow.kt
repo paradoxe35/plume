@@ -11,6 +11,7 @@ import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
 import me.pngwasi.plume.ui.icons.PlumeIcons
 import me.pngwasi.plume.ui.settings.Destination
+import me.pngwasi.plume.ui.settings.PlatformBlocker
 import me.pngwasi.plume.ui.settings.SettingsNavHost
 import me.pngwasi.plume.ui.settings.SettingsViewModel
 import me.pngwasi.plume.ui.settings.rememberSettingsStack
@@ -39,6 +40,12 @@ fun DesktopSettingsWindow(
         settings = settings,
         stack = stack,
         intro = "Select text anywhere, then press a Plume shortcut. Plume stays in the tray.",
+        // Outranks a missing API key: no configuration helps while the system refuses to deliver
+        // the shortcut at all.
+        blocker = (controller.availability as? HotkeyAvailability.NeedsPermission)?.let {
+            PlatformBlocker(summary = it.summary, detail = it.instruction)
+        },
+        onFixBlocker = { stack.add(Destination.Hotkeys) },
         platformRows = { push ->
             RowDivider()
             SettingsRow(

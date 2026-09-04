@@ -199,14 +199,22 @@ private fun PermissionCard(availability: HotkeyAvailability) {
                 title = availability.summary,
                 subtitle = availability.instruction,
                 icon = PlumeIcons.ErrorOutline,
-                // Only macOS has a pane to open; the Wayland fix is a command in a terminal.
-                showChevron = DesktopOs.current == DesktopOs.MacOs,
-                onClick = if (DesktopOs.current == DesktopOs.MacOs) {
-                    { MacAccessibility.openSettings() }
-                } else {
-                    null
-                },
             )
+            // One row per permission, because macOS grants them separately and a single "open
+            // settings" leaves the user guessing which switch is still off. The Wayland fix is a
+            // command in a terminal, so there is nothing to open there.
+            if (MacPermissions.isSupported) {
+                MacPermissions.current().missing.forEach { permission ->
+                    RowDivider()
+                    SettingsRow(
+                        title = "Allow ${permission.label}",
+                        subtitle = permission.why,
+                        icon = PlumeIcons.OpenInNew,
+                        showChevron = true,
+                        onClick = { MacPermissions.request(permission) },
+                    )
+                }
+            }
         }
 
         is HotkeyAvailability.Unavailable -> SettingsCard {

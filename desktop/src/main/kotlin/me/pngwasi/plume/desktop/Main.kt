@@ -72,12 +72,17 @@ fun main() {
             if (started) return@LaunchedEffect
             started = true
 
-            // An unconfigured Plume must show itself, or its shortcuts just fail silently. Reads
-            // the secret store, so not on the UI thread.
-            val ready = withContext(Dispatchers.IO) {
-                settings.isFullyConfigured(settings.keyedProviders(controller.secrets))
+            // A Plume that cannot work must show itself rather than hide in the tray, or its
+            // shortcuts fail silently and the tray is the last place anyone looks for the reason.
+            // Two ways to be unable to work: no provider configured, and macOS withholding the
+            // permissions the listener needs. Both read from outside, so not on the UI thread.
+            val blocked = withContext(Dispatchers.IO) {
+                val unconfigured =
+                    !settings.isFullyConfigured(settings.keyedProviders(controller.secrets))
+                val unpermitted = controller.availability !is HotkeyAvailability.Ready
+                unconfigured || unpermitted
             }
-            windowVisible = !trayAvailable || !settings.desktop.startMinimised || !ready
+            windowVisible = !trayAvailable || !settings.desktop.startMinimised || blocked
         }
 
         LaunchedEffect(loaded?.desktop) {

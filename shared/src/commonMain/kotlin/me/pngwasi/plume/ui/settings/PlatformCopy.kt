@@ -35,3 +35,11 @@ data class PlatformCopy(
 )
 
 expect fun platformCopy(): PlatformCopy
+
+/**
+ * Something the operating system is withholding, which configuration cannot fix.
+ *
+ * The desktop uses it for macOS privileges: an API key is no use while the system is refusing to
+ * deliver the shortcut, so this outranks a missing key on the readiness card.
+ */
+data class PlatformBlocker(val summary: String, val detail: String)
