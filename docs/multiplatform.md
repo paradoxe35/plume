@@ -161,6 +161,35 @@ MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_
 `start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
 "open Accessibility preferences" deep link. All of that is carried over.
 
+### One process, and the restart that keeps it that way
+
+Granting a macOS permission is only half the fix: the shortcut listener is wired once at launch, so
+the privilege has to be picked up by a new process. That restart turned out to touch four things
+that each fail on their own.
+
+**Two copies must not run at once.** Both would register the same global shortcuts, so which one
+answers a keypress is a race, and both write the same settings file. With no window on screen there
+is nothing to notice. Plume takes an exclusive lock on `instance.lock` in its config directory — a
+lock rather than a pid file, because the operating system releases it however the process ends,
+including a crash — and listens on a loopback port whose number it writes beside the lock. A second
+launch fails the lock, connects to that port, says `show`, and stops. Clicking the launcher while
+Plume is already running now raises its window instead of doing nothing.
+
+**The replacement has to wait for the old process to be gone.** Starting it immediately leaves two
+Plumes alive, and the new one would meet the lock above and stop again — so the restart button would
+appear to do nothing. The launch is handed to a small detached shell that polls for the old pid to
+disappear, then runs the launcher. Windows has no `sh`, so it is `Wait-Process` in PowerShell.
+
+**And the old process has to actually exit.** `exitApplication` closes the window and returns; the
+JVM stays up. Restart calls `exitProcess`, which is the only thing the waiting shell can observe.
+
+**Closing the native handles twice aborts the process.** Quitting, closing the window and restarting
+all shut the controller down, so being closed twice is ordinary rather than exotic — and the Rust
+side rebuilds a `Box` from the pointer, so the second free hands back malloc memory that is no
+longer ours. That is a `SIGABRT` with no Kotlin stack anywhere in it, and it is what a restart used
+to produce. `close` clears the handles as it frees them, which also means a late hotkey action
+cannot reach one.
+
 ### Desktop-only settings and features
 
 Things the Android build has no concept of, which the desktop needs:
