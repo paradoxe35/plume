@@ -91,8 +91,6 @@ private fun preferredBackend(directory: String): KeyringBackend {
     }
 }
 
-// --- Linux: Secret Service through libsecret's CLI ---------------------------------------------
-
 /**
  * `secret-tool` talks to whatever Secret Service is running (GNOME Keyring, KWallet's bridge).
  * Using the CLI rather than binding libsecret avoids a native dependency for a handful of calls.
@@ -123,8 +121,6 @@ internal class SecretToolBackend : KeyringBackend {
         const val SERVICE = "me.pngwasi.plume"
     }
 }
-
-// --- macOS: the login keychain through `security` ----------------------------------------------
 
 internal class MacKeychainBackend : KeyringBackend {
 
@@ -158,8 +154,6 @@ internal class MacKeychainBackend : KeyringBackend {
     }
 }
 
-// --- Windows: DPAPI, which ties the ciphertext to the Windows account ---------------------------
-
 /**
  * DPAPI encrypts for the current user account, so the file is unreadable by anyone else on the
  * machine even though it sits in an ordinary directory.
@@ -188,8 +182,6 @@ internal class DpapiFileBackend(private val directory: String) : KeyringBackend 
         file(entry).delete()
     }
 }
-
-// --- Fallback: AES-GCM in a file, with the key in a 0600 file ----------------------------------
 
 /**
  * The honest fallback. This protects a key from casual reading and from anything that scrapes

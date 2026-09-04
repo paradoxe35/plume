@@ -5,9 +5,8 @@ use std::thread;
 use parking_lot::Mutex;
 use rdev::{Event, EventType, Key};
 
-// On Linux: use listen() for X11 (no special permissions needed)
-//           use start_grab_listen() for Wayland (needs input group)
-// On macOS/Windows: use listen() which works natively
+// Wayland needs rdev's evdev grab, which requires the user to be in the `input` group. X11,
+// macOS and Windows all work through listen() with no special permissions.
 #[cfg(not(target_os = "linux"))]
 use rdev::listen;
 #[cfg(target_os = "linux")]
@@ -15,10 +14,9 @@ use rdev::{listen, start_grab_listen};
 
 use super::ffi_types::*;
 
-/// Detect if running on Wayland
 #[cfg(target_os = "linux")]
 fn is_wayland() -> bool {
-    // Check XDG_SESSION_TYPE first (most reliable)
+    // XDG_SESSION_TYPE is authoritative; WAYLAND_DISPLAY is only a fallback.
     if let Ok(session_type) = std::env::var("XDG_SESSION_TYPE") {
         if session_type.to_lowercase() == "wayland" {
             return true;
@@ -28,15 +26,12 @@ fn is_wayland() -> bool {
         }
     }
 
-    // Fallback: check if WAYLAND_DISPLAY is set
     std::env::var("WAYLAND_DISPLAY").is_ok()
 }
 
-/// Hotkey callback function type
-/// The callback receives the action string that was registered
+/// Receives the action string the binding was registered with.
 pub type HotkeyCallback = extern "C" fn(*const c_char);
 
-/// Simple hotkey manager that doesn't require async dependencies
 pub struct SimpleHotkeyManager {
     bindings: Arc<Mutex<Vec<HotkeyBinding>>>,
     listener_handle: Option<thread::JoinHandle<()>>,
@@ -71,7 +66,7 @@ impl SimpleHotkeyManager {
         action: String,
         callback: HotkeyCallback,
     ) -> Result<(), String> {
-        // Parse binding (e.g., "ctrl+alt+space" or "ctrl+win")
+        // "ctrl+alt+space", or modifier-only such as "ctrl+win".
         let parts: Vec<&str> = binding.split('+').map(|s| s.trim()).collect();
         if parts.is_empty() {
             return Err("Empty binding".to_string());
@@ -83,7 +78,6 @@ impl SimpleHotkeyManager {
         if parts.len() == 1 {
             key = parts[0].to_lowercase();
         } else {
-            // Check if last part is a modifier (for modifier-only hotkeys like ctrl+win)
             let last_part = parts[parts.len() - 1].to_lowercase();
             let is_modifier = last_part == "ctrl"
                 || last_part == "control"
@@ -96,11 +90,9 @@ impl SimpleHotkeyManager {
                 || last_part == "win";
 
             if is_modifier && parts.len() >= 2 {
-                // All parts are modifiers (e.g., "ctrl+win")
                 modifiers = parts.iter().map(|s| s.to_lowercase()).collect();
                 key = String::new(); // Empty key means modifier-only binding
             } else {
-                // Normal binding with modifiers + key
                 modifiers = parts[..parts.len() - 1]
                     .iter()
                     .map(|s| s.to_lowercase())
@@ -117,7 +109,6 @@ impl SimpleHotkeyManager {
             key: key.clone(),
         };
 
-        // Log registration for debugging
         if key.is_empty() {
             tracing::info!(
                 "Registered modifier-only hotkey: {} (modifiers: {:?}, action: {})",
@@ -164,8 +155,7 @@ impl SimpleHotkeyManager {
             let mut shift_pressed = false;
             let mut meta_pressed = false;
 
-            // Process an event and return whether it was handled
-            // This logic is shared between grab and listen callbacks
+            // Shared by the grab and listen callbacks below.
             let process_event = |event: &Event,
                                  ctrl: &mut bool,
                                  alt: &mut bool,
@@ -179,13 +169,11 @@ impl SimpleHotkeyManager {
 
                 match event.event_type {
                     EventType::KeyPress(key) => {
-                        // Track previous modifier states
                         let prev_ctrl = *ctrl;
                         let prev_alt = *alt;
                         let prev_shift = *shift;
                         let prev_meta = *meta;
 
-                        // Update modifier states
                         match key {
                             Key::ControlLeft | Key::ControlRight => *ctrl = true,
                             Key::Alt | Key::AltGr => *alt = true,
@@ -198,9 +186,7 @@ impl SimpleHotkeyManager {
                         let bindings_lock = bindings.lock();
 
                         for binding in bindings_lock.iter() {
-                            // For modifier-only bindings (empty key)
                             if binding.key.is_empty() {
-                                // Trigger when all required modifiers are pressed and state changed
                                 if matches_modifier_only_binding(
                                     &binding.modifiers,
                                     *ctrl,
@@ -217,7 +203,6 @@ impl SimpleHotkeyManager {
                                         binding.binding,
                                         binding.action
                                     );
-                                    // Trigger callback
                                     if let Ok(action_cstr) =
                                         std::ffi::CString::new(binding.action.clone())
                                     {
@@ -226,7 +211,6 @@ impl SimpleHotkeyManager {
                                     }
                                 }
                             } else {
-                                // For regular key bindings
                                 let key_str = key_to_string(&key);
                                 if matches_binding(
                                     &binding.modifiers,
@@ -242,7 +226,6 @@ impl SimpleHotkeyManager {
                                         binding.binding,
                                         binding.action
                                     );
-                                    // Trigger callback
                                     if let Ok(action_cstr) =
                                         std::ffi::CString::new(binding.action.clone())
                                     {
@@ -254,7 +237,6 @@ impl SimpleHotkeyManager {
                         }
                     }
                     EventType::KeyRelease(key) => {
-                        // Update modifier states
                         match key {
                             Key::ControlLeft | Key::ControlRight => *ctrl = false,
                             Key::Alt | Key::AltGr => *alt = false,
@@ -267,12 +249,9 @@ impl SimpleHotkeyManager {
                 }
             };
 
-            // On Linux: use listen() for X11, start_grab_listen() for Wayland
-            // On macOS/Windows: use listen() which works natively
             #[cfg(target_os = "linux")]
             {
                 if is_wayland() {
-                    // Wayland: use start_grab_listen (evdev) - requires input group
                     tracing::info!("Wayland session detected, using evdev grab for hotkeys");
                     let callback = move |event: Event| -> Option<Event> {
                         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -295,7 +274,6 @@ impl SimpleHotkeyManager {
                         eprintln!("Hint: Make sure your user is in the 'input' group: sudo usermod -aG input $USER");
                     }
                 } else {
-                    // X11: use listen (X11 APIs) - no special permissions needed
                     tracing::info!("X11 session detected, using X11 listener for hotkeys");
                     let callback = move |event: Event| {
                         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -348,8 +326,8 @@ impl SimpleHotkeyManager {
         *active = false;
         drop(active);
 
-        // Note: rdev doesn't provide a way to cleanly stop listening
-        // The thread will exit when the program exits
+        // rdev cannot stop a listener, so this only closes the gate; the thread lives until the
+        // process exits and is reused on resume.
         Ok(())
     }
 }
@@ -427,12 +405,10 @@ fn matches_binding(
     meta: bool,
     pressed_key: &str,
 ) -> bool {
-    // Check if key matches
     if pressed_key != binding_key {
         return false;
     }
 
-    // Check modifiers
     let has_ctrl = binding_modifiers.contains(&"ctrl".to_string())
         || binding_modifiers.contains(&"control".to_string());
     let has_alt = binding_modifiers.contains(&"alt".to_string())
@@ -457,7 +433,6 @@ fn matches_modifier_only_binding(
     prev_shift: bool,
     prev_meta: bool,
 ) -> bool {
-    // Check what modifiers the binding requires
     let has_ctrl = binding_modifiers.contains(&"ctrl".to_string())
         || binding_modifiers.contains(&"control".to_string());
     let has_alt = binding_modifiers.contains(&"alt".to_string())
@@ -468,18 +443,15 @@ fn matches_modifier_only_binding(
         || binding_modifiers.contains(&"super".to_string())
         || binding_modifiers.contains(&"win".to_string());
 
-    // All required modifiers must be pressed
     let modifiers_match =
         ctrl == has_ctrl && alt == has_alt && shift == has_shift && meta == has_meta;
 
-    // Trigger only when:
-    // 1. All required modifiers are now pressed
-    // 2. At least one required modifier just changed to pressed (not all were already pressed)
+    // Edge-triggered: every required modifier is now pressed, and at least one of them only just
+    // became pressed rather than all having been held already.
     if !modifiers_match {
         return false;
     }
 
-    // Check if any required modifier just became pressed
     let ctrl_just_pressed = has_ctrl && ctrl && !prev_ctrl;
     let alt_just_pressed = has_alt && alt && !prev_alt;
     let shift_just_pressed = has_shift && shift && !prev_shift;

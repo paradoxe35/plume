@@ -28,8 +28,6 @@ class ModelCatalogTest {
         model = "whatever",
     )
 
-    // --- parsing ------------------------------------------------------------------------------
-
     @Test
     fun `openai catalog is read from the data array and sorted`() {
         val body = """{"data":[{"id":"gpt-4o"},{"id":"gpt-4o-mini"},{"id":"babbage"}]}"""
@@ -78,8 +76,6 @@ class ModelCatalogTest {
 
         assertEquals(listOf("gemini-x"), ModelCatalog.parseGemini(body))
     }
-
-    // --- requests -----------------------------------------------------------------------------
 
     @Test
     fun `openai catalog is fetched from the models endpoint with a bearer token`() = runTest {

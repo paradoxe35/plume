@@ -6,8 +6,7 @@ pub mod ffi_types;
 pub use ffi_types::*;
 use std::os::raw::c_char;
 
-/// Get the last error message
-/// Returns: C string (must be freed with plume_free_string) or NULL if no error
+/// NULL when there is no error; otherwise a string the caller must free with `plume_free_string`.
 #[no_mangle]
 pub unsafe extern "C" fn plume_get_last_error() -> *const c_char {
     match take_last_error() {
@@ -16,8 +15,7 @@ pub unsafe extern "C" fn plume_get_last_error() -> *const c_char {
     }
 }
 
-/// Free a string allocated by Rust
-/// This must be called for all strings returned by Rust functions
+/// Must be called for every string a Rust function returns.
 #[no_mangle]
 pub unsafe extern "C" fn plume_free_string(s: *mut c_char) {
     if !s.is_null() {

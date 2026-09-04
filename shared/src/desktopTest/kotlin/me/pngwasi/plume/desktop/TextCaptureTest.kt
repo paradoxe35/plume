@@ -94,8 +94,6 @@ class TextCaptureTest {
     private fun capture(system: FakeSystem) =
         TextCapture(system, TextCapture.Timing(pollIntervalMillis = 1, copyTimeoutMillis = 20, pasteSettleMillis = 1)) {}
 
-    // --- the collision bug ---------------------------------------------------------------------
-
     /**
      * The bug that mattered most. MyReviser slept and then read the clipboard, so a copy that never
      * landed returned whatever was on the clipboard beforehand — which was then revised and pasted
@@ -153,8 +151,6 @@ class TextCaptureTest {
         assertIs<Capture.NothingSelected>(result)
     }
 
-    // --- modifiers -----------------------------------------------------------------------------
-
     /** The triggering hotkey is still held, so Ctrl+A would otherwise arrive as Ctrl+Alt+A. */
     @Test
     fun `held modifiers are released before any key is simulated`() {
@@ -174,8 +170,6 @@ class TextCaptureTest {
         assertEquals(Capture.Text("everything"), result)
         assertTrue(system.log.indexOf("release") < system.log.indexOf("selectAll"))
     }
-
-    // --- restoring -----------------------------------------------------------------------------
 
     @Test
     fun `the clipboard is put back after a successful round trip`() {

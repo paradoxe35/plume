@@ -19,8 +19,6 @@ class PickerOptionsTest {
 
     private val fallback = listOf("fr", "en", "es")
 
-    // --- membership ---------------------------------------------------------------------------
-
     /** The reported bug: Spanish unpinned in settings, still offered by the keyboard. */
     @Test
     fun `an unpinned language is not offered even when recently used`() {
@@ -44,8 +42,6 @@ class PickerOptionsTest {
 
         assertEquals(listOf("fr"), options)
     }
-
-    // --- ordering -----------------------------------------------------------------------------
 
     @Test
     fun `recently used pinned languages come first`() {
@@ -86,8 +82,6 @@ class PickerOptionsTest {
 
         assertEquals(listOf("fr"), options)
     }
-
-    // --- the dead end -------------------------------------------------------------------------
 
     @Test
     fun `nothing pinned falls back to the defaults instead of offering nothing`() {

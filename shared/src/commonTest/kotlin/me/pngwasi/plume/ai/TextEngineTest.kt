@@ -62,8 +62,6 @@ class TextEngineTest {
         .setResponseCode(200)
         .setBody("""{"choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(text))}}}]}""")
 
-    // --- revise ------------------------------------------------------------------------------
-
     @Test
     fun `revise sends the system prompt and the selection`() = runTest {
         server.enqueue(openAiReply("J'ai mangé une pomme."))
@@ -118,8 +116,6 @@ class TextEngineTest {
         assertEquals("Corrigé.", engine().revise("corriger"))
     }
 
-    // --- translate ---------------------------------------------------------------------------
-
     @Test
     fun `translate substitutes the target language into the prompt`() = runTest {
         server.enqueue(openAiReply("Hello"))
@@ -157,8 +153,6 @@ class TextEngineTest {
         assertTrue(system.endsWith("Translate into Spanish."))
     }
 
-    // --- provider wire formats ---------------------------------------------------------------
-
     @Test
     fun `gemini requests carry the key in a header and target the model path`() = runTest {
         server.enqueue(
@@ -176,8 +170,6 @@ class TextEngineTest {
         // The key must not leak into the URL, where it would land in access logs.
         assertTrue(!request.path.contains("sk-test"))
     }
-
-    // --- per-action routing ------------------------------------------------------------------
 
     /** The point of per-action providers: each action must reach its own endpoint. */
     @Test
@@ -236,8 +228,6 @@ class TextEngineTest {
         assertTrue(reviseError.message!!.contains("over the 5 limit"))
         assertEquals("Hello", engine.translate(text, "en"))
     }
-
-    // --- guard rails -------------------------------------------------------------------------
 
     @Test
     fun `a missing api key fails before any request is made`() = runTest {

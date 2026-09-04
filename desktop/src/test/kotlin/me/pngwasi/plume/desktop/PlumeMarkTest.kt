@@ -43,7 +43,6 @@ class PlumeMarkTest {
         return bitmap
     }
 
-    /** Fraction of the square the mark covers. */
     private fun coverage(size: Int): Double {
         val pixels = rasterise(size).toPixelMap()
         var painted = 0

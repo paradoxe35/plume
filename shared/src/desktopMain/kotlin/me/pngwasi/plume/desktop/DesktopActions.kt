@@ -23,7 +23,6 @@ sealed interface ActionOutcome {
     data class Failed(val message: String) : ActionOutcome
 }
 
-/** One entry of the desktop's answer to undo. */
 /**
  * How many changes are kept.
  *

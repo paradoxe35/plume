@@ -63,7 +63,6 @@ object KeyboardComponent {
         return imm.enabledInputMethodList.any { matches(it.id, target) }
     }
 
-    /** Whether it is the keyboard currently in use. */
     fun isCurrentInputMethod(context: Context): Boolean {
         val current = runCatching {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
@@ -71,12 +70,10 @@ object KeyboardComponent {
         return matches(current, component(context))
     }
 
-    /** Opens the system screen where a keyboard is switched on. */
     fun systemKeyboardSettings(): android.content.Intent =
         android.content.Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    /** Shows the keyboard picker so the user can switch to Plume right away. */
     fun showPicker(context: Context) {
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.showInputMethodPicker()

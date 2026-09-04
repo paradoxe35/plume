@@ -81,8 +81,6 @@ object MacDock {
         else -> "ready, fallback ${if (services != null) "available" else "unavailable"}"
     }
 
-    // --- Objective-C runtime -------------------------------------------------------------------
-
     private interface ObjC : Library {
         fun objc_getClass(name: String): Pointer?
         fun sel_registerName(name: String): Pointer?

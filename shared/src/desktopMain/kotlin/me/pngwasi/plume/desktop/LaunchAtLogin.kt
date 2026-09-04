@@ -52,8 +52,6 @@ object LaunchAtLogin {
         }
     }
 
-    // --- Linux: an XDG autostart entry ---------------------------------------------------------
-
     private fun autostartDir(): File {
         val config = System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
             ?: File(System.getProperty("user.home"), ".config").path
@@ -94,8 +92,6 @@ object LaunchAtLogin {
         return "\"$escaped\""
     }
 
-    // --- macOS: a login item on the bundle ------------------------------------------------------
-
     /**
      * The `.app`, not the executable inside it.
      *
@@ -131,8 +127,6 @@ object LaunchAtLogin {
     }
 
     private fun osascript(script: String): Boolean = run("osascript", "-e", script) != null
-
-    // --- Windows: the per-user Run key ---------------------------------------------------------
 
     private const val RUN_KEY = """HKCU\Software\Microsoft\Windows\CurrentVersion\Run"""
     private const val RUN_NAME = "Plume"

@@ -68,8 +68,6 @@ class HotkeyCaptureStateTest {
         assertNull(state.error)
     }
 
-    // --- refusing a save -----------------------------------------------------------------------
-
     @Test
     fun `a combination with no modifier is refused with a reason`() {
         val state = state().apply {
@@ -124,8 +122,6 @@ class HotkeyCaptureStateTest {
         assertFalse(state.recording)
         assertNull(state.error)
     }
-
-    // --- the error clears ----------------------------------------------------------------------
 
     @Test
     fun `pressing again clears a previous error`() {

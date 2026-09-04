@@ -16,8 +16,6 @@ import kotlin.test.assertTrue
  */
 class SystemNotifierTest {
 
-    // --- shortening ----------------------------------------------------------------------------
-
     @Test
     fun `a short message is left alone`() {
         assertEquals("Revise done", shortenForNotification("Revise done"))
@@ -35,8 +33,6 @@ class SystemNotifierTest {
         assertEquals(160, result.length)
         assertTrue(result.endsWith("…"))
     }
-
-    // --- AppleScript escaping ------------------------------------------------------------------
 
     @Test
     fun `a plain string is quoted`() {
@@ -73,8 +69,6 @@ class SystemNotifierTest {
 
         assertFalse(literal.contains("\n"))
     }
-
-    // --- command shapes ------------------------------------------------------------------------
 
     /** `--` is what stops a body starting with a dash being read as an option. */
     @Test
@@ -127,8 +121,6 @@ class SystemNotifierTest {
         assertEquals(listOf("osascript", "-e"), command.take(2))
         assertEquals("display notification \"done\" with title \"Plume\"", command[2])
     }
-
-    // --- routing -------------------------------------------------------------------------------
 
     @Test
     fun `linux tries libnotify first and falls back to dbus`() {
@@ -185,8 +177,6 @@ class SystemNotifierTest {
         assertEquals(listOf("powershell"), spawned)
         assertTrue(waited.isEmpty(), "the notification must not be waited on")
     }
-
-    // --- PowerShell escaping ---------------------------------------------------------------------
 
     @Test
     fun `a single quote is doubled for PowerShell`() {

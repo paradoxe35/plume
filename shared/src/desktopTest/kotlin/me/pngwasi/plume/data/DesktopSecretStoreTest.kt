@@ -19,8 +19,6 @@ class DesktopSecretStoreTest {
 
     private fun tempDir(): String = Files.createTempDirectory("plume-secrets").toFile().absolutePath
 
-    // --- the fallback backend ------------------------------------------------------------------
-
     @Test
     fun `a key survives a write and read`() {
         val backend = EncryptedFileBackend(tempDir())
@@ -102,8 +100,6 @@ class DesktopSecretStoreTest {
         assertEquals("sk-secret", EncryptedFileBackend(dir).get("key_openai"))
     }
 
-    // --- the probe that decides whether to trust a platform backend ----------------------------
-
     private class FakeBackend(
         private val writeSucceeds: Boolean = true,
         private val readsBack: Boolean = true,
@@ -159,8 +155,6 @@ class DesktopSecretStoreTest {
 
         assertTrue(backend.stored.isEmpty())
     }
-
-    // --- the public store ----------------------------------------------------------------------
 
     /** Built on the file backend explicitly: a test must never touch the real keyring. */
     private fun store(dir: String = tempDir()) =

@@ -131,8 +131,6 @@ open class SettingsViewModel(
         repository.update { it.copy(translate = it.translate.copy(defaultTarget = code)) }
     }
 
-    // --- model catalogue ---------------------------------------------------------------------
-
     /**
      * Loads the provider's model list. Called when the editor opens and whenever the key or base
      * URL changes, so the picker fills in as soon as the credentials become valid.
@@ -166,8 +164,6 @@ open class SettingsViewModel(
         modelJob?.cancel()
         _models.value = ModelsState.Idle
     }
-
-    // --- connection probe --------------------------------------------------------------------
 
     /**
      * Sends one tiny real request through the given provider. Cheaper and more honest than

@@ -68,8 +68,6 @@ class ReasoningTest {
     private fun bodyOf(request: RecordedRequest) =
         Json.parseToJsonElement(request.body).jsonObject
 
-    // --- wire shape ---------------------------------------------------------------------------
-
     @Test
     fun `openai style sends reasoning_effort low`() = runTest {
         server.enqueue(ok())
@@ -132,8 +130,6 @@ class ReasoningTest {
         assertNull(body["reasoning_effort"])
         assertNull(body["reasoning"])
     }
-
-    // --- fallback -----------------------------------------------------------------------------
 
     /** OpenAI answers 400 "Invalid 'reasoning_effort' for non-reasoning model". */
     @Test

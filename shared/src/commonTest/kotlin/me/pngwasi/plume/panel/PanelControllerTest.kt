@@ -104,8 +104,6 @@ class PanelControllerTest {
         http = server.client,
     )
 
-    // --- scope reporting ----------------------------------------------------------------------
-
     @Test
     fun `refresh reports the whole field when nothing is selected`() {
         val editor = FakeEditor(full = "bonjour")
@@ -136,8 +134,6 @@ class PanelControllerTest {
 
         assertNull((controller.state.value as PanelState.Ready).scope)
     }
-
-    // --- revise -------------------------------------------------------------------------------
 
     @Test
     fun `revise writes the corrected text back into the field`() {
@@ -222,8 +218,6 @@ class PanelControllerTest {
         assertTrue((controller.state.value as PanelState.Failed).message.contains("write back"))
     }
 
-    // --- translate ----------------------------------------------------------------------------
-
     @Test
     fun `translate opens the picker when no default target is pinned`() {
             val controller = controller(
@@ -277,8 +271,6 @@ class PanelControllerTest {
 
         assertTrue(controller.state.value is PanelState.Ready)
     }
-
-    // --- failures -----------------------------------------------------------------------------
 
     @Test
     fun `a missing api key points the user at settings`() {
