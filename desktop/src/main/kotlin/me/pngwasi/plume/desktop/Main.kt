@@ -107,9 +107,18 @@ fun main() {
         LaunchedEffect(Unit) { controller.watchPermissions() }
 
         // On macOS the Dock icon follows the window: no window means no Dock entry and no Cmd-Tab.
+        // Nothing is done before the first window, because the bundle already launches as an
+        // accessory and changing the policy under a window that is still being created can order
+        // it back out.
+        var everShown by remember { mutableStateOf(false) }
         LaunchedEffect(windowVisible) {
             if (!MacDock.isSupported) return@LaunchedEffect
-            if (windowVisible) MacDock.showInDock() else MacDock.hideFromDock()
+            if (windowVisible) {
+                everShown = true
+                MacDock.showInDock()
+            } else if (everShown) {
+                MacDock.hideFromDock()
+            }
         }
 
         val theme = loaded?.theme ?: ThemeMode.System
@@ -148,7 +157,8 @@ fun main() {
             PlumeLog.info(
                 "Tray available: $trayAvailable, native input: " +
                     (if (PlumeNative.library != null) "loaded" else "unavailable") +
-                    ", start with the system: " + LaunchAtLogin.diagnostics(),
+                    ", start with the system: " + LaunchAtLogin.diagnostics() +
+                    ", Dock: " + MacDock.diagnostics(),
             )
         }
 
