@@ -101,13 +101,27 @@ object MacPermissions {
     private val applicationServices: ApplicationServices? by lazy { load("ApplicationServices") }
     private val ioKit: IOKit? by lazy { load("IOKit") }
 
-    private inline fun <reified T : Library> load(framework: String): T? =
-        if (!isSupported) null
-        else runCatching { Native.load(framework, T::class.java) }.getOrNull()
+    private inline fun <reified T : Library> load(framework: String): T? {
+        if (!isSupported) return null
+        return runCatching { Native.load(framework, T::class.java) }
+            .onFailure { PlumeLog.error("macOS $framework could not be reached", it) }
+            .getOrNull()
+    }
 
     private fun isAccessibilityTrusted(): Boolean {
-        val services = applicationServices ?: return true
-        return runCatching { services.AXIsProcessTrusted() }.getOrDefault(true)
+        val services = applicationServices ?: return assumeGranted("Accessibility")
+        return runCatching { services.AXIsProcessTrusted() }
+            .getOrElse { assumeGranted("Accessibility") }
+    }
+
+    /**
+     * Every check here fails towards "granted": warning about a privilege that was in fact given is
+     * worse than staying quiet. But this is also the state where Plume reports itself ready while
+     * the system withholds key presses, so it does not get to be silent as well as wrong.
+     */
+    private fun assumeGranted(permission: String): Boolean {
+        PlumeLog.error("Could not read the macOS $permission state; assuming it is granted")
+        return true
     }
 
     /**
@@ -120,8 +134,8 @@ object MacPermissions {
         applicationServices?.let { services ->
             runCatching { return services.CGPreflightListenEventAccess() }
         }
-        val kit = ioKit ?: return true
+        val kit = ioKit ?: return assumeGranted("Input Monitoring")
         return runCatching { kit.IOHIDCheckAccess(REQUEST_LISTEN_EVENT) == ACCESS_GRANTED }
-            .getOrDefault(true)
+            .getOrElse { assumeGranted("Input Monitoring") }
     }
 }
