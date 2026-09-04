@@ -161,6 +161,35 @@ MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_
 `start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
 "open Accessibility preferences" deep link. All of that is carried over.
 
+### One process, and the restart that keeps it that way
+
+Granting a macOS permission is only half the fix: the shortcut listener is wired once at launch, so
+the privilege has to be picked up by a new process. That restart turned out to touch four things
+that each fail on their own.
+
+**Two copies must not run at once.** Both would register the same global shortcuts, so which one
+answers a keypress is a race, and both write the same settings file. With no window on screen there
+is nothing to notice. Plume takes an exclusive lock on `instance.lock` in its config directory — a
+lock rather than a pid file, because the operating system releases it however the process ends,
+including a crash — and listens on a loopback port whose number it writes beside the lock. A second
+launch fails the lock, connects to that port, says `show`, and stops. Clicking the launcher while
+Plume is already running now raises its window instead of doing nothing.
+
+**The replacement has to wait for the old process to be gone.** Starting it immediately leaves two
+Plumes alive, and the new one would meet the lock above and stop again — so the restart button would
+appear to do nothing. The launch is handed to a small detached shell that polls for the old pid to
+disappear, then runs the launcher. Windows has no `sh`, so it is `Wait-Process` in PowerShell.
+
+**And the old process has to actually exit.** `exitApplication` closes the window and returns; the
+JVM stays up. Restart calls `exitProcess`, which is the only thing the waiting shell can observe.
+
+**Closing the native handles twice aborts the process.** Quitting, closing the window and restarting
+all shut the controller down, so being closed twice is ordinary rather than exotic — and the Rust
+side rebuilds a `Box` from the pointer, so the second free hands back malloc memory that is no
+longer ours. That is a `SIGABRT` with no Kotlin stack anywhere in it, and it is what a restart used
+to produce. `close` clears the handles as it frees them, which also means a late hotkey action
+cannot reach one.
+
 ### Desktop-only settings and features
 
 Things the Android build has no concept of, which the desktop needs:
@@ -329,6 +358,54 @@ is the worst way for it to fail.
 Rebuilding the `.deb` needs `dpkg-deb --root-owner-group`. Unpacking as an ordinary user rewrites
 every file to that user and rebuilding records it, so the installed application would be owned by
 whoever holds uid 1000 on the target machine rather than by root.
+
+### The macOS launch crash was two bugs holding hands
+
+A crash about a second after launch, `EXC_BREAKPOINT` from `+[NSApplication _crashOnException:]`,
+with no Java stack anywhere in the report. Two independent facts, both confirmed in source:
+
+**AWT's event thread was blocked in `nativeGetScreenInsets`.** `WindowPosition.Aligned` calls
+`Toolkit.getScreenInsets` while placing the window, and `CGraphicsDevice.getScreenInsets` carries
+the comment *"the insets are queried synchronously and are not cached"* — it hops to the AppKit
+thread and waits. If AppKit is busy, that is a stall at the exact moment the window is created, and
+JBR has an open issue about the freezes it causes (JBR-2602). The window is placed from screen
+*bounds* now, which need no such round trip; the cost is ignoring the menu bar and the Dock, worth
+a few pixels.
+
+**AppKit was inside a Core Animation commit, drawing an OpenGL layer.** Java2D's OpenGL pipeline is
+the default on macOS up to JDK 18 — Metal became the default in JDK 19 — and its
+`-[CGLLayer drawInCGLContext:]` is not wrapped in `JNI_COCOA_ENTER`/`EXIT`. Its `CHECK_EXCEPTION()`
+therefore *raises an `NSException`* for any pending Java exception with nothing to catch it, having
+cleared the Java exception first. The JDK header says as much: *"control will propagate back to the
+run loop which might terminate the application… the location of termination does not show where the
+NSException originated."* That is the whole crash report, explained. Plume asks for Metal at
+startup, and the code path stops existing.
+
+What set them off is inference rather than fact: switching the macOS activation policy makes the
+menu bar and Dock appear, which invalidates exactly the screen metrics AWT was blocked asking for.
+Activation now waits for `windowOpened` instead of firing when the window is merely wanted. That
+ordering is defensible on its own, and it is not a proven cause.
+
+### The settings window is what puts Plume in the dock, everywhere
+
+One rule on all three platforms, and only one of them needs code for it.
+
+**Windows and Linux need none.** The window is the taskbar entry: it arrives when the window opens
+and goes when it closes, because closing to the tray destroys the window rather than hiding it.
+
+**Linux needs an identity, though.** A dock decides which launcher a window belongs to by matching
+`WM_CLASS` against the desktop entry's `StartupWMClass`, and AWT names the window after the class
+holding the bottom stack frame with its dots turned into dashes — `me-pngwasi-plume-desktop-MainKt`,
+measured with `xprop`, with no supported way to change it. Without that line the dash shows the
+pinned launcher and an unmatched window side by side. The `.deb` rewrite substitutes it from the
+`mainClass` property rather than spelling it out in the maintainer script, so renaming the entry
+point cannot quietly break the match. **The `.rpm` does not get this**: jpackage takes desktop-entry
+overrides through `--resource-dir`, and the Compose plugin owns that directory as a derived
+`Provider<Directory>` with no setter, so there is nowhere to put one — and unlike the `.deb`, an
+`.rpm` cannot be unpacked and rebuilt without `rpmbuild`.
+
+**macOS is the one that needs code.** A menu-bar app is an accessory process with no Dock entry at
+all, and showing a window does not create one; the activation policy has to follow the window.
 
 ### CI is where Windows and macOS actually get built
 

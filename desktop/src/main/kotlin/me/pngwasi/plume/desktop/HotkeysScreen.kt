@@ -2,13 +2,9 @@ package me.pngwasi.plume.desktop
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,13 +13,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.ui.components.rememberTrackedScrollState
 import me.pngwasi.plume.data.DesktopSettings
-import me.pngwasi.plume.data.duplicateHotkeys
-import me.pngwasi.plume.data.validateHotkey
-import me.pngwasi.plume.ui.components.RowDivider
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 import me.pngwasi.plume.ui.components.SettingsRow
@@ -42,8 +34,6 @@ fun HotkeysScreen(
     defaults: me.pngwasi.plume.data.HotkeyDefaults,
     availability: HotkeyAvailability,
     rejectedBindings: List<String>,
-    launchAtLoginAvailable: Boolean,
-    onSetLaunchAtLogin: (Boolean) -> Boolean,
     onChange: (DesktopSettings) -> Unit,
     /** Suspends the global listener while a shortcut is being recorded. */
     onRecordingChange: (Boolean) -> Unit = {},
@@ -118,67 +108,6 @@ fun HotkeysScreen(
             onBinding = { onChange(settings.copy(translateSelection = it)) },
         )
 
-        SectionLabel("Behaviour")
-        SettingsCard {
-            SettingsRow(
-                title = "Start with the system",
-                subtitle = if (launchAtLoginAvailable) {
-                    "Plume needs to be running for the shortcuts to work."
-                } else {
-                    "Available once Plume is installed, not when run from a build."
-                },
-                icon = PlumeIcons.Refresh,
-                trailing = {
-                    Switch(
-                        checked = settings.startOnLogin,
-                        enabled = launchAtLoginAvailable,
-                        onCheckedChange = { wanted ->
-                            // Only record what actually happened: a switch that flips without the
-                            // entry being written would be a straightforward lie.
-                            if (onSetLaunchAtLogin(wanted)) {
-                                onChange(settings.copy(startOnLogin = wanted))
-                            }
-                        },
-                    )
-                },
-            )
-            RowDivider()
-            SettingsRow(
-                title = "Start in the tray",
-                subtitle = "Skip the settings window on launch.",
-                icon = PlumeIcons.PhoneAndroid,
-                trailing = {
-                    Switch(
-                        checked = settings.startMinimised,
-                        onCheckedChange = { onChange(settings.copy(startMinimised = it)) },
-                    )
-                },
-            )
-            RowDivider()
-            SettingsRow(
-                title = "Close to the tray",
-                subtitle = "Closing this window leaves the shortcuts running.",
-                icon = PlumeIcons.Check,
-                trailing = {
-                    Switch(
-                        checked = settings.closeToTray,
-                        onCheckedChange = { onChange(settings.copy(closeToTray = it)) },
-                    )
-                },
-            )
-            RowDivider()
-            SettingsRow(
-                title = "Notify when finished",
-                subtitle = "The result lands in another window, so this is how you know it worked.",
-                icon = PlumeIcons.Info,
-                trailing = {
-                    Switch(
-                        checked = settings.notifyOnFinish,
-                        onCheckedChange = { onChange(settings.copy(notifyOnFinish = it)) },
-                    )
-                },
-            )
-        }
     }
 }
 
@@ -210,35 +139,5 @@ private fun PermissionCard(availability: HotkeyAvailability) {
                 icon = PlumeIcons.ErrorOutline,
             )
         }
-    }
-}
-
-@Composable
-private fun HotkeyField(
-    label: String,
-    help: String,
-    value: String,
-    duplicates: Set<String>,
-    onValue: (String) -> Unit,
-) {
-    var text by remember(value) { mutableStateOf(value) }
-    val formatError = validateHotkey(text)
-    val duplicate = me.pngwasi.plume.data.normaliseHotkey(text) in duplicates
-    val error = formatError ?: if (duplicate) "Another action already uses this shortcut" else null
-
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = {
-                text = it
-                if (validateHotkey(it) == null) onValue(it)
-            },
-            label = { Text(label) },
-            supportingText = { Text(error ?: help) },
-            isError = error != null,
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }

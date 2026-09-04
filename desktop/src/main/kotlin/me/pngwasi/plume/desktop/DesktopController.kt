@@ -15,6 +15,7 @@ import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
+import kotlin.system.exitProcess
 
 /**
  * Owns the long-lived desktop pieces: the hotkey listener, the clipboard bridge, and the settings
@@ -28,7 +29,9 @@ class DesktopController(
 ) {
 
     /** Built lazily and reused: constructing a clipboard connection per action is slow on X11. */
-    private val systemInput: NativeSystemInput? by lazy { NativeSystemInput.createOrNull() }
+    private val nativeInput = lazy { NativeSystemInput.createOrNull() }
+
+    private val systemInput: NativeSystemInput? get() = nativeInput.value
 
     private val capture: TextCapture? by lazy { systemInput?.let { TextCapture(it) } }
 
@@ -44,8 +47,15 @@ class DesktopController(
 
     private val _openRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** Emitted when something outside the window asks for it — a hotkey with nothing to act on. */
+    /**
+     * Emitted when something outside the window asks for it — a hotkey with nothing to act on, or a
+     * second launch handing over to this one.
+     */
     val openRequests: SharedFlow<Unit> = _openRequests
+
+    fun requestOpen() {
+        _openRequests.tryEmit(Unit)
+    }
 
     private var hotkeys: HotkeyService? = null
 
@@ -149,17 +159,45 @@ class DesktopController(
         systemInput?.setClipboardText(text)
     }
 
-    /** Starts a fresh copy and stops this one, so the listener is wired with the new privileges. */
+    /**
+     * Stops this copy so a fresh one can start with the new privileges.
+     *
+     * Ends the process rather than the window: the replacement waits for this pid to disappear
+     * before it launches, and closing the application loop would leave the JVM up — which is how a
+     * restart used to end with two Plumes running.
+     */
     fun restart(): Boolean {
-        if (!AppRelaunch.relaunch()) return false
-        shutdown()
-        return true
+        if (!AppRelaunch.relaunch()) {
+            PlumeLog.error("No installed launcher to restart; quit and start Plume again")
+            return false
+        }
+        quit()
     }
 
+    /**
+     * Quits, and means it.
+     *
+     * `exitApplication` closes the windows and returns, but AWT's event thread and its shutdown
+     * thread are not daemons, so the JVM stays up with no window and no tray — measured on a real
+     * build, not assumed. That invisible process goes on holding the instance lock, so the next
+     * launch hands over to something the user cannot see and Plume can never be opened again.
+     */
+    fun quit(): Nothing {
+        // The last line in the log for this run, which is what tells a stopped-working report apart
+        // from a crash: one ends here, the other does not.
+        PlumeLog.info("Quitting")
+        shutdown()
+        exitProcess(0)
+    }
+
+    /** Called from the tray, the window and a restart, so it has to survive being called twice. */
+    @Synchronized
     fun shutdown() {
         hotkeys?.close()
         hotkeys = null
-        systemInput?.close()
+        // Only when something built it: reading the lazy here would open a clipboard connection for
+        // the sole purpose of closing it.
+        if (nativeInput.isInitialized()) nativeInput.value?.close()
     }
 }
 

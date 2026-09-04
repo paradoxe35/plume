@@ -56,9 +56,20 @@ val copyNativeLibrary by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("native/$jnaResourcePrefix"))
 }
 
+/** Also decides the Linux window class the desktop entry has to name; see [awtWindowClass]. */
+val mainClassName = "me.pngwasi.plume.desktop.MainKt"
+
 compose.desktop {
     application {
-        mainClass = "me.pngwasi.plume.desktop.MainKt"
+        mainClass = mainClassName
+
+        // Java2D's OpenGL pipeline is the default on macOS up to JDK 18, and its CGLLayer turns any
+        // Java exception during a layer draw into an uncatchable NSException that kills the process.
+        // Metal is the default from JDK 19. Set on the launcher as well as in `main`, so it is in
+        // place before the JVM starts. Only reaches the macOS package: jpackage builds on the host.
+        if (jnaResourcePrefix.startsWith("darwin")) {
+            jvmArgs += "-Dsun.java2d.metal=true"
+        }
 
         // Minification is opt-in, through the `packageRelease*` tasks. Most of the download is the
         // bundled JVM and Skia, neither of which ProGuard can touch, so this trims our own jars
@@ -115,6 +126,17 @@ compose.desktop {
 }
 
 /**
+ * What AWT will report as the window's `WM_CLASS`, which is how a Linux dock matches the settings
+ * window to the installed launcher.
+ *
+ * AWT names the window after the class holding the bottom stack frame — the application's main
+ * class — with dots turned into dashes, and offers no supported way to set it. Derived here rather
+ * than written out in the maintainer script, so renaming the entry point cannot quietly leave the
+ * dock showing the launcher and an unmatched window side by side.
+ */
+val awtWindowClass: String = mainClassName.replace('.', '-')
+
+/**
  * Replaces the maintainer scripts jpackage writes into the `.deb`.
  *
  * jpackage's postinst calls `xdg-desktop-menu install`, which exits non-zero when there is no
@@ -143,7 +165,8 @@ fun Task.rewriteDebScripts(debDirectory: Provider<Directory>) {
         listOf("postinst", "prerm").forEach { script ->
             val replacement = layout.projectDirectory.file("jpackage/$script").asFile
             val target = File(unpacked, "DEBIAN/$script")
-            replacement.copyTo(target, overwrite = true)
+            target.parentFile.mkdirs()
+            target.writeText(replacement.readText().replace("@WM_CLASS@", awtWindowClass))
             target.setExecutable(true, false)
         }
 

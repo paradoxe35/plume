@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.rememberTrackedScrollState
 import me.pngwasi.plume.data.Prompts
 import me.pngwasi.plume.data.ReviseSettings
@@ -41,7 +42,9 @@ fun ReviseScreen(
             onChange = { prompt -> onChange { it.copy(systemPrompt = prompt) } },
         )
 
-        Column(modifier = Modifier.padding(top = 20.dp)) {
+        // Labelled, or the two sliders sit under "System prompt" and read as part of it.
+        SectionLabel("Limits")
+        Column(modifier = Modifier.padding(top = 4.dp)) {
             CharacterLimitControl(settings.characterLimit) { limit ->
                 onChange { it.copy(characterLimit = limit) }
             }
@@ -79,7 +82,9 @@ fun TranslatePromptScreen(
             onChange = { prompt -> onChange { it.copy(systemPrompt = prompt) } },
         )
 
-        Column(modifier = Modifier.padding(top = 20.dp)) {
+        // Labelled, or the two sliders sit under "System prompt" and read as part of it.
+        SectionLabel("Limits")
+        Column(modifier = Modifier.padding(top = 4.dp)) {
             CharacterLimitControl(settings.characterLimit) { limit ->
                 onChange { it.copy(characterLimit = limit) }
             }

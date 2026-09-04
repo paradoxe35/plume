@@ -15,6 +15,13 @@ import kotlinx.coroutines.delay
 suspend fun raiseWindow(window: ComposeWindow, state: WindowState) {
     state.isMinimized = false
 
+    // Not while the peer is still being made. Activating then is what put an AppKit redisplay and a
+    // blocked event thread on a collision course; the window announces itself when it is ready.
+    repeat(ATTEMPTS) {
+        if (window.isShowing) return@repeat
+        delay(ACTIVATION_SETTLE)
+    }
+
     if (MacDock.isSupported) {
         MacDock.showInDock()
         repeat(ATTEMPTS) {

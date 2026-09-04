@@ -38,9 +38,14 @@ sealed interface Destination {
         override val title = "Plume keyboard"
     }
 
-    /** Desktop only: shortcuts, permissions and launch behaviour. */
+    /** Desktop only: the three key combinations, and nothing else. */
     data object Hotkeys : Destination {
         override val title = "Shortcuts"
+    }
+
+    /** Desktop only: how Plume starts, and what it does when its window closes. */
+    data object General : Destination {
+        override val title = "General"
     }
 
     /** Desktop only: what Plume changed, so the user can put it back. */

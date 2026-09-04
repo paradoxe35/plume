@@ -54,6 +54,8 @@ fun SettingsNavHost(
     blocker: PlatformBlocker? = null,
     /** Rows added to the home screen's configuration card. */
     platformRows: @Composable (push: (Destination) -> Unit) -> Unit = {},
+    /** Rows added to the home screen's help card: things to read rather than things to change. */
+    platformHelpRows: @Composable (push: (Destination) -> Unit) -> Unit = {},
     /** Anything that belongs below the settings rather than among them. */
     platformFooter: @Composable () -> Unit = {},
     /** Screens for destinations this host does not know about. */
@@ -125,6 +127,7 @@ fun SettingsNavHost(
                     intro = intro,
                     blocker = blocker,
                     platformRows = { platformRows(push) },
+                    platformHelpRows = { platformHelpRows(push) },
                     platformFooter = platformFooter,
                 )
 
