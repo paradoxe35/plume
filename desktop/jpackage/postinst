@@ -8,6 +8,9 @@
 #
 # This installs the desktop entry directly, and treats every optional step as optional: an unusual
 # desktop must not fail the installation. The icons themselves are packaged files.
+#
+# A template: @WM_CLASS@ is substituted from the application's main class when the package is built,
+# because that is what AWT turns into WM_CLASS and the two must not be able to drift apart.
 set -e
 
 APP_DIR=/opt/plume
@@ -25,10 +28,12 @@ case "$1" in
             chmod 644 "$APPLICATIONS/plume.desktop"
         fi
 
-        # StartupWMClass lets the desktop match the running window to this entry, so the dock shows
-        # one Plume rather than the launcher and an "unknown" window side by side.
+        # StartupWMClass lets the desktop match the running window to this entry, so the settings
+        # window appears in the dock as Plume rather than as an unknown window beside the launcher.
+        # AWT names the window after the class holding the bottom stack frame, with dots turned into
+        # dashes, and gives no supported way to set it — so the entry has to name what AWT produces.
         if ! grep -q "^StartupWMClass=" "$APPLICATIONS/plume.desktop" 2>/dev/null; then
-            echo "StartupWMClass=me-pngwasi-plume-desktop-MainKt" >> "$APPLICATIONS/plume.desktop"
+            echo "StartupWMClass=@WM_CLASS@" >> "$APPLICATIONS/plume.desktop"
         fi
 
         # A lowercase name on PATH, so `plume` works from a terminal. jpackage installs the

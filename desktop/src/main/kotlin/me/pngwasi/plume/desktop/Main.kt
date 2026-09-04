@@ -106,18 +106,16 @@ fun main() {
         // macOS says nothing when a privilege is granted, so the only way to notice is to look.
         LaunchedEffect(Unit) { controller.watchPermissions() }
 
-        // On macOS the Dock icon follows the window: no window means no Dock entry and no Cmd-Tab.
-        // Nothing is done before the first window, because the bundle already launches as an
-        // accessory and changing the policy under a window that is still being created can order
-        // it back out.
+        // The settings window is what puts Plume in the dock or taskbar, on every platform. Nothing
+        // is done before the first one: the macOS bundle already launches as an accessory, and
+        // changing the policy under a window that is still being created can order it back out.
         var everShown by remember { mutableStateOf(false) }
         LaunchedEffect(windowVisible) {
-            if (!MacDock.isSupported) return@LaunchedEffect
             if (windowVisible) {
                 everShown = true
-                MacDock.showInDock()
+                DockPresence.windowShown()
             } else if (everShown) {
-                MacDock.hideFromDock()
+                DockPresence.windowHidden()
             }
         }
 

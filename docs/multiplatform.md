@@ -359,6 +359,27 @@ Rebuilding the `.deb` needs `dpkg-deb --root-owner-group`. Unpacking as an ordin
 every file to that user and rebuilding records it, so the installed application would be owned by
 whoever holds uid 1000 on the target machine rather than by root.
 
+### The settings window is what puts Plume in the dock, everywhere
+
+One rule on all three platforms, and only one of them needs code for it.
+
+**Windows and Linux need none.** The window is the taskbar entry: it arrives when the window opens
+and goes when it closes, because closing to the tray destroys the window rather than hiding it.
+
+**Linux needs an identity, though.** A dock decides which launcher a window belongs to by matching
+`WM_CLASS` against the desktop entry's `StartupWMClass`, and AWT names the window after the class
+holding the bottom stack frame with its dots turned into dashes — `me-pngwasi-plume-desktop-MainKt`,
+measured with `xprop`, with no supported way to change it. Without that line the dash shows the
+pinned launcher and an unmatched window side by side. The `.deb` rewrite substitutes it from the
+`mainClass` property rather than spelling it out in the maintainer script, so renaming the entry
+point cannot quietly break the match. **The `.rpm` does not get this**: jpackage takes desktop-entry
+overrides through `--resource-dir`, and the Compose plugin owns that directory as a derived
+`Provider<Directory>` with no setter, so there is nowhere to put one — and unlike the `.deb`, an
+`.rpm` cannot be unpacked and rebuilt without `rpmbuild`.
+
+**macOS is the one that needs code.** A menu-bar app is an accessory process with no Dock entry at
+all, and showing a window does not create one; the activation policy has to follow the window.
+
 ### CI is where Windows and macOS actually get built
 
 `.github/workflows/build-desktop.yml` runs on every push to `feature/multiplatform`, across
