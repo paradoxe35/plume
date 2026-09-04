@@ -2,6 +2,8 @@ package me.pngwasi.plume.desktop
 
 import com.sun.jna.Library
 import com.sun.jna.Native
+import com.sun.jna.NativeLibrary
+import com.sun.jna.Pointer
 import me.pngwasi.plume.data.DesktopOs
 
 /** The two macOS privileges Plume's shortcuts depend on. They are granted separately. */
@@ -61,7 +63,10 @@ object MacPermissions {
      */
     fun request(permission: MacPermission) {
         when (permission) {
-            MacPermission.Accessibility -> openSettings(permission)
+            MacPermission.Accessibility -> {
+                runCatching { promptForAccessibility() }
+                openSettings(permission)
+            }
             MacPermission.InputMonitoring -> {
                 // The prompt that also puts Plume in the list, so there is something to switch on.
                 runCatching { applicationServices?.CGRequestListenEventAccess() }
@@ -84,9 +89,25 @@ object MacPermissions {
     private interface ApplicationServices : Library {
         fun AXIsProcessTrusted(): Boolean
 
+        /** With the prompt option, this is also what puts Plume in the Accessibility list. */
+        fun AXIsProcessTrustedWithOptions(options: Pointer?): Boolean
+
         /** The question an event tap actually asks. macOS 10.15 and later. */
         fun CGPreflightListenEventAccess(): Boolean
         fun CGRequestListenEventAccess(): Boolean
+    }
+
+    private interface CoreFoundation : Library {
+        fun CFDictionaryCreate(
+            allocator: Pointer?,
+            keys: Array<Pointer?>,
+            values: Array<Pointer?>,
+            numValues: Long,
+            keyCallBacks: Pointer?,
+            valueCallBacks: Pointer?,
+        ): Pointer?
+
+        fun CFRelease(cf: Pointer?)
     }
 
     private interface IOKit : Library {
@@ -99,6 +120,41 @@ object MacPermissions {
     private const val ACCESS_GRANTED = 0
 
     private val applicationServices: ApplicationServices? by lazy { load("ApplicationServices") }
+    private val coreFoundation: CoreFoundation? by lazy { load("CoreFoundation") }
+
+    /** The address of a framework global; `dereference` for the ones holding a pointer. */
+    private fun global(framework: String, symbol: String, dereference: Boolean): Pointer? =
+        runCatching {
+            val address = NativeLibrary.getInstance(framework).getGlobalVariableAddress(symbol)
+            if (dereference) address.getPointer(0) else address
+        }.getOrNull()
+
+    /**
+     * Shows the system's own Accessibility dialog, which is the only thing that adds Plume to that
+     * list. Opening the settings pane does not: without this the user is sent to a list Plume is
+     * not in, with nothing to switch on — which is how a permission stays ungranted forever.
+     */
+    private fun promptForAccessibility(): Boolean {
+        val services = applicationServices ?: return false
+        val cf = coreFoundation ?: return false
+        val promptKey = global("ApplicationServices", "kAXTrustedCheckOptionPrompt", true)
+            ?: return false
+        val yes = global("CoreFoundation", "kCFBooleanTrue", true) ?: return false
+        val keyCallbacks = global("CoreFoundation", "kCFTypeDictionaryKeyCallBacks", false)
+            ?: return false
+        val valueCallbacks = global("CoreFoundation", "kCFTypeDictionaryValueCallBacks", false)
+            ?: return false
+
+        val options = cf.CFDictionaryCreate(
+            null, arrayOf(promptKey), arrayOf(yes), 1, keyCallbacks, valueCallbacks,
+        ) ?: return false
+        return try {
+            services.AXIsProcessTrustedWithOptions(options)
+        } finally {
+            // CFDictionaryCreate returns it retained; the keys and values are constants we borrow.
+            cf.CFRelease(options)
+        }
+    }
     private val ioKit: IOKit? by lazy { load("IOKit") }
 
     private inline fun <reified T : Library> load(framework: String): T? {
