@@ -24,6 +24,7 @@ import com.kdroid.composetray.tray.api.Tray
 import java.awt.Toolkit
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +34,7 @@ import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.data.isFullyConfigured
 import me.pngwasi.plume.data.keyedProviders
+import me.pngwasi.plume.data.plumeConfigDirectory
 import me.pngwasi.plume.native.PlumeNative
 import me.pngwasi.plume.ui.icons.PlumeMark
 import me.pngwasi.plume.ui.theme.PlumeTheme
@@ -46,6 +48,14 @@ fun main() {
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val controller = DesktopController(scope)
+
+    // Before the tray and the shortcut listener exist: two copies would both claim the same global
+    // shortcuts, and the loser is decided by whichever registered last.
+    val instance = SingleInstance(File(plumeConfigDirectory()))
+    if (!instance.claim(controller::requestOpen)) {
+        PlumeLog.info("Handed this launch to the Plume that was already running")
+        return
+    }
 
     application {
         val settings by controller.settings.collectAsState()
@@ -124,7 +134,9 @@ fun main() {
             PlumeTray(
                 outcome = outcome,
                 settings = loaded,
-                onOpen = requestOpen,
+                // Through the flow rather than straight to `requestOpen`: the tray calls back on
+                // its own thread, and this lands the state change on the composition's.
+                onOpen = controller::requestOpen,
                 onQuit = {
                     controller.shutdown()
                     exitApplication()

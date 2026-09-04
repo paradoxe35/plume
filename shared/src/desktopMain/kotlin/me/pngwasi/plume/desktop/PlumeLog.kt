@@ -39,8 +39,13 @@ object PlumeLog {
      * leaves no trace anywhere, which is exactly the case that is hardest to report.
      */
     fun install(version: String) {
-        write("Plume $version starting on ${System.getProperty("os.name")} " +
-            "(${System.getProperty("os.arch")}), Java ${System.getProperty("java.version")}")
+        // The pid, because every copy that starts appends to the same file: without it "Plume ran
+        // twice" cannot be told from one process logging twice.
+        write(
+            "Plume $version starting as pid ${ProcessHandle.current().pid()} on " +
+                "${System.getProperty("os.name")} (${System.getProperty("os.arch")}), " +
+                "Java ${System.getProperty("java.version")}",
+        )
 
         val existing = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->

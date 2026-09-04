@@ -47,8 +47,15 @@ class DesktopController(
 
     private val _openRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** Emitted when something outside the window asks for it — a hotkey with nothing to act on. */
+    /**
+     * Emitted when something outside the window asks for it — a hotkey with nothing to act on, or a
+     * second launch handing over to this one.
+     */
     val openRequests: SharedFlow<Unit> = _openRequests
+
+    fun requestOpen() {
+        _openRequests.tryEmit(Unit)
+    }
 
     private var hotkeys: HotkeyService? = null
 
