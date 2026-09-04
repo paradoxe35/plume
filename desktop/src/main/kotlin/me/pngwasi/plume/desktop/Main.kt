@@ -183,12 +183,7 @@ fun main() {
 
                 // On macOS an accessory app's window opens behind the active app with no focus, so
                 // the Dock activation has to happen before `toFront` means anything.
-                LaunchedEffect(openRequests) {
-                    state.isMinimized = false
-                    if (MacDock.isSupported) MacDock.showInDock()
-                    window.toFront()
-                    window.requestFocus()
-                }
+                LaunchedEffect(openRequests) { raiseWindow(window, state) }
 
                 PlumeTheme(mode = theme) {
                     val settingsUi = @Composable {

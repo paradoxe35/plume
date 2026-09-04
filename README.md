@@ -62,7 +62,7 @@ The macOS builds are unsigned, so Gatekeeper will need convincing.
 
 Open Plume, go to **AI providers**, pick one and paste a key. OpenAI, OpenRouter and Gemini are
 built in. Anything speaking the OpenAI chat-completions format works too, with presets for Groq,
-Mistral, DeepSeek, Together, Ollama and LM Studio.
+Mistral, Together, Ollama and LM Studio.
 
 Running a model locally? Turn off "Requires an API key" and Plume sends no `Authorization`
 header at all, which is what Ollama and LM Studio expect.
