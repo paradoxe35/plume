@@ -99,3 +99,56 @@ jobs:
             desktop/build/reports/tests
             app/build/reports/tests
           retention-days: 7
+
+  # The first time anything has type-checked iOS. The Kotlin/Native targets are gated behind a
+  # macOS host, so on every other machine these eleven files are never compiled at all — a
+  # `java.util.Locale` in shared code went unnoticed for exactly that reason.
+  #
+  # Not blocking yet: iOS has never been built, so this is expected to fail before it passes, and
+  # a red iOS job should not hold up desktop and Android work. Drop `continue-on-error` once green.
+  ios:
+    name: iOS
+    runs-on: macos-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch the Gradle distribution
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version; then exit 0; fi
+            echo "Gradle bootstrap failed (attempt $attempt of 3), retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
+
+      # Device and simulator both, since they are separate compilations and can fail apart.
+      - name: Compile the shared framework
+        run: |
+          ./gradlew :shared:compileKotlinIosArm64 \
+                    :shared:compileKotlinIosSimulatorArm64 --stacktrace
+
+      - name: Link the framework the Xcode project expects
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64 --stacktrace
+
+      # Catches the Swift side: the keyboard extension, the entitlements wiring, and whether the
+      # generated project still refers to files that exist. Unsigned, so it never needs an account.
+      - name: Build the app and the keyboard extension
+        run: |
+          brew install xcodegen
+          cd iosApp
+          xcodegen
+          xcodebuild build \
+            -project Plume.xcodeproj \
+            -scheme Plume \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO

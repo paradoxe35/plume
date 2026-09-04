@@ -325,6 +325,13 @@ Three things it has to get right, none of them obvious:
   image instead, since `.deb` and `.rpm` both need a package manager and root, and an AppImage is
   the one Linux format a user can simply download and run.
 
+CI compiles the iOS targets on every pull request, because nothing else does: they are gated
+behind a macOS host, so on a Linux development machine `shared/src/iosMain` is never type-checked
+at all. That gap is how a `java.util.Locale` sat in shared code for weeks. The job compiles for
+device and simulator, links the framework, then runs `xcodegen` and an unsigned `xcodebuild` so the
+Swift side and the extension are checked too. It is `continue-on-error` until iOS builds green,
+since a platform that has never compiled should not block work on the ones that ship.
+
 The Rust crate's Windows and macOS builds were verified from Linux with `cargo check --target`
 before any of this ran: `enigo`'s `wayland`/`x11rb` features and `arboard`'s `wayland-data-control`
 look Linux-only, but both crates gate those dependencies by target, so enabling them elsewhere is
