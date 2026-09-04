@@ -28,7 +28,9 @@ class DesktopController(
 ) {
 
     /** Built lazily and reused: constructing a clipboard connection per action is slow on X11. */
-    private val systemInput: NativeSystemInput? by lazy { NativeSystemInput.createOrNull() }
+    private val nativeInput = lazy { NativeSystemInput.createOrNull() }
+
+    private val systemInput: NativeSystemInput? get() = nativeInput.value
 
     private val capture: TextCapture? by lazy { systemInput?.let { TextCapture(it) } }
 
@@ -156,10 +158,14 @@ class DesktopController(
         return true
     }
 
+    /** Called from the tray, the window and a restart, so it has to survive being called twice. */
+    @Synchronized
     fun shutdown() {
         hotkeys?.close()
         hotkeys = null
-        systemInput?.close()
+        // Only when something built it: reading the lazy here would open a clipboard connection for
+        // the sole purpose of closing it.
+        if (nativeInput.isInitialized()) nativeInput.value?.close()
     }
 }
 

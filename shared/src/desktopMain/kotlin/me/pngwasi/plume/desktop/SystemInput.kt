@@ -32,8 +32,13 @@ class NativeSystemInput(
     private val library: PlumeNativeLibrary,
 ) : SystemInput, AutoCloseable {
 
-    private val clipboard: Pointer? = library.plume_clipboard_new()
-    private val simulator: Pointer? = library.plume_simulator_new()
+    // Cleared by close, which is what makes freeing twice impossible. Volatile because the tray
+    // thread and the window thread both reach shutdown.
+    @Volatile
+    private var clipboard: Pointer? = library.plume_clipboard_new()
+
+    @Volatile
+    private var simulator: Pointer? = library.plume_simulator_new()
 
     val isUsable: Boolean get() = clipboard != null && simulator != null
 
@@ -58,9 +63,18 @@ class NativeSystemInput(
 
     override fun paste(): Boolean = library.plume_simulate_paste(simulator) == 0
 
+    /**
+     * Idempotent, and it has to be: quitting, closing the window and restarting all shut the
+     * controller down, and freeing a handle twice aborts the process rather than raising anything
+     * Kotlin can catch — the Rust side rebuilds a `Box` from the pointer, so the second free hands
+     * malloc memory that is no longer ours.
+     */
+    @Synchronized
     override fun close() {
-        library.plume_clipboard_free(clipboard)
-        library.plume_simulator_free(simulator)
+        clipboard?.let { library.plume_clipboard_free(it) }
+        clipboard = null
+        simulator?.let { library.plume_simulator_free(it) }
+        simulator = null
     }
 
     companion object {

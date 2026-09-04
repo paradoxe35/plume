@@ -40,7 +40,10 @@ class HotkeyService(
         private val onAction: (HotkeyAction) -> Unit,
 ) : AutoCloseable {
 
-    private val manager: Pointer? = library.plume_hotkey_manager_new()
+    // Cleared by close, which is what makes a second free impossible: the Rust side rebuilds a
+    // `Box` from the pointer, and freeing twice aborts the process rather than raising anything.
+    @Volatile
+    private var manager: Pointer? = library.plume_hotkey_manager_new()
 
     // JNA callbacks are only reachable from native code while something on the Kotlin side still
     // references them; letting these be collected would crash the listener thread.
@@ -80,9 +83,11 @@ class HotkeyService(
         started = false
     }
 
+    @Synchronized
     override fun close() {
         stop()
-        library.plume_hotkey_manager_free(manager)
+        manager?.let { library.plume_hotkey_manager_free(it) }
+        manager = null
         callbacks.clear()
     }
 
