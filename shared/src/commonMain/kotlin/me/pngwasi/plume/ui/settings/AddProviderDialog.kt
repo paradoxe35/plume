@@ -41,7 +41,6 @@ private val Presets = listOf(
     ),
     Preset("Groq", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
     Preset("Mistral", "https://api.mistral.ai/v1", "mistral-small-latest"),
-    Preset("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"),
     Preset("Together", "https://api.together.xyz/v1", ""),
     Preset("Ollama", "http://localhost:11434/v1", "", authRequired = false),
     Preset("LM Studio", "http://localhost:1234/v1", "", authRequired = false),
