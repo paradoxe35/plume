@@ -24,13 +24,10 @@ jobs:
       matrix:
         include:
           - name: Linux
-            slug: linux
             os: ubuntu-latest
           - name: Windows
-            slug: windows
             os: windows-latest
           - name: macOS
-            slug: macos
             os: macos-latest
 
     defaults:
@@ -89,16 +86,6 @@ jobs:
       - name: Build and test Android
         if: runner.os == 'Linux'
         run: ./gradlew :shared:testDebugUnitTest :app:assembleDebug --stacktrace
-
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: reports-${{ matrix.slug }}
-          path: |
-            shared/build/reports/tests
-            desktop/build/reports/tests
-            app/build/reports/tests
-          retention-days: 7
 
   # The first time anything has type-checked iOS. The Kotlin/Native targets are gated behind a
   # macOS host, so on every other machine these eleven files are never compiled at all — a
