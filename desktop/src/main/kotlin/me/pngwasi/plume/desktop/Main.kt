@@ -210,6 +210,7 @@ fun main() {
                                 controller = controller,
                                 settings = loaded,
                                 history = history,
+                                trayAvailable = trayAvailable,
                                 onQuit = controller::quit,
                             )
                             ScrollAffordance()

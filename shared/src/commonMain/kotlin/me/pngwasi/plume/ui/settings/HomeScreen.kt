@@ -47,6 +47,8 @@ fun HomeScreen(
     blocker: PlatformBlocker? = null,
     /** Rows only one platform has: the companion keyboard on Android, shortcuts on the desktop. */
     platformRows: @Composable () -> Unit = {},
+    /** Rows about what Plume has done rather than how it behaves: the log, and what it changed. */
+    platformHelpRows: @Composable () -> Unit = {},
     /**
      * Anything that belongs after the settings, separated from them. Quitting is not a setting, and
      * sitting it between two navigation rows made it easy to hit by accident.
@@ -67,7 +69,9 @@ fun HomeScreen(
             settings = settings,
             keyedProviders = keyedProviders,
             blocker = blocker,
-            onFix = { onOpen(Destination.Providers) },
+            // Only where tapping it leads somewhere useful. A withheld permission is granted from
+            // the rows below, and sending the user to the provider list instead was a dead end.
+            onFix = if (blocker == null) ({ onOpen(Destination.Providers) }) else null,
         )
 
         if (blocker != null && blocker.fixes.isNotEmpty()) {
@@ -131,7 +135,10 @@ fun HomeScreen(
                 showChevron = true,
                 onClick = { onOpen(Destination.Appearance) },
             )
-            RowDivider()
+        }
+
+        SectionLabel("Help")
+        SettingsCard {
             SettingsRow(
                 title = "How Plume works",
                 subtitle = copy.aboutSubtitle,
@@ -139,6 +146,7 @@ fun HomeScreen(
                 showChevron = true,
                 onClick = { onOpen(Destination.About) },
             )
+            platformHelpRows()
         }
 
         platformFooter()
@@ -160,13 +168,6 @@ private fun Header(intro: String) {
     }
 }
 
-/**
- * The one thing a user must get right is a working provider, so its state is the first thing on
- * screen — and it is the only card that changes colour, which is what makes it read as a status.
- *
- * Readiness is per action, because the two can run on different providers and one of them being
- * misconfigured must not be hidden behind the other one working.
- */
 /** Named, so the user knows which switch is still off rather than being sent to hunt for it. */
 @Composable
 private fun PermissionRow(fix: BlockerFix) {
@@ -206,12 +207,20 @@ private fun PermissionRow(fix: BlockerFix) {
     }
 }
 
+/**
+ * The one thing a user must get right is a working provider, so its state is the first thing on
+ * screen — and it is the only card that changes colour, which is what makes it read as a status.
+ *
+ * Readiness is per action, because the two can run on different providers and one of them being
+ * misconfigured must not be hidden behind the other one working.
+ */
 @Composable
 private fun ReadinessCard(
     settings: AppSettings,
     keyedProviders: Set<String>,
     blocker: PlatformBlocker?,
-    onFix: () -> Unit,
+    /** Null when the card is only reporting: a blocker is fixed by the rows beneath it. */
+    onFix: (() -> Unit)?,
 ) {
     val reviseReady = settings.isReady(Action.Revise, keyedProviders)
     val translateReady = settings.isReady(Action.Translate, keyedProviders)
@@ -242,7 +251,8 @@ private fun ReadinessCard(
                 MaterialTheme.colorScheme.outlineVariant
             },
         ),
-        onClick = onFix,
+        onClick = onFix ?: {},
+        enabled = onFix != null,
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

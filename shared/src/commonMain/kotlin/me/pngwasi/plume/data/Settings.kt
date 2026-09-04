@@ -103,7 +103,12 @@ data class DesktopSettings(
     val reviseAll: String = "",
     val translateSelection: String = "",
     val startOnLogin: Boolean = false,
-    val startMinimised: Boolean = true,
+    /**
+     * Off, so a launch always puts something on screen. Starting straight into the tray is right
+     * once Plume is a habit and wrong before then: the first launch would appear to do nothing, and
+     * on a desktop with no visible tray there would be no way back to the window at all.
+     */
+    val startMinimised: Boolean = false,
     val closeToTray: Boolean = true,
     /** The hotkey fires into another app, so off means silent success and silent failure alike. */
     val notifyOnFinish: Boolean = true,
