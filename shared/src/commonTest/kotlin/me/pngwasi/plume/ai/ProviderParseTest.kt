@@ -8,8 +8,6 @@ import kotlin.test.Test
 /** Response-shape handling, isolated from the network. */
 class ProviderParseTest {
 
-    // --- OpenAI-compatible -----------------------------------------------------------------
-
     @Test
     fun `openai response yields the message content`() {
         val body = """{"choices":[{"message":{"role":"assistant","content":"J'ai mangé."}}]}"""
@@ -43,8 +41,6 @@ class ProviderParseTest {
         assertEquals(AiException.Kind.BadResponse, error.kind)
     }
 
-    // --- Gemini ----------------------------------------------------------------------------
-
     @Test
     fun `gemini parts are concatenated`() {
         val body = """
@@ -66,8 +62,6 @@ class ProviderParseTest {
         assertTrue(error.message!!.contains("SAFETY"))
     }
 
-    // --- error envelopes -------------------------------------------------------------------
-
     @Test
     fun `nested error message is extracted`() {
         assertEquals("bad key", extractMessage("""{"error":{"message":"bad key"}}"""))
@@ -88,8 +82,6 @@ class ProviderParseTest {
         assertNull(extractMessage("<html>502 Bad Gateway</html>"))
         assertNull(extractMessage(""))
     }
-
-    // --- status mapping --------------------------------------------------------------------
 
     @Test
     fun `401 maps to an auth error naming the provider`() {

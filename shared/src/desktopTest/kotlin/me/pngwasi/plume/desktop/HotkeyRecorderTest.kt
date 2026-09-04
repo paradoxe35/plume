@@ -23,8 +23,6 @@ class HotkeyRecorderTest {
         keys: List<String> = emptyList(),
     ) = HotkeyRecorder(ctrl, alt, shift, meta, keys)
 
-    // --- ordering ------------------------------------------------------------------------------
-
     /** Fixed order, or the same combination would produce two different strings. */
     @Test
     fun `modifiers come out in a fixed order regardless of press order`() {
@@ -37,8 +35,6 @@ class HotkeyRecorderTest {
     fun `the key comes last`() {
         assertEquals("ctrl+alt+space", recorder(ctrl = true, alt = true, keys = listOf("space")).format(DesktopOs.Linux))
     }
-
-    // --- platform naming -----------------------------------------------------------------------
 
     @Test
     fun `the command key is named per platform`() {
@@ -56,8 +52,6 @@ class HotkeyRecorderTest {
         assertEquals("ctrl+alt+t", combination.format(DesktopOs.Linux))
         assertEquals("ctrl+option+t", combination.format(DesktopOs.MacOs))
     }
-
-    // --- validity ------------------------------------------------------------------------------
 
     @Test
     fun `a modifier and a key is valid`() {
@@ -93,8 +87,6 @@ class HotkeyRecorderTest {
         assertFalse(recorder(ctrl = true, meta = true, shift = true).isModifierOnlyAllowed())
     }
 
-    // --- accumulating keys ---------------------------------------------------------------------
-
     /** Holding a key repeats it; the combination must not fill with copies. */
     @Test
     fun `a repeated key is only recorded once`() {
@@ -123,8 +115,6 @@ class HotkeyRecorderTest {
         assertFalse(recorder(ctrl = true).isEmpty)
     }
 
-    // --- key naming ----------------------------------------------------------------------------
-
     /** These have to match what the Rust listener parses, not what Compose calls them. */
     @Test
     fun `compose key labels map to the names the listener expects`() {
@@ -146,8 +136,6 @@ class HotkeyRecorderTest {
     fun `the compose key prefix is stripped`() {
         assertEquals("r", HotkeyRecorder.keyName("Key R"))
     }
-
-    // --- round trip ----------------------------------------------------------------------------
 
     /** What is recorded has to pass the validation the settings screen applies to typed input. */
     @Test

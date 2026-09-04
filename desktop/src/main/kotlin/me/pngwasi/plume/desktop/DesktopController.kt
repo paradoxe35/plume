@@ -144,14 +144,26 @@ class DesktopController(
     }
 
     /**
-     * Stops the listener while a shortcut is being recorded, and starts it again afterwards.
+     * Suspends the global listener while a shortcut is being recorded, and resumes it afterwards.
      *
      * Without this, pressing the combination you are trying to rebind fires the action bound to it
      * — and the recording field never sees the keys, because the listener grabbed them.
+     *
+     * The argument is what the capture field is doing, not what the listener should do. Reading it
+     * the other way round is how opening the Shortcuts screen came to switch every shortcut off:
+     * the screen reports "nothing is recording" as it appears, and that was taken as "stop".
      */
-    fun setListening(listening: Boolean) {
+    fun setRecording(recording: Boolean) {
         val service = hotkeys ?: return
-        if (listening) service.start() else service.stop()
+        // Logged both ways: "the shortcuts stopped working" is otherwise a report with nothing
+        // behind it, and a listener left suspended looks exactly like one that never started.
+        if (globalListenerRuns(recording)) {
+            service.start()
+            PlumeLog.info("Shortcut listener resumed")
+        } else {
+            service.stop()
+            PlumeLog.info("Shortcut listener suspended while a shortcut is recorded")
+        }
     }
 
     /** Used by the history screen so the user can recover an original Plume replaced. */
@@ -200,6 +212,9 @@ class DesktopController(
         if (nativeInput.isInitialized()) nativeInput.value?.close()
     }
 }
+
+/** A capture field and the global listener cannot both own the keyboard. */
+internal fun globalListenerRuns(recordingAShortcut: Boolean): Boolean = !recordingAShortcut
 
 /** Slow enough to be invisible, quick enough that the card updates while the user watches. */
 private const val PERMISSION_POLL = 1_500L

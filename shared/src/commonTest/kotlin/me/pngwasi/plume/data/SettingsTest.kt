@@ -44,8 +44,6 @@ class SettingsTest {
         assertTrue(ProviderConfig(baseUrl = "https://x", model = "gpt-4o").isConfigured())
     }
 
-    // --- custom provider names -------------------------------------------------------------
-
     @Test
     fun `valid custom names are accepted`() {
         assertNull(validateCustomProviderName("groq", emptySet()))
@@ -74,8 +72,6 @@ class SettingsTest {
         assertNotNull(validateCustomProviderName("Groq", setOf("groq")))
     }
 
-    // --- recents ---------------------------------------------------------------------------
-
     @Test
     fun `recent target moves to the front without duplicating`() {
         val recents = listOf("de", "fr", "es")
@@ -103,8 +99,6 @@ class SettingsTest {
     fun `recent target dedupes case-insensitively`() {
         assertEquals(listOf("FR"), listOf("fr").withRecentTarget("FR"))
     }
-
-    // --- serialization ---------------------------------------------------------------------
 
     @Test
     fun `settings round-trip through json`() {

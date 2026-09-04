@@ -81,8 +81,6 @@ class NoAuthProviderTest {
         assertEquals("Bearer sk-local", server.takeRequest().getHeader("Authorization"))
     }
 
-    // --- validation ---------------------------------------------------------------------------
-
     @Test
     fun `validation does not demand a key when the provider says none is needed`() {
         val config = ProviderConfig(
@@ -106,8 +104,6 @@ class NoAuthProviderTest {
 
         assertNotNull(validateProvider(config, apiKey = "", requireLabel = false).apiKey)
     }
-
-    // --- local endpoint detection ---------------------------------------------------------------
 
     @Test
     fun `loopback and private addresses are recognised as local`() {

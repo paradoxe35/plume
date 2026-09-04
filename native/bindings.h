@@ -14,28 +14,22 @@
 
 typedef void *plume_ClipboardHandle;
 
-/**
- * Opaque pointer types for safe cross-FFI boundary object passing
- */
 typedef void *plume_HotkeyManagerHandle;
 
 /**
- * Hotkey callback function type
- * The callback receives the action string that was registered
+ * Receives the action string the binding was registered with.
  */
 typedef void (*plume_HotkeyCallback)(const char*);
 
 typedef void *plume_SimulatorHandle;
 
 /**
- * Get the last error message
- * Returns: C string (must be freed with plume_free_string) or NULL if no error
+ * NULL when there is no error; otherwise a string the caller must free with `plume_free_string`.
  */
 const char *plume_get_last_error(void);
 
 /**
- * Free a string allocated by Rust
- * This must be called for all strings returned by Rust functions
+ * Must be called for every string a Rust function returns.
  */
 void plume_free_string(char *s);
 

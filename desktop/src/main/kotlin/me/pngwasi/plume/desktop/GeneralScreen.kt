@@ -96,25 +96,6 @@ fun GeneralScreen(
         SectionLabel("While Plume runs")
         SettingsCard {
             SettingsRow(
-                title = "Keep running when the window closes",
-                subtitle = if (!trayAvailable) {
-                    "Needs a tray to reopen from, and this desktop has none."
-                } else if (settings.closeToTray) {
-                    "Closing the window leaves the shortcuts working. Reopen it from the tray."
-                } else {
-                    "Closing the window quits Plume and stops the shortcuts."
-                },
-                icon = PlumeIcons.PushPin,
-                trailing = {
-                    Switch(
-                        checked = settings.closeToTray && trayAvailable,
-                        enabled = trayAvailable,
-                        onCheckedChange = { onChange(settings.copy(closeToTray = it)) },
-                    )
-                },
-            )
-            RowDivider()
-            SettingsRow(
                 title = "Notify when finished",
                 subtitle = "The result lands in another window, so this is how you know it worked.",
                 icon = PlumeIcons.CheckCircle,

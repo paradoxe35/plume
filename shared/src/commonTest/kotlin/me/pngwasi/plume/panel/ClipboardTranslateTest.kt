@@ -99,8 +99,6 @@ class ClipboardTranslateTest {
         }
     }
 
-    // --- availability -------------------------------------------------------------------------
-
     @Test
     fun `the action is offered when something is copied`() {
         val controller = controller(FakeEditor("draft"), FakeClipboard("Hello there"))
@@ -139,8 +137,6 @@ class ClipboardTranslateTest {
         assertNull(state.scope)
         assertTrue(state.hasClipboard)
     }
-
-    // --- the flow -----------------------------------------------------------------------------
 
     @Test
     fun `picking a language shows the translation in the panel`() {
@@ -287,8 +283,6 @@ class ClipboardTranslateTest {
 
         assertTrue(controller.state.value is PanelState.Reading)
     }
-
-    // --- clearing the field --------------------------------------------------------------------
 
     @Test
     fun `clear empties the field`() {

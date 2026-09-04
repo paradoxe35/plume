@@ -79,8 +79,6 @@ object MacPermissions {
             .waitFor() == 0
     }.getOrDefault(false)
 
-    // --- The frameworks ---------------------------------------------------------------------
-
     private interface ApplicationServices : Library {
         fun AXIsProcessTrusted(): Boolean
     }

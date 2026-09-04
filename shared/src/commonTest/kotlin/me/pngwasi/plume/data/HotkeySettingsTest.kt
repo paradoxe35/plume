@@ -49,8 +49,6 @@ class HotkeySettingsTest {
         assertNotNull(validateHotkey("ctrl+ctrl"))
     }
 
-    // --- collisions ----------------------------------------------------------------------------
-
     /** Two actions on one binding means one of them never fires, with nothing to say why. */
     @Test
     fun `two actions sharing a binding are reported`() {
@@ -75,8 +73,6 @@ class HotkeySettingsTest {
     fun `unset bindings do not collide with each other`() {
         assertTrue(duplicateHotkeys(listOf("", "", "ctrl+alt+r")).isEmpty())
     }
-
-    // --- defaults ------------------------------------------------------------------------------
 
     @Test
     fun `an unset binding falls back to the platform default`() {

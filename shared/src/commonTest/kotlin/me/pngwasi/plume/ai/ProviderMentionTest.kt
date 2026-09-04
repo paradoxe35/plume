@@ -38,8 +38,6 @@ class ProviderMentionTest {
         assertEquals("fix this", result.text)
     }
 
-    // --- what must not be treated as a mention -------------------------------------------------
-
     /** The case that would make the feature a liability. */
     @Test
     fun `an unknown mention is left as ordinary text`() {
@@ -103,8 +101,6 @@ class ProviderMentionTest {
         assertEquals("openai", result.providerId)
         assertEquals("fix this", result.text)
     }
-
-    // --- the switch ----------------------------------------------------------------------------
 
     @Test
     fun `mentions are ignored entirely when switched off`() {
