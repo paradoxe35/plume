@@ -120,7 +120,7 @@ fun DesktopSettingsWindow(
                     availability = controller.availability,
                     rejectedBindings = controller.rejectedBindings,
                     onChange = { updated -> saveDesktop(scope, controller, updated) },
-                    onRecordingChange = controller::setListening,
+                    onRecordingChange = controller::setRecording,
                 )
 
                 Destination.General -> GeneralScreen(

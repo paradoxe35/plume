@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,10 @@ fun HotkeysScreen(
     var recording by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(recording) { onRecordingChange(recording != null) }
+
+    // Leaving the screen part-way through recording would otherwise leave the listener suspended,
+    // with every shortcut dead and nothing on screen saying so.
+    DisposableEffect(Unit) { onDispose { onRecordingChange(false) } }
 
     Column(
         modifier = Modifier

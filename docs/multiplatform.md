@@ -359,6 +359,27 @@ Rebuilding the `.deb` needs `dpkg-deb --root-owner-group`. Unpacking as an ordin
 every file to that user and rebuilding records it, so the installed application would be owned by
 whoever holds uid 1000 on the target machine rather than by root.
 
+### Opening the Shortcuts screen switched the shortcuts off
+
+Recording a shortcut has to suspend the global listener, or pressing the combination you are
+rebinding fires the action bound to it and the capture field never sees the keys. The screen
+reports what its capture fields are doing — `onRecordingChange(recording != null)` — and the
+controller took that as what the *listener* should do. The two readings are opposites.
+
+So the effect fired as the screen appeared, with nothing recording, and the listener was told to
+stop. Nothing turned it back on: leaving the screen only disposed the effect. One visit to
+Shortcuts and every binding was dead until Plume restarted, which is indistinguishable from a
+binding that was never registered. The argument is named for the capture field now, the direction
+goes through a function whose name says which way round it is, and leaving the screen resumes.
+
+Underneath it, a second one. rdev offers no way to stop a listener, so `stop` only sets a flag and
+the thread stays; `start` then spawned another beside it. Two listeners deliver the same key press,
+so every action would have run twice — after a rebind, which is the least likely moment to connect
+the two. `start` reuses the thread it already has.
+
+The Rust hotkey layer is otherwise byte-identical to MyReviser's, renamed symbols aside. When the
+same native code behaves differently in two applications, it is worth reading the caller first.
+
 ### The macOS launch crash was two bugs holding hands
 
 A crash about a second after launch, `EXC_BREAKPOINT` from `+[NSApplication _crashOnException:]`,

@@ -13,6 +13,8 @@ class CountingNativeLibrary : PlumeNativeLibrary {
     var clipboardFrees = 0
     var simulatorFrees = 0
     var hotkeyFrees = 0
+    var hotkeyStarts = 0
+    var hotkeyStops = 0
     var lastSetText: String? = null
 
     override fun plume_clipboard_new(): Pointer? = Pointer(1L)
@@ -51,8 +53,15 @@ class CountingNativeLibrary : PlumeNativeLibrary {
         action: String,
         callback: PlumeNativeLibrary.HotkeyCallback,
     ): Int = 0
-    override fun plume_hotkey_start(handle: Pointer?): Int = 0
-    override fun plume_hotkey_stop(handle: Pointer?): Int = 0
+    override fun plume_hotkey_start(handle: Pointer?): Int {
+        hotkeyStarts++
+        return 0
+    }
+
+    override fun plume_hotkey_stop(handle: Pointer?): Int {
+        hotkeyStops++
+        return 0
+    }
     override fun plume_simulate_select_all(handle: Pointer?): Int = 0
     override fun plume_simulate_copy(handle: Pointer?): Int = 0
     override fun plume_simulate_paste(handle: Pointer?): Int = 0

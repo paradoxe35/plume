@@ -147,6 +147,14 @@ impl SimpleHotkeyManager {
         *active = true;
         drop(active);
 
+        // rdev offers no way to stop a listener, so `stop` only closes the gate and the thread
+        // stays. Spawning another on resume would leave two of them delivering the same key press,
+        // and every action would run twice. Suspending and resuming is ordinary — it happens every
+        // time a shortcut is recorded.
+        if self.listener_handle.is_some() {
+            return Ok(());
+        }
+
         let bindings = self.bindings.clone();
         let active_flag = self.active.clone();
 
@@ -584,5 +592,27 @@ pub unsafe extern "C" fn plume_hotkey_stop(handle: HotkeyManagerHandle) -> c_int
 pub unsafe extern "C" fn plume_hotkey_manager_free(handle: HotkeyManagerHandle) {
     if !handle.is_null() {
         let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Suspending and resuming happens every time a shortcut is recorded. rdev's listener cannot be
+    /// stopped, so resuming used to spawn a second one beside the first — both delivering the same
+    /// key press, and every action running twice.
+    #[test]
+    fn resuming_reuses_the_listener_thread() {
+        let mut manager = SimpleHotkeyManager::new();
+
+        manager.start().expect("start");
+        let first = manager.listener_handle.as_ref().expect("a listener").thread().id();
+
+        manager.stop().expect("stop");
+        manager.start().expect("resume");
+        let second = manager.listener_handle.as_ref().expect("a listener").thread().id();
+
+        assert_eq!(first, second, "resuming spawned a second listener");
     }
 }
