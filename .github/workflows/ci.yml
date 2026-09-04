@@ -133,9 +133,13 @@ jobs:
           brew install xcodegen
           cd iosApp
           xcodegen
+          # ARCHS=arm64 because only the arm64 simulator framework was built above. A generic
+          # simulator destination asks for every architecture, and the x86_64 slice would find an
+          # arm64 framework and fail to link.
           xcodebuild build \
             -project Plume.xcodeproj \
             -scheme Plume \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO

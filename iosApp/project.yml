@@ -21,9 +21,13 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     # Where Gradle leaves the Kotlin/Native framework.
+    # All four, because Gradle writes one directory per target and configuration. Listing only the
+    # pair CI happens to build leaves a device Debug or a simulator Release unable to link.
     FRAMEWORK_SEARCH_PATHS:
       - $(inherited)
       - $(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework
+      - $(SRCROOT)/../shared/build/bin/iosSimulatorArm64/releaseFramework
+      - $(SRCROOT)/../shared/build/bin/iosArm64/debugFramework
       - $(SRCROOT)/../shared/build/bin/iosArm64/releaseFramework
 
 targets:
