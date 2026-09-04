@@ -2,12 +2,7 @@ package me.pngwasi.plume.desktop
 
 import me.pngwasi.plume.native.PlumeNativeLibrary
 
-/**
- * Sends the Rust layer's log lines into Plume's own log.
- *
- * They went to the process's stdout, which a macOS `.app` bundle discards — so a refused key
- * listener, the one failure that leaves every shortcut dead, left no trace anywhere.
- */
+/** Rust logs to stdout, which a macOS `.app` discards — so a refused key listener left no trace. */
 object NativeLogBridge {
 
     // JNA collects a callback as soon as nothing on this side holds it, taking the native

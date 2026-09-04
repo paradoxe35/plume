@@ -4,19 +4,14 @@ use std::os::raw::c_char;
 
 use parking_lot::Mutex;
 
-/// `void (*)(const char *message)`.
-///
-/// The pointer is valid only for the duration of the call. Rust owns the string and frees it as
-/// soon as the callback returns, so the host must copy rather than keep it — that is what stops
-/// this becoming an allocation per line that nobody frees.
+/// `void (*)(const char *message)`. Rust frees the string when the call returns, so the host must
+/// copy rather than keep it.
 pub type PlumeLogCallback = extern "C" fn(*const c_char);
 
 static SINK: Mutex<Option<PlumeLogCallback>> = Mutex::new(None);
 
-/// Safe to call before or after logging is initialised. Detach with [plume_clear_log_callback].
-///
-/// Two functions rather than one taking a nullable pointer: cbindgen renders `Option<fn>` as an
-/// opaque struct passed by value, which is not the ABI and would mislead anyone using the header.
+/// Two functions rather than one nullable pointer: cbindgen renders `Option<fn>` as an opaque
+/// struct passed by value, which is not the ABI.
 #[no_mangle]
 pub unsafe extern "C" fn plume_set_log_callback(callback: PlumeLogCallback) {
     *SINK.lock() = Some(callback);
@@ -40,10 +35,7 @@ pub(crate) fn forward(message: &str) -> bool {
     true
 }
 
-/// Sends `tracing` output to the host, falling back to stdout when nothing is attached.
-///
-/// Without this the Rust layer's diagnostics go to the process's own stdout, which a macOS `.app`
-/// bundle discards — so a refused key listener left no trace anywhere.
+/// Sends `tracing` output to the host, falling back to stdout. A macOS `.app` discards stdout.
 pub(crate) struct HostWriter;
 
 impl io::Write for HostWriter {

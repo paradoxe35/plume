@@ -228,10 +228,8 @@ fun main() {
 }
 
 /**
- * Java2D's OpenGL pipeline is the default on macOS up to JDK 18, and it is where a launch crash
- * lived: `-[CGLLayer drawInCGLContext:]` carries no exception handler, so a Java exception during a
- * layer draw is re-raised as an `NSException` and AppKit terminates the process with no Java stack
- * anywhere in the report. Metal became the default in JDK 19; asking for it here removes that path.
+ * `-[CGLLayer drawInCGLContext:]` has no exception handler, so a Java exception during a layer draw
+ * becomes an uncatchable `NSException`. Metal is the default from JDK 19; this asks for it on 17.
  */
 private fun useMetalOnMacOs() {
     if (DesktopOs.current != DesktopOs.MacOs) return
@@ -241,13 +239,9 @@ private fun useMetalOnMacOs() {
 }
 
 /**
- * Where to put a window that cannot be centred by asking AWT.
- *
  * `WindowPosition.Aligned` calls `Toolkit.getScreenInsets`, which macOS answers by blocking the
- * event thread on the AppKit thread — uncached, every time (JBR-2602). If AppKit is busy, that is a
- * hang at the exact moment the window is being created. Screen *bounds* need no such round trip, so
- * the centre is worked out from those; the cost is ignoring the menu bar and the Dock, which moves
- * the window by a few pixels and nothing else.
+ * event thread on AppKit, uncached (JBR-2602). Bounds need no such round trip; the cost is
+ * ignoring the menu bar, worth a few pixels.
  */
 internal fun centredPosition(
     size: DpSize,

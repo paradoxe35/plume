@@ -175,15 +175,8 @@ object MacDock {
      * without which the window opens behind whatever the user was looking at.
      */
     /**
-     * `activateIgnoringOtherApps:` in preference to macOS 14's `activate`.
-     *
-     * `activate` is cooperative: it declines to take focus from whatever is frontmost unless macOS
-     * decides this app is entitled to it, which it does not when the request comes from a menu-bar
-     * click. The window then opens behind the editor the user was in, and only works once they have
-     * clicked Plume in the Dock first — which is the whole reason they went to the tray instead.
-     *
-     * Clicking the tray is an explicit request to see this window, so taking focus is the point.
-     * The old call is deprecated rather than gone, and is guarded on `respondsToSelector:`.
+     * macOS 14's `activate` is only a suggestion: the frontmost app has to yield, and it does not
+     * for a menu-bar click. `activateIgnoringOtherApps:` is deprecated rather than gone.
      */
     private fun activate() {
         val objc = runtime ?: return

@@ -129,11 +129,7 @@ object MacPermissions {
             if (dereference) address.getPointer(0) else address
         }.getOrNull()
 
-    /**
-     * Shows the system's own Accessibility dialog, which is the only thing that adds Plume to that
-     * list. Opening the settings pane does not: without this the user is sent to a list Plume is
-     * not in, with nothing to switch on — which is how a permission stays ungranted forever.
-     */
+    /** The prompt is the only thing that adds Plume to the Accessibility list; opening the pane is not. */
     private fun promptForAccessibility(): Boolean {
         val services = applicationServices ?: return false
         val cf = coreFoundation ?: return false
@@ -170,21 +166,15 @@ object MacPermissions {
             .getOrElse { assumeGranted("Accessibility") }
     }
 
-    /**
-     * Every check here fails towards "granted": warning about a privilege that was in fact given is
-     * worse than staying quiet. But this is also the state where Plume reports itself ready while
-     * the system withholds key presses, so it does not get to be silent as well as wrong.
-     */
+    /** Fails towards granted, since a false warning is worse — but never silently. */
     private fun assumeGranted(permission: String): Boolean {
         PlumeLog.error("Could not read the macOS $permission state; assuming it is granted")
         return true
     }
 
     /**
-     * `CGPreflightListenEventAccess` first, because it is the question the key listener actually
-     * asks: whether this process may receive `KeyDown` through an event tap. `IOHIDCheckAccess`
-     * answers about HID access, which can read as granted while key events are still withheld —
-     * and that reads to the user as a shortcut that silently does nothing.
+     * `CGPreflightListenEventAccess` asks what the listener asks: may this process receive
+     * `KeyDown`. `IOHIDCheckAccess` answers about HID, which reads granted while keys are withheld.
      */
     private fun isInputMonitoringGranted(): Boolean {
         applicationServices?.let { services ->

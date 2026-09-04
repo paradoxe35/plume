@@ -155,10 +155,8 @@ impl SimpleHotkeyManager {
         let listen_error = self.listen_error.clone();
 
         let handle = thread::spawn(move || {
-            // Whether the system has ever delivered a KeyDown. Modifier changes arrive as
-            // FlagsChanged and are not gated the same way, so a listener that sees modifiers but
-            // never a key is the exact signature of Input Monitoring being withheld or Secure
-            // Event Input being active — and it is otherwise indistinguishable from a bad binding.
+            // Modifier changes arrive as FlagsChanged and are not gated like KeyDown, so seeing
+            // modifiers but never a key is the signature of Input Monitoring being withheld.
             let mut seen_a_key = false;
             let mut ctrl_pressed = false;
             let mut alt_pressed = false;
@@ -214,10 +212,8 @@ impl SimpleHotkeyManager {
                         // Check bindings after modifier state update
                         let bindings_lock = bindings.lock();
 
-                        // A shortcut that never fires leaves nothing to look at, and the state is
-                        // only observable on the machine where it fails. Reported only for a key
-                        // some binding actually names, and only while a modifier is down, so this
-                        // cannot become a record of what the user typed.
+                        // Only for a key some binding names, and only with a modifier down, so
+                        // this cannot become a record of what the user typed.
                         {
                             let key_str = key_to_string(&key);
                             let named = bindings_lock
