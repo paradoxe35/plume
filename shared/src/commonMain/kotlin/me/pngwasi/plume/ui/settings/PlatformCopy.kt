@@ -51,4 +51,9 @@ data class PlatformBlocker(
     val fixes: List<BlockerFix> = emptyList(),
 )
 
-data class BlockerFix(val label: String, val why: String, val onSelect: () -> Unit)
+data class BlockerFix(
+    val label: String,
+    val why: String,
+    val action: String = "Grant",
+    val onSelect: () -> Unit,
+)

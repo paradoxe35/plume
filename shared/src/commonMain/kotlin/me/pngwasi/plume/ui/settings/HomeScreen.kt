@@ -201,7 +201,7 @@ private fun PermissionRow(fix: BlockerFix) {
                 contentColor = warning.container,
             ),
         ) {
-            Text("Grant")
+            Text(fix.action)
         }
     }
 }

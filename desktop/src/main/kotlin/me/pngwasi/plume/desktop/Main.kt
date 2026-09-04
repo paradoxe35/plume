@@ -93,6 +93,9 @@ fun main() {
             controller.openRequests.collect { requestOpen() }
         }
 
+        // macOS says nothing when a privilege is granted, so the only way to notice is to look.
+        LaunchedEffect(Unit) { controller.watchPermissions() }
+
         // On macOS the Dock icon follows the window: no window means no Dock entry and no Cmd-Tab.
         LaunchedEffect(windowVisible) {
             if (!MacDock.isSupported) return@LaunchedEffect
