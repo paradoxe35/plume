@@ -34,17 +34,23 @@ suspend fun raiseWindow(window: ComposeWindow, state: WindowState) {
         return
     }
 
-    repeat(ATTEMPTS) {
-        val wasAlwaysOnTop = window.isAlwaysOnTop
-        runCatching {
-            window.isAlwaysOnTop = true
-            window.toFront()
-            window.requestFocus()
+    // Windows refuses SetForegroundWindow while another app is in use and flashes the taskbar
+    // button instead; making the window briefly always-on-top is the documented way to make it
+    // reconsider. Toggled once around the retries rather than per attempt, which flickers.
+    val wasAlwaysOnTop = window.isAlwaysOnTop
+    runCatching { window.isAlwaysOnTop = true }
+    try {
+        repeat(ATTEMPTS) {
+            runCatching {
+                window.toFront()
+                window.requestFocus()
+            }
+            if (window.isFocused) return
+            delay(ACTIVATION_SETTLE)
         }
-        // Put back, or the window hovers over everything afterwards.
+    } finally {
+        // Restored whatever happened, or the window hovers over everything afterwards.
         runCatching { window.isAlwaysOnTop = wasAlwaysOnTop }
-        if (window.isFocused) return
-        delay(ACTIVATION_SETTLE)
     }
 }
 
