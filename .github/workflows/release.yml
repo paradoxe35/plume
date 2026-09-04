@@ -5,7 +5,6 @@ name: Release
 # so each desktop package needs its own runner.
 on:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -129,13 +128,20 @@ jobs:
 
       # Both Macs produce "Plume-1.0.0.dmg". Without the platform in the filename one would
       # silently overwrite the other when the release assets are merged.
+      # Steps run with `set -eo pipefail`, so searching a directory this platform never produces
+      # — there is no AppImage on Windows — would fail the job rather than find nothing.
       - name: Collect the installers
         run: |
           mkdir -p dist
-          find desktop/build/compose/binaries/main-release desktop/build/appimage-release \
-            -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.msi' -o -name '*.exe' \
-                       -o -name '*.dmg' -o -name '*.AppImage' \) -print0 2>/dev/null |
-          while IFS= read -r -d '' file; do
+          shopt -s nullglob
+          for file in \
+            desktop/build/compose/binaries/main-release/*/*.deb \
+            desktop/build/compose/binaries/main-release/*/*.rpm \
+            desktop/build/compose/binaries/main-release/*/*.msi \
+            desktop/build/compose/binaries/main-release/*/*.exe \
+            desktop/build/compose/binaries/main-release/*/*.dmg \
+            desktop/build/appimage-release/*.AppImage
+          do
             base=$(basename "$file")
             cp "$file" "dist/${base%.*}-${{ matrix.slug }}.${base##*.}"
           done
@@ -214,10 +220,24 @@ jobs:
       - name: Build the APK
         run: ./gradlew :app:assembleRelease --stacktrace
 
+      # Without the signing secrets AGP writes `app-release-unsigned.apk`, so the name is read
+      # rather than assumed — and an unsigned build keeps "unsigned" in the asset name, because it
+      # cannot be installed and should not look like it can.
       - name: Collect the APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/Plume-android.apk
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "::error title=No APK::assembleRelease produced nothing in app/build/outputs/apk/release"
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            case "$apk" in
+              *unsigned*) cp "$apk" dist/Plume-android-unsigned.apk ;;
+              *) cp "$apk" dist/Plume-android.apk ;;
+            esac
+          done
           ls -lh dist
 
       - uses: actions/upload-artifact@v7
