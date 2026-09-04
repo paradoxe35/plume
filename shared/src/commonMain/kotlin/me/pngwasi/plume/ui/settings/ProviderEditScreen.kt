@@ -412,6 +412,7 @@ private fun styleLabel(style: ReasoningStyle) = when (style) {
     ReasoningStyle.OpenAiEffort -> "reasoning_effort"
     ReasoningStyle.OpenRouterReasoning -> "reasoning object"
     ReasoningStyle.GeminiBudget -> "thinkingBudget"
+    ReasoningStyle.None -> "no reasoning parameter"
 }
 
 @Composable
@@ -438,11 +439,13 @@ private fun KindSelector(selected: ProviderKind, onSelect: (ProviderKind) -> Uni
 private fun kindLabel(kind: ProviderKind) = when (kind) {
     ProviderKind.OpenAiCompatible -> "OpenAI-compatible"
     ProviderKind.Gemini -> "Gemini"
+    ProviderKind.Anthropic -> "Anthropic"
 }
 
 private fun baseUrlHint(kind: ProviderKind) = when (kind) {
     ProviderKind.OpenAiCompatible -> "Plume appends /chat/completions and /models"
     ProviderKind.Gemini -> "Plume appends /v1beta/models"
+    ProviderKind.Anthropic -> "Plume appends /v1/messages and /v1/models"
 }
 
 private fun probeSubtitle(probe: ProbeState) = when (probe) {

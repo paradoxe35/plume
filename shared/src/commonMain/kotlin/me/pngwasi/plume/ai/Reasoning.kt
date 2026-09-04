@@ -25,6 +25,9 @@ enum class ReasoningStyle {
 
     /** `generationConfig.thinkingConfig.thinkingBudget` — Google. */
     GeminiBudget,
+
+    /** Nothing is sent. Anthropic's thinking is opt-in, and a correction does not want it. */
+    None,
 }
 
 object Reasoning {
@@ -49,6 +52,7 @@ object Reasoning {
      */
     fun detect(kind: ProviderKind, baseUrl: String): ReasoningStyle = when (kind) {
         ProviderKind.Gemini -> ReasoningStyle.GeminiBudget
+        ProviderKind.Anthropic -> ReasoningStyle.None
         ProviderKind.OpenAiCompatible ->
             if (baseUrl.contains("openrouter.ai", ignoreCase = true)) {
                 ReasoningStyle.OpenRouterReasoning
@@ -66,6 +70,7 @@ object Reasoning {
     fun chatFields(style: ReasoningStyle, mode: ReasoningMode): Map<String, kotlinx.serialization.json.JsonElement> {
         if (mode != ReasoningMode.Low) return emptyMap()
         return when (style) {
+            ReasoningStyle.None -> emptyMap()
             ReasoningStyle.OpenAiEffort -> mapOf("reasoning_effort" to JsonPrimitive("low"))
             ReasoningStyle.OpenRouterReasoning -> mapOf(
                 "reasoning" to buildJsonObject {

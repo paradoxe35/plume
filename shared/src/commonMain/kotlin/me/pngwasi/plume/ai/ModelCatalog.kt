@@ -42,6 +42,15 @@ object ModelCatalog {
                 }
                 parseGemini(body)
             }
+
+            ProviderKind.Anthropic -> {
+                // The same `{"data":[{"id":...}]}` shape as OpenAI, behind Anthropic's headers.
+                val body = http.getJson("$base/v1/models", timeoutSeconds, label) {
+                    if (apiKey.isNotBlank()) header("x-api-key", apiKey)
+                    header("anthropic-version", "2023-06-01")
+                }
+                parseOpenAi(body)
+            }
         }
     }
 
