@@ -88,6 +88,11 @@ pub fn init_logging() {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::INFO)
             .with_target(false)
+            // Escape codes are noise in a log file the user is asked to send, and the host stamps
+            // every line already.
+            .with_ansi(false)
+            .without_time()
+            .with_writer(|| super::ffi_log::HostWriter)
             .init();
     });
 }

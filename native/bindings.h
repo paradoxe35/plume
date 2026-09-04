@@ -14,6 +14,15 @@
 
 typedef void *plume_ClipboardHandle;
 
+/**
+ * `void (*)(const char *message)`.
+ *
+ * The pointer is valid only for the duration of the call. Rust owns the string and frees it as
+ * soon as the callback returns, so the host must copy rather than keep it — that is what stops
+ * this becoming an allocation per line that nobody frees.
+ */
+typedef void (*plume_PlumeLogCallback)(const char*);
+
 typedef void *plume_HotkeyManagerHandle;
 
 /**
@@ -58,6 +67,16 @@ int plume_clipboard_save(plume_ClipboardHandle handle);
 int plume_clipboard_restore(plume_ClipboardHandle handle);
 
 void plume_clipboard_free(plume_ClipboardHandle handle);
+
+/**
+ * Safe to call before or after logging is initialised. Detach with [plume_clear_log_callback].
+ *
+ * Two functions rather than one taking a nullable pointer: cbindgen renders `Option<fn>` as an
+ * opaque struct passed by value, which is not the ABI and would mislead anyone using the header.
+ */
+void plume_set_log_callback(plume_PlumeLogCallback callback);
+
+void plume_clear_log_callback(void);
 
 plume_HotkeyManagerHandle plume_hotkey_manager_new(void);
 

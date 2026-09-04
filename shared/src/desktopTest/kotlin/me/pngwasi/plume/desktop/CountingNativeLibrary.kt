@@ -16,6 +16,7 @@ class CountingNativeLibrary : PlumeNativeLibrary {
     var hotkeyStarts = 0
     var hotkeyStops = 0
     var lastSetText: String? = null
+    var logCallback: PlumeNativeLibrary.LogCallback? = null
 
     override fun plume_clipboard_new(): Pointer? = Pointer(1L)
     override fun plume_simulator_new(): Pointer? = Pointer(2L)
@@ -43,6 +44,13 @@ class CountingNativeLibrary : PlumeNativeLibrary {
 
     override fun plume_get_last_error(): Pointer? = null
     override fun plume_free_string(s: Pointer?) = Unit
+    override fun plume_set_log_callback(callback: PlumeNativeLibrary.LogCallback) {
+        logCallback = callback
+    }
+
+    override fun plume_clear_log_callback() {
+        logCallback = null
+    }
     override fun plume_clipboard_get_text(handle: Pointer?): Pointer? = null
     override fun plume_clipboard_has_text(handle: Pointer?): Int = 0
     override fun plume_clipboard_clear(handle: Pointer?): Int = 0

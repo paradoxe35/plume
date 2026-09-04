@@ -51,6 +51,9 @@ fun main() {
     // Before anything can touch JNA.
     NativeLibraryPath.configure()
 
+    // Early, so a failure to start the key listener is recorded rather than printed into a void.
+    PlumeNative.library?.let(NativeLogBridge::install)
+
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val controller = DesktopController(scope)
 

@@ -211,8 +211,9 @@ impl SimpleHotkeyManager {
                                     if let Ok(action_cstr) =
                                         std::ffi::CString::new(binding.action.clone())
                                     {
-                                        let action_ptr = action_cstr.into_raw();
-                                        (binding.callback)(action_ptr);
+                                        // Lent, not handed over: `into_raw` leaked one allocation
+                                        // per key press. The host copies during the call.
+                                        (binding.callback)(action_cstr.as_ptr());
                                     }
                                 }
                             } else {
@@ -234,8 +235,9 @@ impl SimpleHotkeyManager {
                                     if let Ok(action_cstr) =
                                         std::ffi::CString::new(binding.action.clone())
                                     {
-                                        let action_ptr = action_cstr.into_raw();
-                                        (binding.callback)(action_ptr);
+                                        // Lent, not handed over: `into_raw` leaked one allocation
+                                        // per key press. The host copies during the call.
+                                        (binding.callback)(action_cstr.as_ptr());
                                     }
                                 }
                             }
