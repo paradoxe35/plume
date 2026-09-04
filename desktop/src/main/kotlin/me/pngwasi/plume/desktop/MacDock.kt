@@ -174,17 +174,28 @@ object MacDock {
      * `activate` on macOS 14+, falling back to `activateIgnoringOtherApps:` on older systems —
      * without which the window opens behind whatever the user was looking at.
      */
+    /**
+     * `activateIgnoringOtherApps:` in preference to macOS 14's `activate`.
+     *
+     * `activate` is cooperative: it declines to take focus from whatever is frontmost unless macOS
+     * decides this app is entitled to it, which it does not when the request comes from a menu-bar
+     * click. The window then opens behind the editor the user was in, and only works once they have
+     * clicked Plume in the Dock first — which is the whole reason they went to the tray instead.
+     *
+     * Clicking the tray is an explicit request to see this window, so taking focus is the point.
+     * The old call is deprecated rather than gone, and is guarded on `respondsToSelector:`.
+     */
     private fun activate() {
         val objc = runtime ?: return
         val send = msgSend ?: return
         val app = sharedApplication() ?: return
-        val modern = objc.sel_registerName("activate")
-        if (modern != null && respondsTo(app, "activate")) {
-            send.invokeVoid(arrayOf(app, modern))
+        val forceful = objc.sel_registerName("activateIgnoringOtherApps:")
+        if (forceful != null && respondsTo(app, "activateIgnoringOtherApps:")) {
+            send.invokeVoid(arrayOf(app, forceful, 1))
             return
         }
-        val legacy = objc.sel_registerName("activateIgnoringOtherApps:") ?: return
-        send.invokeVoid(arrayOf(app, legacy, 1))
+        val cooperative = objc.sel_registerName("activate") ?: return
+        send.invokeVoid(arrayOf(app, cooperative))
     }
 
     private fun respondsTo(target: Pointer, selector: String): Boolean {
