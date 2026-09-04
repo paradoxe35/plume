@@ -193,7 +193,31 @@ internal fun permissionBlocker(
                 why = permission.why,
                 onSelect = { onGrant(permission) },
             )
-        },
+        } + restartWhenAlreadyGranted(supported, permissions, onRestart),
+    )
+}
+
+/**
+ * A way out for the case where the switch is already on and Plume cannot tell.
+ *
+ * macOS decides a running process's access once and says so itself when you flip the switch: the
+ * app will not use the privilege until it is restarted. So polling can go on reporting the
+ * privilege as missing after the user has granted it, and without this the card is a dead end —
+ * grant, nothing happens, grant again.
+ */
+private fun restartWhenAlreadyGranted(
+    supported: Boolean,
+    permissions: MacPermissionState,
+    onRestart: () -> Unit,
+): List<BlockerFix> {
+    if (!supported || permissions.missing.isEmpty()) return emptyList()
+    return listOf(
+        BlockerFix(
+            label = "Granted it already?",
+            why = "macOS applies these when Plume next starts.",
+            action = "Restart",
+            onSelect = onRestart,
+        ),
     )
 }
 

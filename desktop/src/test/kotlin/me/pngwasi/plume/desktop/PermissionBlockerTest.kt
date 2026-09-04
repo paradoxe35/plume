@@ -38,9 +38,9 @@ class PermissionBlockerTest {
             missingAtLaunch = true,
         )
 
-        assertEquals(1, result?.fixes?.size)
         assertEquals(MacPermission.InputMonitoring.label, result?.fixes?.first()?.label)
         assertEquals("Grant", result?.fixes?.first()?.action)
+        assertEquals(1, result?.fixes?.count { it.action == "Grant" })
     }
 
     @Test
@@ -51,7 +51,36 @@ class PermissionBlockerTest {
             missingAtLaunch = true,
         )
 
-        assertEquals(2, result?.fixes?.size)
+        assertEquals(2, result?.fixes?.count { it.action == "Grant" })
+    }
+
+    /**
+     * macOS decides a running process's access once, and says so itself when the switch is flipped.
+     * So a granted privilege can go on reading as missing, and without a way out the card is a dead
+     * end: grant, nothing happens, grant again.
+     */
+    @Test
+    fun `a restart is offered even while a privilege still reads as missing`() {
+        val result = blocker(
+            availability = needsBoth,
+            permissions = MacPermissionState(accessibility = false, inputMonitoring = true),
+            missingAtLaunch = true,
+        )
+
+        assertEquals(1, result?.fixes?.count { it.action == "Restart" })
+    }
+
+    /** Nothing to restart for on a desktop with no such privileges. */
+    @Test
+    fun `Wayland is not offered a restart it cannot use`() {
+        val result = blocker(
+            availability = HotkeyAvailability.NeedsPermission("input group", "run usermod"),
+            permissions = MacPermissionState(accessibility = true, inputMonitoring = true),
+            missingAtLaunch = false,
+            supported = false,
+        )
+
+        assertEquals(emptyList(), result?.fixes)
     }
 
     /** Granted during this run: the listener still has not seen them. */
