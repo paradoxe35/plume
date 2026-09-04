@@ -2,6 +2,7 @@ package me.pngwasi.plume.data
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 
 /**
@@ -36,6 +37,6 @@ object PlumeStores {
             directory = platform.Foundation.NSDocumentDirectory,
             inDomains = platform.Foundation.NSUserDomainMask,
         ).firstOrNull() as? NSURL
-        return documents?.path ?: NSFileManager.defaultManager.temporaryDirectory.path.orEmpty()
+        return documents?.path ?: NSTemporaryDirectory()
     }
 }

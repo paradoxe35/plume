@@ -126,6 +126,7 @@ object LaunchAtLogin {
     }
 
     private fun removeMac(): Boolean {
+        if (!macEnabled()) return true
         val bundle = macAppBundle(launcherPath() ?: return false)
         return osascript(
             "tell application \"System Events\" to delete login item \"${macName(bundle)}\"",
@@ -174,7 +175,12 @@ object LaunchAtLogin {
         }
     }
 
-    private fun removeWindows(): Boolean = run("reg", "delete", RUN_KEY, "/v", RUN_NAME, "/f") != null
+    // `reg delete` fails when the value is not there, and so does the macOS equivalent. Turning
+    // off something already off is not an error, and reporting one makes the toggle look broken.
+    private fun removeWindows(): Boolean {
+        if (!windowsQuery()) return true
+        return run("reg", "delete", RUN_KEY, "/v", RUN_NAME, "/f") != null
+    }
 
     private fun windowsQuery(): Boolean = run("reg", "query", RUN_KEY, "/v", RUN_NAME) != null
 

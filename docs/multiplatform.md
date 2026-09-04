@@ -46,6 +46,36 @@ _container app_ (settings), where there is no such ceiling.
 This is the one place the "share the UI" story is knowingly abandoned, and it is abandoned on
 purpose.
 
+### What the first iOS compile found
+
+Nothing in `shared/src/iosMain` had ever been through the Kotlin/Native compiler, because the
+targets are gated behind a macOS host. The first CI run on a Mac reported 26 errors from four
+causes, and they are worth naming because none of them is a typo.
+
+**A protocol is not a class.** `UITextDocumentProxy` is an Objective-C protocol, and cinterop names
+those `UITextDocumentProxyProtocol`. Fifteen of the errors were that one wrong type dragging every
+member down with it: `insertText`, `deleteBackward`, `documentContextBeforeInput` and the rest all
+read as unresolved.
+
+**Dictionary keys are `NSCopying`, not `Any`.** The Security constants are `CFStringRef`, toll-free
+bridged to `NSString`, so the pointer only needs re-typing. The catch is ownership:
+`CFBridgingRelease` takes it, and these are immortal globals, so it has to be paired with a
+`CFRetain` to leave the retain count where it started.
+
+**`OSStatus` is `Int` and `noErr` is `UInt`.** Comparing them does not compile.
+
+**`NSFileManager` has no `temporaryDirectory`** in the bindings. It is the free function
+`NSTemporaryDirectory()`.
+
+The compiler also missed one, which is the more interesting half. The dictionary *values* were
+`CFStringRef` cast to `Any`, which compiles and is wrong: Objective-C would receive a Kotlin
+wrapper rather than a string, and the Keychain query would have failed at runtime with nothing to
+read in the log. Those go through the same bridging now, and the `kSecReturnData` flag is an
+explicit `NSNumber` rather than a Kotlin `Boolean` left to bridge itself.
+
+The lesson is the one the gating hides: code that compiles for three platforms is not evidence it
+compiles for a fourth. A `java.util.Locale` sat in `commonMain` for weeks for the same reason.
+
 ### Desktop: reuse MyReviser's Rust layer rather than re-solving it
 
 System-wide hotkeys are not a JVM capability and JVM library support is thin, so the desktop build

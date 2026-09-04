@@ -8,7 +8,7 @@ import kotlinx.coroutines.launch
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.PlumeStores
 import platform.UIKit.UIPasteboard
-import platform.UIKit.UITextDocumentProxy
+import platform.UIKit.UITextDocumentProxyProtocol
 
 /**
  * What SwiftUI renders, flattened.
@@ -52,7 +52,7 @@ data class IosPanelSnapshot(
  * kills an extension that crosses it with no message at all.
  */
 class IosPanel(
-    proxy: () -> UITextDocumentProxy?,
+    proxy: () -> UITextDocumentProxyProtocol?,
     private val onSnapshot: (IosPanelSnapshot) -> Unit,
 ) {
 

@@ -36,8 +36,8 @@ sealed interface HotkeyAvailability {
  * sees.
  */
 class HotkeyService(
-    private val library: PlumeNativeLibrary,
-    private val onAction: (HotkeyAction) -> Unit,
+        private val library: PlumeNativeLibrary,
+        private val onAction: (HotkeyAction) -> Unit,
 ) : AutoCloseable {
 
     private val manager: Pointer? = library.plume_hotkey_manager_new()
@@ -55,10 +55,11 @@ class HotkeyService(
 
         bindings.forEach { (action, binding) ->
             if (binding.isBlank()) return@forEach
-            val callback = PlumeNativeLibrary.HotkeyCallback { pointer ->
-                val id = pointer?.getString(0)
-                HotkeyAction.fromId(id.orEmpty())?.let(onAction)
-            }
+            val callback =
+                    PlumeNativeLibrary.HotkeyCallback { pointer ->
+                        val id = pointer?.getString(0)
+                        HotkeyAction.fromId(id.orEmpty())?.let(onAction)
+                    }
             callbacks += callback
             if (library.plume_hotkey_register(manager, binding, action.id, callback) != 0) {
                 failures += binding
@@ -105,75 +106,78 @@ class HotkeyService(
  * reported before the user tries it rather than after.
  */
 fun hotkeyAvailability(
-    nativeState: PlumeNative.State = PlumeNative.state,
-    os: DesktopOs = DesktopOs.current,
-    wayland: Boolean = isWaylandSession(),
-    inInputGroup: () -> Boolean = ::userIsInInputGroup,
-    accessibilityGranted: () -> Boolean = { true },
+        nativeState: PlumeNative.State = PlumeNative.state,
+        os: DesktopOs = DesktopOs.current,
+        wayland: Boolean = isWaylandSession(),
+        inInputGroup: () -> Boolean = ::userIsInInputGroup,
+        accessibilityGranted: () -> Boolean = MacAccessibility::isTrusted,
 ): HotkeyAvailability {
     if (nativeState is PlumeNative.State.Unavailable) {
         return HotkeyAvailability.Unavailable(nativeState.reason)
     }
     return when (os) {
         DesktopOs.MacOs ->
-            if (accessibilityGranted()) {
-                HotkeyAvailability.Ready
-            } else {
-                HotkeyAvailability.NeedsPermission(
-                    "Plume needs Accessibility access",
-                    "Open System Settings → Privacy & Security → Accessibility and allow Plume.",
-                )
-            }
-
+                if (accessibilityGranted()) {
+                    HotkeyAvailability.Ready
+                } else {
+                    HotkeyAvailability.NeedsPermission(
+                            "Plume needs Accessibility access",
+                            "Open System Settings → Privacy & Security → Accessibility and allow Plume.",
+                    )
+                }
         DesktopOs.Linux ->
-            if (!wayland || inInputGroup()) {
-                HotkeyAvailability.Ready
-            } else {
-                HotkeyAvailability.NeedsPermission(
-                    "Wayland needs Plume in the input group",
-                    "Run: sudo usermod -aG input $USER_NAME — then log out and back in.",
-                )
-            }
-
+                if (!wayland || inInputGroup()) {
+                    HotkeyAvailability.Ready
+                } else {
+                    HotkeyAvailability.NeedsPermission(
+                            "Wayland needs Plume in the input group",
+                            "Run: sudo usermod -aG input $USER_NAME — then log out and back in.",
+                    )
+                }
         DesktopOs.Windows -> HotkeyAvailability.Ready
     }
 }
 
-private val USER_NAME: String get() = System.getProperty("user.name") ?: "\$USER"
+private val USER_NAME: String
+    get() = System.getProperty("user.name") ?: "\$USER"
 
 /** Wayland's evdev grab needs the user in `input`; without it the listener sees nothing. */
-fun userIsInInputGroup(): Boolean = runCatching {
-    val process = ProcessBuilder("id", "-nG").start()
-    val groups = process.inputStream.bufferedReader().readText()
-    process.waitFor()
-    groups.split(Regex("\\s+")).any { it == "input" }
-}.getOrDefault(false)
+fun userIsInInputGroup(): Boolean =
+        runCatching {
+                    val process = ProcessBuilder("id", "-nG").start()
+                    val groups = process.inputStream.bufferedReader().readText()
+                    process.waitFor()
+                    groups.split(Regex("\\s+")).any { it == "input" }
+                }
+                .getOrDefault(false)
 
 /** MyReviser's defaults, so anyone moving over keeps their muscle memory. */
 /**
- * Defaults chosen against what other software already claims, because a shortcut that opens a
- * terminal instead of Plume reads as Plume being broken.
+ * Revise keeps MyReviser's bindings exactly, on all three systems: they have been in daily use for
+ * long enough to be worth more than any reasoning about what might clash.
  *
- * Avoided: `ctrl+alt+t` (GNOME and KDE launch a terminal), `ctrl+alt+space` (VS Code toggles the
- * suggestion widget), and `ctrl+alt+c`, `+f`, `+d`, `+l`, the arrows, Tab and Delete for the same
- * reason. `shift` is what keeps the `t` mnemonic for translate while stepping around the terminal.
+ * Translate is the one Plume invented, because MyReviser has no translate action to copy. It was
+ * `ctrl+alt+t`, which GNOME and KDE both use to launch a terminal. `g` is three keys like the
+ * others, is bound by neither desktop nor by VS Code or a browser, and is under the left hand.
  */
-fun hotkeyDefaultsFor(os: DesktopOs = DesktopOs.current): HotkeyDefaults = when (os) {
-    DesktopOs.MacOs -> HotkeyDefaults(
-        reviseSelection = "ctrl+cmd",
-        reviseAll = "ctrl+option+e",
-        translateSelection = "ctrl+option+shift+t",
-    )
-
-    DesktopOs.Windows -> HotkeyDefaults(
-        reviseSelection = "ctrl+win",
-        reviseAll = "ctrl+alt+e",
-        translateSelection = "ctrl+alt+shift+t",
-    )
-
-    DesktopOs.Linux -> HotkeyDefaults(
-        reviseSelection = "ctrl+super",
-        reviseAll = "ctrl+alt+e",
-        translateSelection = "ctrl+alt+shift+t",
-    )
-}
+fun hotkeyDefaultsFor(os: DesktopOs = DesktopOs.current): HotkeyDefaults =
+        when (os) {
+            DesktopOs.MacOs ->
+                    HotkeyDefaults(
+                            reviseSelection = "ctrl+cmd",
+                            reviseAll = "ctrl+option+space",
+                            translateSelection = "ctrl+option+g",
+                    )
+            DesktopOs.Windows ->
+                    HotkeyDefaults(
+                            reviseSelection = "ctrl+win",
+                            reviseAll = "ctrl+alt+space",
+                            translateSelection = "ctrl+alt+g",
+                    )
+            DesktopOs.Linux ->
+                    HotkeyDefaults(
+                            reviseSelection = "ctrl+super",
+                            reviseAll = "ctrl+alt+space",
+                            translateSelection = "ctrl+alt+g",
+                    )
+        }

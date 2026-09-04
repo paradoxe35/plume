@@ -15,13 +15,17 @@ import kotlin.test.assertTrue
  */
 class HotkeyDefaultsTest {
 
-    /** Combinations other software claims first, so Plume either loses or fires alongside it. */
+    /**
+     * Combinations the desktop itself claims, which no application can win.
+     *
+     * VS Code's `ctrl+alt+c` and `ctrl+alt+f` are here too. `ctrl+alt+space` is deliberately not:
+     * VS Code only binds it while the suggestion popup is open, and MyReviser has shipped it as
+     * the revise-everything default on all three systems for long enough to settle the question.
+     */
     private val taken = listOf(
-        // GNOME and KDE.
         "ctrl+alt+t", "ctrl+alt+d", "ctrl+alt+l", "ctrl+alt+delete", "ctrl+alt+tab",
         "ctrl+alt+left", "ctrl+alt+right", "ctrl+alt+up", "ctrl+alt+down",
-        // VS Code's Linux defaults.
-        "ctrl+alt+space", "ctrl+alt+c", "ctrl+alt+f",
+        "ctrl+alt+c", "ctrl+alt+f",
     ).map(::normaliseHotkey)
 
     private fun defaults(os: DesktopOs) = hotkeyDefaultsFor(os).let {
@@ -69,5 +73,36 @@ class HotkeyDefaultsTest {
 
         assertTrue(mac.none { it.contains("alt") }, "macOS should say option: $mac")
         assertTrue(mac.none { it.contains("super") || it.contains("win") }, "macOS says cmd: $mac")
+    }
+
+    /**
+     * Revise is MyReviser's, unchanged. It works, people have muscle memory for it, and "this
+     * might clash" is not a good enough reason to move a binding that has been proven in use.
+     */
+    @Test
+    fun `revise keeps the bindings MyReviser shipped`() {
+        with(hotkeyDefaultsFor(DesktopOs.Linux)) {
+            assertEquals("ctrl+super", reviseSelection)
+            assertEquals("ctrl+alt+space", reviseAll)
+        }
+        with(hotkeyDefaultsFor(DesktopOs.Windows)) {
+            assertEquals("ctrl+win", reviseSelection)
+            assertEquals("ctrl+alt+space", reviseAll)
+        }
+        with(hotkeyDefaultsFor(DesktopOs.MacOs)) {
+            assertEquals("ctrl+cmd", reviseSelection)
+            assertEquals("ctrl+option+space", reviseAll)
+        }
+    }
+
+    /** Three keys, like revise. A four-key chord is a shortcut people stop reaching for. */
+    @Test
+    fun `no default asks for more than three keys`() {
+        DesktopOs.entries.forEach { os ->
+            defaults(os).forEach { binding ->
+                val keys = binding.split("+").size
+                assertTrue(keys <= 3, "$os ships $binding, which is $keys keys")
+            }
+        }
     }
 }
