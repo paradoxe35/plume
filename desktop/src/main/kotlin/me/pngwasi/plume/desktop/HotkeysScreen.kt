@@ -34,6 +34,8 @@ fun HotkeysScreen(
     settings: DesktopSettings,
     defaults: me.pngwasi.plume.data.HotkeyDefaults,
     availability: HotkeyAvailability,
+    /** Set when the system refused the key listener, which no binding can work around. */
+    listenerError: String? = null,
     rejectedBindings: List<String>,
     onChange: (DesktopSettings) -> Unit,
     /** Suspends the global listener while a shortcut is being recorded. */
@@ -64,7 +66,7 @@ fun HotkeysScreen(
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
         )
 
-        PermissionCard(availability)
+        PermissionCard(availability, listenerError)
 
         if (rejectedBindings.isNotEmpty()) {
             SectionLabel("Not registered")
@@ -117,7 +119,20 @@ fun HotkeysScreen(
 }
 
 @Composable
-private fun PermissionCard(availability: HotkeyAvailability) {
+private fun PermissionCard(availability: HotkeyAvailability, listenerError: String?) {
+    // A refused listener beats a granted permission: the checks can pass and the tap still fail,
+    // and saying "active" then is the reason a dead shortcut reads as a wrong binding.
+    if (listenerError != null) {
+        SettingsCard {
+            SettingsRow(
+                title = "Plume is not listening",
+                subtitle = listenerError,
+                icon = PlumeIcons.ErrorOutline,
+            )
+        }
+        return
+    }
+
     when (availability) {
         HotkeyAvailability.Ready -> SettingsCard {
             SettingsRow(

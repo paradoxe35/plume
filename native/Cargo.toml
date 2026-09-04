@@ -13,8 +13,14 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # Core dependencies for system input
 # Use rustdesk-org/rdev fork for Linux Wayland support (grab uses evdev, works on X11 and Wayland)
-# This fork is required for macOS compatibility and has Wayland fixes
-rdev = { git = "https://github.com/rustdesk-org/rdev" }
+# This fork is required for macOS compatibility and has Wayland fixes.
+#
+# Pinned. Unpinned, this resolves to whatever the branch tip was when a given Cargo.lock was first
+# written, so CI, a release build and a developer's machine can each carry different input code —
+# which is precisely the variable you cannot afford when a shortcut works on one machine and not
+# another. MyReviser sits on a90dbe1; the commits between are JIS and USB-HID keycode fixes that
+# touch no macOS file.
+rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "23e24dd6b35452a495dae0ae6d99395e9755ab0f" }
 arboard = { version = "3.6", features = ["wayland-data-control"] }  # Clipboard with Wayland support
 enigo = { version = "0.6", features = ["wayland", "x11rb"] }  # Keyboard simulation with Wayland and X11 support
 

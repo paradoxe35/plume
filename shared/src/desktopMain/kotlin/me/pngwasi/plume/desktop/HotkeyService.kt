@@ -6,6 +6,7 @@ import me.pngwasi.plume.data.HotkeyDefaults
 import me.pngwasi.plume.data.isWaylandSession
 import me.pngwasi.plume.native.PlumeNative
 import me.pngwasi.plume.native.PlumeNativeLibrary
+import me.pngwasi.plume.native.takeString
 
 /** The three bindable actions. The string is what crosses the FFI boundary. */
 enum class HotkeyAction(val id: String) {
@@ -82,6 +83,14 @@ class HotkeyService(
         library.plume_hotkey_stop(manager)
         started = false
     }
+
+    /**
+     * Why the listener is not running, once it has had a moment to fail.
+     *
+     * `plume_hotkey_start` only spawns the thread; the system refuses the key tap afterwards, on
+     * that thread, so a successful start says nothing about whether shortcuts will ever fire.
+     */
+    fun listenError(): String? = library.takeString(library.plume_hotkey_listen_error(manager))
 
     @Synchronized
     override fun close() {

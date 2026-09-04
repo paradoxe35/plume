@@ -16,6 +16,10 @@ interface PlumeNativeLibrary : Library {
     fun plume_get_last_error(): Pointer?
     fun plume_free_string(s: Pointer?)
 
+    /** The message belongs to Rust and is freed when the call returns, so it must be copied. */
+    fun plume_set_log_callback(callback: LogCallback)
+    fun plume_clear_log_callback()
+
     fun plume_clipboard_new(): Pointer?
     fun plume_clipboard_get_text(handle: Pointer?): Pointer?
     fun plume_clipboard_has_text(handle: Pointer?): Int
@@ -35,6 +39,7 @@ interface PlumeNativeLibrary : Library {
     ): Int
     fun plume_hotkey_start(handle: Pointer?): Int
     fun plume_hotkey_stop(handle: Pointer?): Int
+    fun plume_hotkey_listen_error(handle: Pointer?): Pointer?
     fun plume_hotkey_manager_free(handle: Pointer?)
 
     fun plume_simulator_new(): Pointer?
@@ -47,6 +52,11 @@ interface PlumeNativeLibrary : Library {
     /** `void (*)(const char *action)`, invoked on the Rust listener thread. */
     fun interface HotkeyCallback : Callback {
         fun invoke(action: Pointer?)
+    }
+
+    /** `void (*)(const char *message)`, invoked on whichever Rust thread logged. */
+    fun interface LogCallback : Callback {
+        fun invoke(message: Pointer?)
     }
 }
 
