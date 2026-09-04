@@ -1,0 +1,267 @@
+name: Release
+
+# Builds every installable artefact — Android, Windows, macOS and Linux — and, when the ref is a
+# tag, publishes them to the release for that tag. jpackage only ever targets the host it runs on,
+# so each desktop package needs its own runner.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not hide the others.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            slug: linux
+            os: ubuntu-latest
+          - name: Windows
+            slug: windows
+            os: windows-latest
+          # Two Macs: jpackage bundles a JVM for the host architecture and the Rust library is
+          # compiled for it too, so nothing here is universal. A DMG built only on Apple silicon
+          # will not open on an Intel Mac.
+          - name: macOS (Apple silicon)
+            slug: macos-arm64
+            os: macos-latest
+          - name: macOS (Intel)
+            slug: macos-x64
+            os: macos-15-intel
+
+    defaults:
+      run:
+        # Windows runners default to PowerShell, where `./gradlew` picks the extensionless shell
+        # script and fails.
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The wrapper's own download has no retry, and a reset connection fails the job with a stack
+      # trace that reads like a build failure. Once fetched, setup-gradle caches it.
+      - name: Fetch the Gradle distribution
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version; then exit 0; fi
+            echo "Gradle bootstrap failed (attempt $attempt of 3), retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/target
+          key: cargo-${{ matrix.os }}-${{ hashFiles('native/Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.os }}-
+
+      # rdev and enigo build against X11 and libxdo; the rest is what jpackage shells out to.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxdo-dev libx11-dev libxi-dev libxtst-dev libxkbcommon-dev pkg-config \
+            rpm fakeroot binutils desktop-file-utils
+
+      # jpackage shells out to WiX's candle.exe and light.exe, which exist only in WiX 3 — it does
+      # not support 4 or 5 (JDK-8319457). Pinned so a runner image change cannot break it silently.
+      - name: Install WiX 3
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\wix.zip" `
+            -MaximumRetryCount 3 -RetryIntervalSec 10
+          Expand-Archive -Path "$env:RUNNER_TEMP\wix.zip" -DestinationPath "$env:RUNNER_TEMP\wix3"
+          "$env:RUNNER_TEMP\wix3" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build the native library
+        run: cargo build --release --manifest-path native/Cargo.toml
+
+      - name: Test
+        run: |
+          cargo test --release --manifest-path native/Cargo.toml
+          ./gradlew :shared:desktopTest :desktop:test --stacktrace
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          ./gradlew :desktop:packageReleaseDeb :desktop:packageReleaseRpm \
+            :desktop:createReleaseDistributable --stacktrace
+          ./.github/scripts/build-appimage.sh \
+            desktop/build/compose/binaries/main-release/app/Plume \
+            desktop/build/appimage-release
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: ./gradlew :desktop:packageReleaseMsi :desktop:packageReleaseExe --stacktrace
+
+      # Unsigned: installable locally after allowing it in Gatekeeper. Distributing to other people
+      # needs a Developer ID and notarisation, which need secrets this workflow does not have.
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ./gradlew :desktop:packageReleaseDmg --stacktrace
+
+      # Both Macs produce "Plume-1.0.0.dmg". Without the platform in the filename one would
+      # silently overwrite the other when the release assets are merged.
+      - name: Collect the installers
+        run: |
+          mkdir -p dist
+          find desktop/build/compose/binaries/main-release desktop/build/appimage-release \
+            -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.msi' -o -name '*.exe' \
+                       -o -name '*.dmg' -o -name '*.AppImage' \) -print0 2>/dev/null |
+          while IFS= read -r -d '' file; do
+            base=$(basename "$file")
+            cp "$file" "dist/${base%.*}-${{ matrix.slug }}.${base##*.}"
+          done
+          ls -lh dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plume-${{ matrix.slug }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: reports-${{ matrix.slug }}
+          path: |
+            shared/build/reports/tests
+            desktop/build/reports/tests
+          retention-days: 7
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    env:
+      # Secrets cannot be read in an `if:`, so the decision is hoisted into a plain variable.
+      SIGNED: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch the Gradle distribution
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version; then exit 0; fi
+            echo "Gradle bootstrap failed (attempt $attempt of 3), retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
+
+      # The keystore is deliberately not in the repository. Without these secrets the build still
+      # succeeds and produces an unsigned APK, which Android will refuse to install — so say so
+      # loudly rather than shipping something that looks fine and is not.
+      - name: Restore the signing keystore
+        if: env.SIGNED == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > plume-release.keystore
+          {
+            echo "storeFile=plume-release.keystore"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Warn that the APK will be unsigned
+        if: env.SIGNED != 'true'
+        run: |
+          echo "::warning title=Unsigned APK::ANDROID_KEYSTORE_BASE64 is not set, so this APK \
+          cannot be installed. Add the signing secrets to publish a usable Android build."
+
+      - name: Test
+        run: ./gradlew :shared:testDebugUnitTest --stacktrace
+
+      - name: Build the APK
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Collect the APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/Plume-android.apk
+          ls -lh dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plume-android
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish the release
+    needs: [desktop, android]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Filenames were made unique per platform when they were collected, so merging is safe.
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: plume-*
+          merge-multiple: true
+          path: dist
+
+      - run: ls -lh dist
+
+      # Creates the release for this tag, or adds these assets to it if it already exists.
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+
+  cleanup:
+    name: Delete the build artefacts
+    needs: [release]
+    if: always() && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      # The assets live on the release now, so the copies attached to the run are duplicated
+      # storage. Failure to tidy up must not fail a release that already published.
+      - uses: geekyeggo/delete-artifact@v6
+        with:
+          name: plume-*
+          failOnError: false

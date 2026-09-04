@@ -1,0 +1,101 @@
+name: CI
+
+# Every pull request, on all three desktop operating systems plus Android. This builds and tests
+# but never packages: installers take minutes and only matter for a release, whereas the thing that
+# actually differs per platform — the native library, and whether it is packaged where JNA looks
+# for it — is covered by the tests.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            slug: linux
+            os: ubuntu-latest
+          - name: Windows
+            slug: windows
+            os: windows-latest
+          - name: macOS
+            slug: macos
+            os: macos-latest
+
+    defaults:
+      run:
+        # Windows runners default to PowerShell, where `./gradlew` picks the extensionless shell
+        # script and fails.
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The wrapper's own download has no retry, and a reset connection fails the job with a stack
+      # trace that reads like a build failure.
+      - name: Fetch the Gradle distribution
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version; then exit 0; fi
+            echo "Gradle bootstrap failed (attempt $attempt of 3), retrying" >&2
+            sleep $((attempt * 15))
+          done
+          exit 1
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/target
+          key: cargo-${{ matrix.os }}-${{ hashFiles('native/Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.os }}-
+
+      # rdev and enigo build against X11 and libxdo.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxdo-dev libx11-dev libxi-dev libxtst-dev libxkbcommon-dev pkg-config
+
+      - name: Test the native library
+        run: cargo test --manifest-path native/Cargo.toml
+
+      - name: Test the desktop
+        run: ./gradlew :shared:desktopTest :desktop:test --stacktrace
+
+      # Android only needs building once, and its unit tests run on the JVM.
+      - name: Build and test Android
+        if: runner.os == 'Linux'
+        run: ./gradlew :shared:testDebugUnitTest :app:assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: reports-${{ matrix.slug }}
+          path: |
+            shared/build/reports/tests
+            desktop/build/reports/tests
+            app/build/reports/tests
+          retention-days: 7
