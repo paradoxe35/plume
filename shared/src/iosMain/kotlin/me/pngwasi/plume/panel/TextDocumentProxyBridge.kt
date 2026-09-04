@@ -1,9 +1,9 @@
 package me.pngwasi.plume.panel
 
-import platform.UIKit.UITextDocumentProxy
+import platform.UIKit.UITextDocumentProxyProtocol
 
 /**
- * [EditorBridge] over a keyboard extension's [UITextDocumentProxy].
+ * [EditorBridge] over a keyboard extension's [UITextDocumentProxyProtocol].
  *
  * iOS gives a keyboard a far narrower view than Android's `InputConnection`: there is no way to ask
  * for the whole field, only for the text either side of the cursor, and the system may truncate
@@ -14,7 +14,7 @@ import platform.UIKit.UITextDocumentProxy
  * keep a runaway from locking up the keyboard process, which iOS kills without ceremony.
  */
 class TextDocumentProxyBridge(
-    private val proxy: () -> UITextDocumentProxy?,
+    private val proxy: () -> UITextDocumentProxyProtocol?,
 ) : EditorBridge {
 
     override fun read(): EditorText? {

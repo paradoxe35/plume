@@ -6,12 +6,17 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFRetain
+import platform.CoreFoundation.CFStringRef
+import platform.Foundation.NSCopyingProtocol
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.CFRelease
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
 import platform.Foundation.NSMutableDictionary
+import platform.Foundation.NSNumber
+import platform.Foundation.numberWithBool
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
@@ -50,10 +55,12 @@ class IosSecretStore(
 
     override fun getKey(providerId: String): String = memScoped {
         val found = alloc<CFTypeRefVar>()
-        val query = query(providerId) { setObject(true, forKey = kSecReturnData as Any) }
+        val query = query(providerId) {
+            setObject(NSNumber.numberWithBool(true), forKey = key(kSecReturnData))
+        }
         val status = SecItemCopyMatching(query, found.ptr)
         CFRelease(query)
-        if (status != noErr) return@memScoped ""
+        if (status != noErr.toInt()) return@memScoped ""
 
         val data = CFBridgingRelease(found.value) as? NSData ?: return@memScoped ""
         NSString.create(data = data, encoding = NSUTF8StringEncoding)?.toString().orEmpty()
@@ -71,15 +78,15 @@ class IosSecretStore(
         // plain add would fail on every save after the first.
         val existing = query(providerId)
         val changes = NSMutableDictionary().apply {
-            setObject(data, forKey = kSecValueData as Any)
+            setObject(data, forKey = key(kSecValueData))
         }
         val changesRef = CFBridgingRetain(changes) as CFDictionaryRef
         val updated = SecItemUpdate(existing, changesRef)
         CFRelease(existing)
         CFRelease(changesRef)
-        if (updated == noErr) return
+        if (updated == noErr.toInt()) return
 
-        val insert = query(providerId) { setObject(data, forKey = kSecValueData as Any) }
+        val insert = query(providerId) { setObject(data, forKey = key(kSecValueData)) }
         SecItemAdd(insert, null)
         CFRelease(insert)
     }
@@ -92,17 +99,27 @@ class IosSecretStore(
 
     override fun hasKey(providerId: String): Boolean = getKey(providerId).isNotEmpty()
 
+    /**
+     * A Security constant as a dictionary key.
+     *
+     * The constants are `CFStringRef` and the dictionary wants an `NSCopying`. They are toll-free
+     * bridged to `NSString`, so the pointer only needs re-typing, but `CFBridgingRelease` takes
+     * ownership and these are immortal globals: the `CFRetain` leaves the count where it started.
+     */
+    private fun key(constant: CFStringRef?): NSCopyingProtocol =
+        CFBridgingRelease(CFRetain(constant)) as NSCopyingProtocol
+
     /** Caller owns the result and must [CFRelease] it. */
     private fun query(
         providerId: String,
         extra: NSMutableDictionary.() -> Unit = {},
     ): CFDictionaryRef {
         val dictionary = NSMutableDictionary().apply {
-            setObject(kSecClassGenericPassword as Any, forKey = kSecClass as Any)
-            setObject(service, forKey = kSecAttrService as Any)
-            setObject(secretEntryName(providerId), forKey = kSecAttrAccount as Any)
-            setObject(kSecAttrAccessibleAfterFirstUnlock as Any, forKey = kSecAttrAccessible as Any)
-            accessGroup?.let { setObject(it, forKey = kSecAttrAccessGroup as Any) }
+            setObject(key(kSecClassGenericPassword), forKey = key(kSecClass))
+            setObject(service, forKey = key(kSecAttrService))
+            setObject(secretEntryName(providerId), forKey = key(kSecAttrAccount))
+            setObject(key(kSecAttrAccessibleAfterFirstUnlock), forKey = key(kSecAttrAccessible))
+            accessGroup?.let { setObject(it, forKey = key(kSecAttrAccessGroup)) }
             extra()
         }
         return CFBridgingRetain(dictionary) as CFDictionaryRef
