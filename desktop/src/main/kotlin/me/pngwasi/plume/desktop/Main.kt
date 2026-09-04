@@ -20,7 +20,6 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.kdroid.composetray.tray.api.Tray
-import com.kdroid.composetray.utils.isMenuBarInDarkMode
 import java.awt.GraphicsEnvironment
 import java.awt.Rectangle
 import java.awt.Toolkit
@@ -278,11 +277,10 @@ private fun ApplicationScope.PlumeTray(
     onQuit: () -> Unit,
 ) {
     Tray(
-        // Plume's own teal, at rest and while working alike — the mark reads as Plume rather than as
-        // one more monochrome glyph. Which teal depends on the panel: the bright one disappears into
-        // a light menu bar, and the deep one into a dark one. Both are the same brand colour.
+        // The bright teal, at rest and while working alike. Deriving a darker teal for light panels
+        // reads as the theme's primary green and loses the leaf; this one keeps its shape on both.
         icon = remember { PlumeMark.vector() },
-        tint = if (isMenuBarInDarkMode()) PlumeTintOnDark else PlumeTintOnLight,
+        tint = PlumeTint,
         // Render properties stay at their default: it resamples to the panel's real size, whereas
         // `withoutScalingAndAliasing` would hand over the full 192px image.
         tooltip = when (outcome) {
@@ -298,9 +296,8 @@ private fun ApplicationScope.PlumeTray(
     }
 }
 
-/** The theme's `InkTealBright` and `InkTeal`. Working is said in the tooltip, not in the colour. */
-private val PlumeTintOnDark = Color(0xFF7FD1C4)
-private val PlumeTintOnLight = Color(0xFF1E4D4A)
+/** The theme's `InkTealBright`. Working is said in the tooltip, not in the colour. */
+private val PlumeTint = Color(0xFF7FD1C4)
 
 /** AWT reports this honestly, and it is false on a stock GNOME desktop. */
 private fun isTraySupported(): Boolean =

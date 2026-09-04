@@ -42,6 +42,7 @@ fun DesktopSettingsWindow(
     val scope = rememberCoroutineScope()
     val stack = rememberSettingsStack()
     val permissions by controller.permissions.collectAsState()
+    val listenerError by controller.listenerError.collectAsState()
 
     SettingsNavHost(
         viewModel = viewModel,
@@ -61,7 +62,7 @@ fun DesktopSettingsWindow(
             RowDivider()
             SettingsRow(
                 title = "Shortcuts",
-                subtitle = shortcutSubtitle(controller),
+                subtitle = shortcutSubtitle(controller, listenerError),
                 icon = PlumeIcons.Keyboard,
                 showChevron = true,
                 onClick = { push(Destination.Hotkeys) },
@@ -118,6 +119,7 @@ fun DesktopSettingsWindow(
                     settings = settings.desktop,
                     defaults = hotkeyDefaultsFor(),
                     availability = controller.availability,
+                    listenerError = listenerError,
                     rejectedBindings = controller.rejectedBindings,
                     onChange = { updated -> saveDesktop(scope, controller, updated) },
                     onRecordingChange = controller::setRecording,
@@ -213,10 +215,22 @@ internal fun generalSubtitle(settings: DesktopSettings, trayAvailable: Boolean):
     return parts.joinToString(" · ").ifEmpty { "Startup, tray and notifications" }
 }
 
-private fun shortcutSubtitle(controller: DesktopController): String =
-    when (val availability = controller.availability) {
-        HotkeyAvailability.Ready ->
-            if (controller.rejectedBindings.isEmpty()) "Active" else "Some shortcuts were refused"
+private fun shortcutSubtitle(controller: DesktopController, listenerError: String?): String =
+    shortcutSubtitle(controller.availability, controller.rejectedBindings, listenerError)
+
+internal fun shortcutSubtitle(
+    availability: HotkeyAvailability,
+    rejected: List<String>,
+    listenerError: String?,
+): String =
+    when (availability) {
+        // Outranks everything else: the listener was refused, so no binding can fire whatever the
+        // permission checks report.
+        HotkeyAvailability.Ready -> when {
+            listenerError != null -> "Not listening"
+            rejected.isEmpty() -> "Active"
+            else -> "Some shortcuts were refused"
+        }
         is HotkeyAvailability.NeedsPermission -> "Waiting on permissions"
         is HotkeyAvailability.Unavailable -> "Unavailable"
     }

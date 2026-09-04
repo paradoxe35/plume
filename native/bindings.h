@@ -72,6 +72,11 @@ int plume_hotkey_start(plume_HotkeyManagerHandle handle);
 
 int plume_hotkey_stop(plume_HotkeyManagerHandle handle);
 
+/**
+ * Null when the listener is running. The caller frees the string with `plume_free_string`.
+ */
+char *plume_hotkey_listen_error(plume_HotkeyManagerHandle handle);
+
 void plume_hotkey_manager_free(plume_HotkeyManagerHandle handle);
 
 plume_SimulatorHandle plume_simulator_new(void);

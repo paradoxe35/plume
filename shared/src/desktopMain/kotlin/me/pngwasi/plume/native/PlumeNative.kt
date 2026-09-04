@@ -35,6 +35,7 @@ interface PlumeNativeLibrary : Library {
     ): Int
     fun plume_hotkey_start(handle: Pointer?): Int
     fun plume_hotkey_stop(handle: Pointer?): Int
+    fun plume_hotkey_listen_error(handle: Pointer?): Pointer?
     fun plume_hotkey_manager_free(handle: Pointer?)
 
     fun plume_simulator_new(): Pointer?

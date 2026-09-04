@@ -29,6 +29,8 @@ class CountingNativeLibrary : PlumeNativeLibrary {
         simulatorFrees++
     }
 
+    override fun plume_hotkey_listen_error(handle: Pointer?): Pointer? = null
+
     override fun plume_hotkey_manager_free(handle: Pointer?) {
         hotkeyFrees++
     }

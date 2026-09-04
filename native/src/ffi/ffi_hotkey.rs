@@ -36,6 +36,9 @@ pub struct SimpleHotkeyManager {
     bindings: Arc<Mutex<Vec<HotkeyBinding>>>,
     listener_handle: Option<thread::JoinHandle<()>>,
     active: Arc<Mutex<bool>>,
+    /// Why the listener never started. It fails on its own thread, and the message would otherwise
+    /// go to stdout — which a macOS .app bundle discards, leaving a dead shortcut and no trace.
+    listen_error: Arc<Mutex<Option<String>>>,
 }
 
 struct HotkeyBinding {
@@ -52,6 +55,7 @@ impl SimpleHotkeyManager {
             bindings: Arc::new(Mutex::new(Vec::new())),
             listener_handle: None,
             active: Arc::new(Mutex::new(false)),
+            listen_error: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -148,6 +152,7 @@ impl SimpleHotkeyManager {
 
         let bindings = self.bindings.clone();
         let active_flag = self.active.clone();
+        let listen_error = self.listen_error.clone();
 
         let handle = thread::spawn(move || {
             let mut ctrl_pressed = false;
@@ -270,8 +275,11 @@ impl SimpleHotkeyManager {
                     };
 
                     if let Err(e) = start_grab_listen(callback) {
-                        eprintln!("Hotkey grab error (Wayland): {:?}", e);
-                        eprintln!("Hint: Make sure your user is in the 'input' group: sudo usermod -aG input $USER");
+                        *listen_error.lock() = Some(format!(
+                            "Wayland grab failed ({:?}). Add your user to the 'input' group: \
+                             sudo usermod -aG input $USER",
+                            e
+                        ));
                     }
                 } else {
                     tracing::info!("X11 session detected, using X11 listener for hotkeys");
@@ -290,7 +298,7 @@ impl SimpleHotkeyManager {
                     };
 
                     if let Err(e) = listen(callback) {
-                        eprintln!("Hotkey listener error (X11): {:?}", e);
+                        *listen_error.lock() = Some(format!("X11 listener failed ({:?})", e));
                     }
                 }
             }
@@ -312,7 +320,11 @@ impl SimpleHotkeyManager {
                 };
 
                 if let Err(e) = listen(callback) {
-                    eprintln!("Hotkey listener error: {:?}", e);
+                    *listen_error.lock() = Some(format!(
+                        "The system refused the key listener ({:?}). On macOS this is Input \
+                         Monitoring; grant it to Plume and restart.",
+                        e
+                    ));
                 }
             }
         });
@@ -557,6 +569,20 @@ pub unsafe extern "C" fn plume_hotkey_stop(handle: HotkeyManagerHandle) -> c_int
             set_last_error(format!("Failed to stop hotkey listener: {}", e));
             FFIErrorCode::OperationFailed as c_int
         }
+    }
+}
+
+/// Null when the listener is running. The caller frees the string with `plume_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn plume_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char {
+    if handle.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let manager = &*(handle as *mut SimpleHotkeyManager);
+    match manager.listen_error.lock().clone() {
+        Some(message) => string_to_c_str(message),
+        None => std::ptr::null_mut(),
     }
 }
 

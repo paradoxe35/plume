@@ -65,6 +65,17 @@ class DesktopController(
 
     val availability: HotkeyAvailability get() = hotkeyAvailability()
 
+    private val _listenerError = MutableStateFlow<String?>(null)
+
+    /**
+     * Why the shortcuts will not fire, when the system refused the key listener.
+     *
+     * Starting the listener only spawns a thread; the refusal happens on that thread afterwards, so
+     * without this the screen reports "active" while nothing works — which is the state that makes
+     * a dead shortcut look like a wrong binding.
+     */
+    val listenerError: StateFlow<String?> = _listenerError.asStateFlow()
+
     private val _permissions = MutableStateFlow(MacPermissions.current())
 
     /**
@@ -133,6 +144,14 @@ class DesktopController(
             PlumeLog.error("The system refused these shortcuts: ${rejectedBindings.joinToString()}")
         }
         if (!service.start()) PlumeLog.error("The shortcut listener did not start")
+
+        // Starting only spawns the thread; the system refuses the tap after that, on that thread.
+        scope.launch {
+            delay(LISTENER_SETTLE)
+            val failure = service.listenError()
+            _listenerError.value = failure
+            if (failure != null) PlumeLog.error("Shortcuts will not fire: $failure")
+        }
     }
 
     /**
@@ -218,3 +237,6 @@ internal fun globalListenerRuns(recordingAShortcut: Boolean): Boolean = !recordi
 
 /** Slow enough to be invisible, quick enough that the card updates while the user watches. */
 private const val PERMISSION_POLL = 1_500L
+
+/** Long enough for the listener thread to have tried and failed. */
+private const val LISTENER_SETTLE = 2_000L
