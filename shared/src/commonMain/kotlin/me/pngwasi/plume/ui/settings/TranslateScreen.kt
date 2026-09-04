@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.components.rememberTrackedLazyListState
 import me.pngwasi.plume.data.Language
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.TranslateSettings
@@ -67,6 +68,7 @@ fun TranslateScreen(
     }
 
     LazyColumn(
+        state = rememberTrackedLazyListState(),
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),

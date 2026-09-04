@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.components.rememberTrackedLazyListState
 import me.pngwasi.plume.ui.components.SectionLabel
 import me.pngwasi.plume.ui.components.SettingsCard
 
@@ -44,6 +45,7 @@ fun HistoryScreen(
     }
 
     LazyColumn(
+        state = rememberTrackedLazyListState(),
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {

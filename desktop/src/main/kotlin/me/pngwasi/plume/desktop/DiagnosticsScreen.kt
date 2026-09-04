@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.components.rememberTrackedLazyListState
 import me.pngwasi.plume.ui.components.SectionLabel
 
 /**
@@ -38,6 +39,7 @@ fun DiagnosticsScreen(onCopy: (String) -> Unit) {
     var lines by remember { mutableStateOf(PlumeLog.tail()) }
 
     LazyColumn(
+        state = rememberTrackedLazyListState(),
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
