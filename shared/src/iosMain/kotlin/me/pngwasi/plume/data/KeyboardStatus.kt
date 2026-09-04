@@ -1,8 +1,6 @@
 package me.pngwasi.plume.data
 
-import platform.Foundation.NSDate
 import platform.Foundation.NSUserDefaults
-import platform.Foundation.timeIntervalSince1970
 
 /**
  * Whether the keyboard has ever run with Full Access, as far as the container app can tell.
@@ -18,26 +16,15 @@ import platform.Foundation.timeIntervalSince1970
  */
 object KeyboardStatus {
 
-    private const val KEY = "full_access_confirmed_at"
+    private const val KEY = "full_access_confirmed"
 
     /** Called by the extension once it knows it has Full Access. */
     fun confirmFullAccess() {
-        defaults()?.setDouble(NSDate().timeIntervalSince1970, KEY)
+        defaults()?.setBool(true, KEY)
     }
 
-    /** When the keyboard last confirmed Full Access, or null if it never has. */
-    fun fullAccessConfirmedAt(): Double? =
-        defaults()?.let { store ->
-            val at = store.doubleForKey(KEY)
-            at.takeIf { it > 0.0 }
-        }
-
-    val isConfirmed: Boolean get() = fullAccessConfirmedAt() != null
-
-    /** Cleared when the user is told to set it up again, so a stale yes cannot mislead. */
-    fun forget() {
-        defaults()?.removeObjectForKey(KEY)
-    }
+    /** A flag rather than a timestamp: one less interop call in code that cannot be built here. */
+    val isConfirmed: Boolean get() = defaults()?.boolForKey(KEY) == true
 
     private fun defaults() = NSUserDefaults(suiteName = PlumeStores.APP_GROUP)
 }
