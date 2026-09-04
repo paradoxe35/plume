@@ -29,7 +29,7 @@ Your clipboard is put back the way you left it.
 | Action | Default |
 | --- | --- |
 | Revise selection | `Ctrl` + `Super` |
-| Revise everything | `Ctrl` `Alt` `E` |
+| Revise everything | `Ctrl` `Alt` `Space` |
 | Translate selection | `Ctrl` `Alt` `Shift` `T` |
 
 All three are editable, and Plume tells you when the system refuses one because something else got
