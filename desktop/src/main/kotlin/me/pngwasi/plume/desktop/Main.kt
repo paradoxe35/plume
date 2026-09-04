@@ -10,7 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
@@ -21,6 +20,8 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.kdroid.composetray.tray.api.Tray
+import java.awt.GraphicsEnvironment
+import java.awt.Rectangle
 import java.awt.Toolkit
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import me.pngwasi.plume.data.AppSettings
+import me.pngwasi.plume.data.DesktopOs
 import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.data.ThemeMode
 import me.pngwasi.plume.data.isFullyConfigured
@@ -40,6 +42,9 @@ import me.pngwasi.plume.ui.icons.PlumeMark
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 fun main() {
+    // Before any AWT class can initialise the rendering pipeline.
+    useMetalOnMacOs()
+
     // First, so that anything below it is recorded — including a failure to start.
     PlumeLog.install(version = "1.0.0")
 
@@ -106,19 +111,6 @@ fun main() {
         // macOS says nothing when a privilege is granted, so the only way to notice is to look.
         LaunchedEffect(Unit) { controller.watchPermissions() }
 
-        // The settings window is what puts Plume in the dock or taskbar, on every platform. Nothing
-        // is done before the first one: the macOS bundle already launches as an accessory, and
-        // changing the policy under a window that is still being created can order it back out.
-        var everShown by remember { mutableStateOf(false) }
-        LaunchedEffect(windowVisible) {
-            if (windowVisible) {
-                everShown = true
-                DockPresence.windowShown()
-            } else if (everShown) {
-                DockPresence.windowHidden()
-            }
-        }
-
         val theme = loaded?.theme ?: ThemeMode.System
         val rounded = remember { roundedWindowSupported }
         val windowIcons = remember { appIconImages() }
@@ -144,10 +136,7 @@ fun main() {
                 // Through the flow rather than straight to `requestOpen`: the tray calls back on
                 // its own thread, and this lands the state change on the composition's.
                 onOpen = controller::requestOpen,
-                onQuit = {
-                    controller.shutdown()
-                    exitApplication()
-                },
+                onQuit = controller::quit,
             )
         }
 
@@ -161,9 +150,10 @@ fun main() {
         }
 
         if (windowVisible && loaded != null) {
+            val size = remember { settingsWindowSize() }
             val state = rememberWindowState(
-                size = remember { settingsWindowSize() },
-                position = WindowPosition.Aligned(Alignment.Center),
+                size = size,
+                position = remember(size) { centredPosition(size) },
             )
             // Closing is not quitting — the shortcuts keep working with nothing on screen. Without
             // a tray it must quit, or there is no way back to the app.
@@ -171,8 +161,7 @@ fun main() {
                 if (loaded.desktop.closeToTray && trayAvailable) {
                     windowVisible = false
                 } else {
-                    controller.shutdown()
-                    exitApplication()
+                    controller.quit()
                 }
             }
 
@@ -190,15 +179,24 @@ fun main() {
                 // Not the `icon` parameter: one bitmap gets resampled by the taskbar, blurry. AWT
                 // picks the right size from a set. Reapplied on `windowOpened` because X11 reads
                 // the icon when the peer is created, after this effect runs.
+                //
+                // The dock entry is taken then too, and not a moment earlier. Changing the macOS
+                // activation policy makes the menu bar and Dock appear, which invalidates the very
+                // screen metrics AWT queries while realising a window — putting an AppKit redisplay
+                // and a blocked event thread on a collision course.
                 DisposableEffect(window) {
                     window.iconImages = windowIcons
                     val opened = object : WindowAdapter() {
                         override fun windowOpened(event: WindowEvent) {
                             window.iconImages = windowIcons
+                            DockPresence.windowShown()
                         }
                     }
                     window.addWindowListener(opened)
-                    onDispose { window.removeWindowListener(opened) }
+                    onDispose {
+                        window.removeWindowListener(opened)
+                        DockPresence.windowHidden()
+                    }
                 }
 
                 // On macOS an accessory app's window opens behind the active app with no focus, so
@@ -212,10 +210,7 @@ fun main() {
                                 controller = controller,
                                 settings = loaded,
                                 history = history,
-                                onQuit = {
-                                    controller.shutdown()
-                                    exitApplication()
-                                },
+                                onQuit = controller::quit,
                             )
                             ScrollAffordance()
                         }
@@ -231,6 +226,38 @@ fun main() {
         }
     }
 }
+
+/**
+ * Java2D's OpenGL pipeline is the default on macOS up to JDK 18, and it is where a launch crash
+ * lived: `-[CGLLayer drawInCGLContext:]` carries no exception handler, so a Java exception during a
+ * layer draw is re-raised as an `NSException` and AppKit terminates the process with no Java stack
+ * anywhere in the report. Metal became the default in JDK 19; asking for it here removes that path.
+ */
+private fun useMetalOnMacOs() {
+    if (DesktopOs.current != DesktopOs.MacOs) return
+    if (System.getProperty("sun.java2d.metal") == null) {
+        System.setProperty("sun.java2d.metal", "true")
+    }
+}
+
+/**
+ * Where to put a window that cannot be centred by asking AWT.
+ *
+ * `WindowPosition.Aligned` calls `Toolkit.getScreenInsets`, which macOS answers by blocking the
+ * event thread on the AppKit thread — uncached, every time (JBR-2602). If AppKit is busy, that is a
+ * hang at the exact moment the window is being created. Screen *bounds* need no such round trip, so
+ * the centre is worked out from those; the cost is ignoring the menu bar and the Dock, which moves
+ * the window by a few pixels and nothing else.
+ */
+internal fun centredPosition(
+    size: DpSize,
+    screen: Rectangle = runCatching {
+        GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration.bounds
+    }.getOrDefault(Rectangle(0, 0, 1920, 1080)),
+): WindowPosition.Absolute = WindowPosition.Absolute(
+    x = (screen.x + (screen.width - size.width.value) / 2).coerceAtLeast(0f).dp,
+    y = (screen.y + (screen.height - size.height.value) / 2).coerceAtLeast(0f).dp,
+)
 
 /**
  * Fixed size for the non-resizable settings window. Height is capped against the screen: a window

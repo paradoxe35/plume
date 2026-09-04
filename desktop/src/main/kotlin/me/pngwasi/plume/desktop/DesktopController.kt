@@ -171,6 +171,21 @@ class DesktopController(
             PlumeLog.error("No installed launcher to restart; quit and start Plume again")
             return false
         }
+        quit()
+    }
+
+    /**
+     * Quits, and means it.
+     *
+     * `exitApplication` closes the windows and returns, but AWT's event thread and its shutdown
+     * thread are not daemons, so the JVM stays up with no window and no tray — measured on a real
+     * build, not assumed. That invisible process goes on holding the instance lock, so the next
+     * launch hands over to something the user cannot see and Plume can never be opened again.
+     */
+    fun quit(): Nothing {
+        // The last line in the log for this run, which is what tells a stopped-working report apart
+        // from a crash: one ends here, the other does not.
+        PlumeLog.info("Quitting")
         shutdown()
         exitProcess(0)
     }

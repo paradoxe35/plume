@@ -359,6 +359,33 @@ Rebuilding the `.deb` needs `dpkg-deb --root-owner-group`. Unpacking as an ordin
 every file to that user and rebuilding records it, so the installed application would be owned by
 whoever holds uid 1000 on the target machine rather than by root.
 
+### The macOS launch crash was two bugs holding hands
+
+A crash about a second after launch, `EXC_BREAKPOINT` from `+[NSApplication _crashOnException:]`,
+with no Java stack anywhere in the report. Two independent facts, both confirmed in source:
+
+**AWT's event thread was blocked in `nativeGetScreenInsets`.** `WindowPosition.Aligned` calls
+`Toolkit.getScreenInsets` while placing the window, and `CGraphicsDevice.getScreenInsets` carries
+the comment *"the insets are queried synchronously and are not cached"* — it hops to the AppKit
+thread and waits. If AppKit is busy, that is a stall at the exact moment the window is created, and
+JBR has an open issue about the freezes it causes (JBR-2602). The window is placed from screen
+*bounds* now, which need no such round trip; the cost is ignoring the menu bar and the Dock, worth
+a few pixels.
+
+**AppKit was inside a Core Animation commit, drawing an OpenGL layer.** Java2D's OpenGL pipeline is
+the default on macOS up to JDK 18 — Metal became the default in JDK 19 — and its
+`-[CGLLayer drawInCGLContext:]` is not wrapped in `JNI_COCOA_ENTER`/`EXIT`. Its `CHECK_EXCEPTION()`
+therefore *raises an `NSException`* for any pending Java exception with nothing to catch it, having
+cleared the Java exception first. The JDK header says as much: *"control will propagate back to the
+run loop which might terminate the application… the location of termination does not show where the
+NSException originated."* That is the whole crash report, explained. Plume asks for Metal at
+startup, and the code path stops existing.
+
+What set them off is inference rather than fact: switching the macOS activation policy makes the
+menu bar and Dock appear, which invalidates exactly the screen metrics AWT was blocked asking for.
+Activation now waits for `windowOpened` instead of firing when the window is merely wanted. That
+ordering is defensible on its own, and it is not a proven cause.
+
 ### The settings window is what puts Plume in the dock, everywhere
 
 One rule on all three platforms, and only one of them needs code for it.

@@ -60,8 +60,13 @@ class SingleInstance(private val directory: File) {
         if (held == null) {
             runCatching { file.close() }
             PlumeLog.info("Plume is already running; asking that copy to show itself")
-            handOver()
-            return false
+            if (handOver()) return false
+
+            // The lock is held by something that will not answer — a copy wedged with no window,
+            // and no way for the user to reach it. Two Plumes can be quit; an application that can
+            // never be opened again cannot, so this one starts without the lock.
+            PlumeLog.error("The running Plume did not answer, so this launch is starting anyway")
+            return true
         }
 
         lockFile = file
@@ -110,10 +115,10 @@ class SingleInstance(private val directory: File) {
     }
 
     /**
-     * Retried, because the copy that holds the lock may still be starting and may not have written
-     * its port yet. Giving up quietly is fine: it is running, and this launch stops either way.
+     * True when the running copy took the request. Retried, because it may still be starting and
+     * may not have written its port yet.
      */
-    private fun handOver() {
+    private fun handOver(): Boolean {
         repeat(HANDOVER_ATTEMPTS) { attempt ->
             if (attempt > 0) Thread.sleep(HANDOVER_PAUSE)
             val port = runCatching { portPath.readText().trim().toInt() }
@@ -132,9 +137,9 @@ class SingleInstance(private val directory: File) {
                     }
                 }
             }.isSuccess
-            if (sent) return
+            if (sent) return true
         }
-        PlumeLog.error("The running Plume did not answer, so its window was left as it was")
+        return false
     }
 
     private companion object {
