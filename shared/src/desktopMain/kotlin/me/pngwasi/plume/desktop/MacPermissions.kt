@@ -63,7 +63,9 @@ object MacPermissions {
         when (permission) {
             MacPermission.Accessibility -> openSettings(permission)
             MacPermission.InputMonitoring -> {
-                runCatching { ioKit?.IOHIDRequestAccess(REQUEST_LISTEN_EVENT) }
+                // The prompt that also puts Plume in the list, so there is something to switch on.
+                runCatching { applicationServices?.CGRequestListenEventAccess() }
+                    .onFailure { runCatching { ioKit?.IOHIDRequestAccess(REQUEST_LISTEN_EVENT) } }
                 openSettings(permission)
             }
         }
@@ -81,6 +83,10 @@ object MacPermissions {
 
     private interface ApplicationServices : Library {
         fun AXIsProcessTrusted(): Boolean
+
+        /** The question an event tap actually asks. macOS 10.15 and later. */
+        fun CGPreflightListenEventAccess(): Boolean
+        fun CGRequestListenEventAccess(): Boolean
     }
 
     private interface IOKit : Library {
@@ -105,10 +111,15 @@ object MacPermissions {
     }
 
     /**
-     * `IOHIDCheckAccess` rather than opening an event tap to see whether it works: the tap has to
-     * be created, probed and released, and it is the API Apple added for exactly this question.
+     * `CGPreflightListenEventAccess` first, because it is the question the key listener actually
+     * asks: whether this process may receive `KeyDown` through an event tap. `IOHIDCheckAccess`
+     * answers about HID access, which can read as granted while key events are still withheld —
+     * and that reads to the user as a shortcut that silently does nothing.
      */
     private fun isInputMonitoringGranted(): Boolean {
+        applicationServices?.let { services ->
+            runCatching { return services.CGPreflightListenEventAccess() }
+        }
         val kit = ioKit ?: return true
         return runCatching { kit.IOHIDCheckAccess(REQUEST_LISTEN_EVENT) == ACCESS_GRANTED }
             .getOrDefault(true)

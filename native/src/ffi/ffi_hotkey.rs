@@ -155,6 +155,11 @@ impl SimpleHotkeyManager {
         let listen_error = self.listen_error.clone();
 
         let handle = thread::spawn(move || {
+            // Whether the system has ever delivered a KeyDown. Modifier changes arrive as
+            // FlagsChanged and are not gated the same way, so a listener that sees modifiers but
+            // never a key is the exact signature of Input Monitoring being withheld or Secure
+            // Event Input being active — and it is otherwise indistinguishable from a bad binding.
+            let mut seen_a_key = false;
             let mut ctrl_pressed = false;
             let mut alt_pressed = false;
             let mut shift_pressed = false;
@@ -162,6 +167,7 @@ impl SimpleHotkeyManager {
 
             // Shared by the grab and listen callbacks below.
             let process_event = |event: &Event,
+                                 seen_key: &mut bool,
                                  ctrl: &mut bool,
                                  alt: &mut bool,
                                  shift: &mut bool,
@@ -185,6 +191,24 @@ impl SimpleHotkeyManager {
                             Key::ShiftLeft | Key::ShiftRight => *shift = true,
                             Key::MetaLeft | Key::MetaRight => *meta = true,
                             _ => {}
+                        }
+
+                        // Once, and without naming the key: proof that key events reach us at all.
+                        if !*seen_key
+                            && !matches!(
+                                key,
+                                Key::ControlLeft
+                                    | Key::ControlRight
+                                    | Key::Alt
+                                    | Key::AltGr
+                                    | Key::ShiftLeft
+                                    | Key::ShiftRight
+                                    | Key::MetaLeft
+                                    | Key::MetaRight
+                            )
+                        {
+                            *seen_key = true;
+                            tracing::info!("The system is delivering key events to Plume");
                         }
 
                         // Check bindings after modifier state update
@@ -285,6 +309,7 @@ impl SimpleHotkeyManager {
                         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             process_event(
                                 &event,
+                                &mut seen_a_key,
                                 &mut ctrl_pressed,
                                 &mut alt_pressed,
                                 &mut shift_pressed,
@@ -310,6 +335,7 @@ impl SimpleHotkeyManager {
                         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             process_event(
                                 &event,
+                                &mut seen_a_key,
                                 &mut ctrl_pressed,
                                 &mut alt_pressed,
                                 &mut shift_pressed,
@@ -332,6 +358,7 @@ impl SimpleHotkeyManager {
                     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         process_event(
                             &event,
+                            &mut seen_a_key,
                             &mut ctrl_pressed,
                             &mut alt_pressed,
                             &mut shift_pressed,
