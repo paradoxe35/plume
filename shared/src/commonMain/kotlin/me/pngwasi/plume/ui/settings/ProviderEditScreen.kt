@@ -31,8 +31,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import me.pngwasi.plume.ui.components.rememberTrackedScrollState
-import java.util.Locale
 import kotlinx.coroutines.delay
 import me.pngwasi.plume.ai.Reasoning
 import me.pngwasi.plume.ai.ReasoningStyle
@@ -214,7 +215,7 @@ fun ProviderEditScreen(
             ) {
                 Text("Temperature", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = String.format(Locale.US, "%.1f", temperature),
+                    text = oneDecimal(temperature),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -449,4 +450,14 @@ private fun probeSubtitle(probe: ProbeState) = when (probe) {
     ProbeState.Running -> "Contacting the provider…"
     is ProbeState.Ok -> "Working — replied \"${probe.sample}\""
     is ProbeState.Failed -> probe.message
+}
+
+/**
+ * One decimal place, without `String.format` — that and `java.util.Locale` are JVM-only, and this
+ * file is compiled for iOS too. It is also locale-independent by construction: a comma here would
+ * not match the dot the sliders and the API use.
+ */
+internal fun oneDecimal(value: Float): String {
+    val tenths = (value * 10).roundToInt()
+    return "${tenths / 10}.${abs(tenths % 10)}"
 }
