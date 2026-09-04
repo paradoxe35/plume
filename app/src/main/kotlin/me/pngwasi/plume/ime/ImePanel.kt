@@ -14,25 +14,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.Backspace
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,17 +34,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Languages
+import me.pngwasi.plume.panel.ActionScope
+import me.pngwasi.plume.panel.PanelState
+import me.pngwasi.plume.panel.TranslationSubject
+import me.pngwasi.plume.panel.pickerOptions
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
- * The keyboard panel.
- *
- * Everything renders inline — an IME owns its own window, so dialogs and bottom sheets either fail
- * to show or appear behind it. Fixed height, because a panel that resizes as its state changes
- * makes the host app's layout jump under the user.
+ * The keyboard panel. Everything renders inline: an IME owns its own window, so dialogs and bottom
+ * sheets either fail to show or appear behind it. Fixed height so the host app's layout cannot jump.
  */
 @Composable
 fun ImePanel(
-    state: ImeState,
+    state: PanelState,
     onRevise: () -> Unit,
     onTranslate: () -> Unit,
     onReadClipboard: () -> Unit,
@@ -79,11 +72,11 @@ fun ImePanel(
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when (state) {
-                    is ImeState.Ready -> ReadyBody(state, onRevise, onTranslate, onReadClipboard)
-                    is ImeState.PickLanguage -> PickerBody(state, onPickLanguage, onCancelPicker)
-                    is ImeState.Working -> WorkingBody(state.note)
-                    is ImeState.Reading -> ReadingBody(state, onCopy, onCloseReading)
-                    is ImeState.Failed -> FailedBody(state, onRevise, onPickLanguage, onOpenSettings)
+                    is PanelState.Ready -> ReadyBody(state, onRevise, onTranslate, onReadClipboard)
+                    is PanelState.PickLanguage -> PickerBody(state, onPickLanguage, onCancelPicker)
+                    is PanelState.Working -> WorkingBody(state.note)
+                    is PanelState.Reading -> ReadingBody(state, onCopy, onCloseReading)
+                    is PanelState.Failed -> FailedBody(state, onRevise, onPickLanguage, onOpenSettings)
                 }
             }
         }
@@ -94,13 +87,12 @@ private val PanelHeight = 272.dp
 
 @Composable
 private fun Header(
-    state: ImeState,
+    state: PanelState,
     onClearField: () -> Unit,
     onBackToKeyboard: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // Only meaningful while there is something in the field to clear.
-    val canClear = (state as? ImeState.Ready)?.scope != null
+    val canClear = (state as? PanelState.Ready)?.scope != null
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -116,17 +108,17 @@ private fun Header(
 
         TextButton(onClick = onClearField, enabled = canClear, contentPadding = TightPadding) {
             Icon(
-                Icons.Outlined.Backspace,
+                PlumeIcons.Backspace,
                 contentDescription = "Clear the field",
                 modifier = Modifier.size(16.dp),
             )
         }
         TextButton(onClick = onOpenSettings, contentPadding = TightPadding) {
-            Icon(Icons.Outlined.Settings, contentDescription = "Plume settings", modifier = Modifier.size(16.dp))
+            Icon(PlumeIcons.Settings, contentDescription = "Plume settings", modifier = Modifier.size(16.dp))
         }
         TextButton(onClick = onBackToKeyboard, contentPadding = TightPadding) {
             Icon(
-                Icons.AutoMirrored.Outlined.KeyboardReturn,
+                PlumeIcons.KeyboardReturn,
                 contentDescription = "Back to keyboard",
                 modifier = Modifier.size(16.dp),
             )
@@ -139,19 +131,21 @@ private val TightPadding = androidx.compose.foundation.layout.PaddingValues(hori
 
 @Composable
 private fun ReadyBody(
-    state: ImeState.Ready,
+    state: PanelState.Ready,
     onRevise: () -> Unit,
     onTranslate: () -> Unit,
     onReadClipboard: () -> Unit,
 ) {
     val empty = state.scope == null
+    // Bound locally: Kotlin will not smart-cast a public property declared in another module.
+    val confirmation = state.confirmation
 
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         when {
-            state.confirmation != null -> Confirmation(state.confirmation, Modifier.weight(1f))
+            confirmation != null -> Confirmation(confirmation, Modifier.weight(1f))
             empty -> Hint(
                 "Type with your usual keyboard, then switch back here to fix or translate it.",
                 Modifier.weight(1f),
@@ -177,7 +171,7 @@ private fun ReadyBody(
                 enabled = !empty,
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
-                Icon(Icons.Outlined.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(PlumeIcons.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Revise")
             }
             OutlinedButton(
@@ -185,20 +179,20 @@ private fun ReadyBody(
                 enabled = !empty,
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {
-                Icon(Icons.Outlined.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(PlumeIcons.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Translate")
             }
         }
 
-        // Kept visible but disabled when nothing is copied. Hiding it would make the panel jump and
-        // would never teach anyone the feature exists; a greyed button with a reason does both.
+        // Disabled rather than hidden when the clipboard is empty: hiding it makes the panel jump
+        // and hides the feature.
         OutlinedButton(
             onClick = onReadClipboard,
             enabled = state.hasClipboard,
             modifier = Modifier.fillMaxWidth().height(44.dp),
         ) {
             Icon(
-                Icons.Outlined.ContentPaste,
+                PlumeIcons.ContentPaste,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
             )
@@ -215,14 +209,12 @@ private fun ReadyBody(
 }
 
 /**
- * A translated incoming message.
- *
- * Shown in the panel and never written to the field: the user is reading what someone sent them,
- * not editing their own reply, and overwriting a half-typed answer would be the opposite of useful.
+ * A translated incoming message. Shown in the panel and never written to the field, so a half-typed
+ * reply is not overwritten.
  */
 @Composable
 private fun ReadingBody(
-    state: ImeState.Reading,
+    state: PanelState.Reading,
     onCopy: (String) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -300,7 +292,7 @@ private fun Confirmation(text: String, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(
-            Icons.Outlined.CheckCircle,
+            PlumeIcons.CheckCircle,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
@@ -322,14 +314,12 @@ private fun WorkingBody(note: String) {
 
 @Composable
 private fun PickerBody(
-    state: ImeState.PickLanguage,
+    state: PanelState.PickLanguage,
     onPick: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
-    // Recents first: in a keyboard the target is nearly always one the user just used, and there is
-    // no room for a search field without pushing the actions off screen. Falling back to the device
-    // defaults matters — a user who unpinned everything would otherwise reach a dead end here, with
-    // no way to translate and no way to open settings from inside the picker.
+    // Recents first: there is no room for a search field. The device-default fallback inside
+    // pickerOptions is what stops a user who unpinned everything from reaching a dead end here.
     val options = remember(state) { pickerOptions(state.recents, state.favorites) }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -378,7 +368,7 @@ private fun PickerBody(
 
 @Composable
 private fun FailedBody(
-    state: ImeState.Failed,
+    state: PanelState.Failed,
     onRevise: () -> Unit,
     onTranslate: (String) -> Unit,
     onOpenSettings: () -> Unit,
@@ -389,7 +379,7 @@ private fun FailedBody(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(
-                Icons.Outlined.ErrorOutline,
+                PlumeIcons.ErrorOutline,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(20.dp),
@@ -407,17 +397,17 @@ private fun FailedBody(
                 Button(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("Open Plume") }
             }
             when (val retry = state.retry) {
-                ImeState.Retry.Revise -> OutlinedButton(
+                PanelState.Retry.Revise -> OutlinedButton(
                     onClick = onRevise,
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }
 
-                is ImeState.Retry.Translate -> OutlinedButton(
+                is PanelState.Retry.Translate -> OutlinedButton(
                     onClick = { onTranslate(retry.code) },
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }
 
-                is ImeState.Retry.ReadClipboard -> OutlinedButton(
+                is PanelState.Retry.ReadClipboard -> OutlinedButton(
                     onClick = { onTranslate(retry.code) },
                     modifier = Modifier.weight(1f),
                 ) { Text("Retry") }

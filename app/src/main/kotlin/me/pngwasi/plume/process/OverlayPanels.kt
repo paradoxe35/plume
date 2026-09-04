@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -29,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 @Composable
 fun WorkingPanel(note: String, onCancel: () -> Unit) {
@@ -52,8 +49,8 @@ fun WorkingPanel(note: String, onCancel: () -> Unit) {
 }
 
 /**
- * Shown when the result cannot be written back — the selection came from a read-only surface, so
- * copying is the only way to get the text out. The copy action is primary for exactly that reason.
+ * A null [onReplace] means the selection came from a read-only surface; copy becomes the primary
+ * action because it is then the only way to get the text out.
  */
 @Composable
 fun ResultPanel(
@@ -90,7 +87,7 @@ fun ResultPanel(
                 OutlinedButton(onClick = onCopy, modifier = Modifier.weight(1f)) { Text("Copy") }
             } else {
                 Button(onClick = onCopy, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(PlumeIcons.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("  Copy")
                 }
             }
@@ -125,7 +122,7 @@ fun ErrorPanel(
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
-                imageVector = Icons.Outlined.ErrorOutline,
+                imageVector = PlumeIcons.ErrorOutline,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(22.dp),
@@ -142,7 +139,7 @@ fun ErrorPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (showSettings) {
                 Button(onClick = onOpenSettings, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(PlumeIcons.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("  Settings")
                 }
             }

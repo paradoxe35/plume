@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import me.pngwasi.plume.ai.AiException
 import me.pngwasi.plume.ai.TextEngine
 import me.pngwasi.plume.data.AppSettings
+import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
 
@@ -36,8 +37,8 @@ sealed interface ActionState {
  */
 class TextActionViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repository = SettingsRepository.get(app)
-    private val secrets = SecretStore(app)
+    private val repository = PlumeStores.settings(app)
+    private val secrets = PlumeStores.secrets(app)
 
     private val _state = MutableStateFlow<ActionState>(ActionState.Preparing)
     val state: StateFlow<ActionState> = _state.asStateFlow()

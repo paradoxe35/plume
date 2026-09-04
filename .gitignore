@@ -17,8 +17,67 @@ local.properties
 keystore.properties
 *.keystore
 *.jks
+*.p12
+*.mobileprovision
+*.cer
 
 # Build artefacts are not committed, except the signed release kept at the root
 # so it can be downloaded straight from the repository.
 *.apk
 !/Plume.apk
+
+# --- Rust (native/) --------------------------------------------------------
+# The hotkey and clipboard layer. `target/` is hundreds of megabytes.
+native/target/
+# Cargo.lock IS committed: this crate builds an application binary, not a
+# published library, so a reproducible dependency set is what we want.
+
+# Compiled native libraries, wherever a build drops them. The desktop module
+# packages these from native/target at build time rather than from git.
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.pdb
+*.exp
+
+# --- Desktop packaging -----------------------------------------------------
+# jpackage output: .deb, .rpm, .msi, .exe, .dmg, .pkg and the app images.
+desktop/build/
+*.deb
+*.rpm
+*.msi
+*.dmg
+*.pkg
+*.AppImage
+*.snap
+
+# --- iOS / Apple -----------------------------------------------------------
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+Pods/
+Podfile.lock
+.swiftpm/
+*.xcconfig.local
+
+# --- Kotlin/Native & KMP ---------------------------------------------------
+konan/
+.konan/
+kotlin-js-store/
+
+# JVM crash dumps, which land in whatever directory the app was started from.
+hs_err_pid*.log
+replay_pid*.log
+core.*
+
+# --- Environment -----------------------------------------------------------
+.env
+.env.*
+!.env.example

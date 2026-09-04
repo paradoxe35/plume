@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -31,13 +29,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.pngwasi.plume.data.Language
 import me.pngwasi.plume.data.Languages
+import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
- * Asks which language to translate into.
- *
- * Ordering is the whole design: recents first (the strongest predictor of the next pick), then
- * pinned favourites, then search over the full catalogue. In the common case the target is one tap
- * away and the keyboard never opens.
+ * Asks which language to translate into. Ordering is the design: recents, then pinned favourites,
+ * then search, so the common target is one tap away and the keyboard never opens.
  */
 @Composable
 fun LanguagePickerPanel(
@@ -76,7 +72,7 @@ fun LanguagePickerPanel(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search languages") },
             leadingIcon = {
-                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(PlumeIcons.Search, contentDescription = null, modifier = Modifier.size(20.dp))
             },
             singleLine = true,
         )

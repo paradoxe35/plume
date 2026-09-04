@@ -1,7 +1,9 @@
 package me.pngwasi.plume.ime
 
-import android.widget.EditText
 import android.view.inputmethod.EditorInfo
+import android.widget.EditText
+import me.pngwasi.plume.panel.EditorBridge
+import me.pngwasi.plume.panel.EditorText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

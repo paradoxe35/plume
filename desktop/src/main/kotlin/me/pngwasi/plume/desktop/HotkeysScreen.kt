@@ -1,0 +1,242 @@
+package me.pngwasi.plume.desktop
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import me.pngwasi.plume.ui.components.rememberTrackedScrollState
+import me.pngwasi.plume.data.DesktopSettings
+import me.pngwasi.plume.data.duplicateHotkeys
+import me.pngwasi.plume.data.validateHotkey
+import me.pngwasi.plume.ui.components.RowDivider
+import me.pngwasi.plume.ui.components.SectionLabel
+import me.pngwasi.plume.ui.components.SettingsCard
+import me.pngwasi.plume.ui.components.SettingsRow
+import me.pngwasi.plume.ui.icons.PlumeIcons
+
+/**
+ * Shortcuts, and the reason they are not working when they are not working.
+ *
+ * The permission state is stated before the user tries a shortcut, because every platform fails the
+ * same silent way — the binding simply never fires, with nothing to distinguish "not permitted"
+ * from "wrong keys".
+ */
+@Composable
+fun HotkeysScreen(
+    settings: DesktopSettings,
+    defaults: me.pngwasi.plume.data.HotkeyDefaults,
+    availability: HotkeyAvailability,
+    rejectedBindings: List<String>,
+    launchAtLoginAvailable: Boolean,
+    onSetLaunchAtLogin: (Boolean) -> Boolean,
+    onChange: (DesktopSettings) -> Unit,
+    /** Suspends the global listener while a shortcut is being recorded. */
+    onRecordingChange: (Boolean) -> Unit = {},
+) {
+    // Which field is recording, if any. Pressing the combination you are rebinding would otherwise
+    // fire the action you are rebinding.
+    var recording by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(recording) { onRecordingChange(recording != null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberTrackedScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp),
+    ) {
+        Text(
+            text = "Plume listens for these anywhere, then works on whatever is selected in the " +
+                "app you are using.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+        )
+
+        PermissionCard(availability)
+
+        if (rejectedBindings.isNotEmpty()) {
+            SectionLabel("Not registered")
+            SettingsCard {
+                SettingsRow(
+                    title = rejectedBindings.joinToString(", "),
+                    subtitle = "The system refused these, usually because another app has them.",
+                    icon = PlumeIcons.ErrorOutline,
+                )
+            }
+        }
+
+        SectionLabel("Shortcuts")
+
+        val bindings = listOf(
+            settings.reviseSelectionOrDefault(defaults),
+            settings.reviseAllOrDefault(defaults),
+            settings.translateSelectionOrDefault(defaults),
+        )
+
+        HotkeyCaptureField(
+            label = "Revise selection",
+            help = "Fix spelling and grammar in whatever is selected.",
+            binding = bindings[0],
+            otherBindings = listOf(bindings[1], bindings[2]),
+            recordingElsewhere = recording != null && recording != 0,
+            onRecordingChange = { active -> recording = if (active) 0 else null },
+            onBinding = { onChange(settings.copy(reviseSelection = it)) },
+        )
+        HotkeyCaptureField(
+            label = "Revise everything",
+            help = "Select the whole field first, then revise it.",
+            binding = bindings[1],
+            otherBindings = listOf(bindings[0], bindings[2]),
+            recordingElsewhere = recording != null && recording != 1,
+            onRecordingChange = { active -> recording = if (active) 1 else null },
+            onBinding = { onChange(settings.copy(reviseAll = it)) },
+        )
+        HotkeyCaptureField(
+            label = "Translate selection",
+            help = "Translate into your default target, or the first pinned language.",
+            binding = bindings[2],
+            otherBindings = listOf(bindings[0], bindings[1]),
+            recordingElsewhere = recording != null && recording != 2,
+            onRecordingChange = { active -> recording = if (active) 2 else null },
+            onBinding = { onChange(settings.copy(translateSelection = it)) },
+        )
+
+        SectionLabel("Behaviour")
+        SettingsCard {
+            SettingsRow(
+                title = "Start with the system",
+                subtitle = if (launchAtLoginAvailable) {
+                    "Plume needs to be running for the shortcuts to work."
+                } else {
+                    "Available once Plume is installed, not when run from a build."
+                },
+                icon = PlumeIcons.Refresh,
+                trailing = {
+                    Switch(
+                        checked = settings.startOnLogin,
+                        enabled = launchAtLoginAvailable,
+                        onCheckedChange = { wanted ->
+                            // Only record what actually happened: a switch that flips without the
+                            // entry being written would be a straightforward lie.
+                            if (onSetLaunchAtLogin(wanted)) {
+                                onChange(settings.copy(startOnLogin = wanted))
+                            }
+                        },
+                    )
+                },
+            )
+            RowDivider()
+            SettingsRow(
+                title = "Start in the tray",
+                subtitle = "Skip the settings window on launch.",
+                icon = PlumeIcons.PhoneAndroid,
+                trailing = {
+                    Switch(
+                        checked = settings.startMinimised,
+                        onCheckedChange = { onChange(settings.copy(startMinimised = it)) },
+                    )
+                },
+            )
+            RowDivider()
+            SettingsRow(
+                title = "Close to the tray",
+                subtitle = "Closing this window leaves the shortcuts running.",
+                icon = PlumeIcons.Check,
+                trailing = {
+                    Switch(
+                        checked = settings.closeToTray,
+                        onCheckedChange = { onChange(settings.copy(closeToTray = it)) },
+                    )
+                },
+            )
+            RowDivider()
+            SettingsRow(
+                title = "Notify when finished",
+                subtitle = "The result lands in another window, so this is how you know it worked.",
+                icon = PlumeIcons.Info,
+                trailing = {
+                    Switch(
+                        checked = settings.notifyOnFinish,
+                        onCheckedChange = { onChange(settings.copy(notifyOnFinish = it)) },
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PermissionCard(availability: HotkeyAvailability) {
+    when (availability) {
+        HotkeyAvailability.Ready -> SettingsCard {
+            SettingsRow(
+                title = "Shortcuts are active",
+                subtitle = "Plume can see key presses from other applications.",
+                icon = PlumeIcons.CheckCircle,
+            )
+        }
+
+        is HotkeyAvailability.NeedsPermission -> SettingsCard {
+            SettingsRow(
+                title = availability.summary,
+                subtitle = availability.instruction,
+                icon = PlumeIcons.ErrorOutline,
+            )
+        }
+
+        is HotkeyAvailability.Unavailable -> SettingsCard {
+            SettingsRow(
+                title = "Shortcuts are unavailable",
+                subtitle = availability.reason,
+                icon = PlumeIcons.ErrorOutline,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HotkeyField(
+    label: String,
+    help: String,
+    value: String,
+    duplicates: Set<String>,
+    onValue: (String) -> Unit,
+) {
+    var text by remember(value) { mutableStateOf(value) }
+    val formatError = validateHotkey(text)
+    val duplicate = me.pngwasi.plume.data.normaliseHotkey(text) in duplicates
+    val error = formatError ?: if (duplicate) "Another action already uses this shortcut" else null
+
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = {
+                text = it
+                if (validateHotkey(it) == null) onValue(it)
+            },
+            label = { Text(label) },
+            supportingText = { Text(error ?: help) },
+            isError = error != null,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}

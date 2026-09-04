@@ -3,11 +3,11 @@
 Target: Android, iOS, Windows, macOS, Linux (deb/rpm), from one Kotlin codebase.
 
 This is the plan of record. It exists because the interesting parts of this migration are the
-places where sharing *stops*, and those are easy to discover too late.
+places where sharing _stops_, and those are easy to discover too late.
 
 ## What is actually shared
 
-Everything that decides *what to send and what to do with the answer* is already pure Kotlin and
+Everything that decides _what to send and what to do with the answer_ is already pure Kotlin and
 moves to `commonMain` unchanged:
 
 - `ai/` — providers, reasoning dialects and the fallback ladder, response cleaning, `TextEngine`
@@ -24,11 +24,11 @@ keyboard extension. See below.
 
 This is the product, and none of it is portable.
 
-| Platform | How the user reaches Plume |
-|---|---|
-| Android | `ACTION_PROCESS_TEXT` in the selection menu, plus the IME panel |
-| iOS | Keyboard extension (`UIInputViewController` + `UITextDocumentProxy`); no selection-menu equivalent exists |
-| Windows / macOS / Linux | Tray icon and a global hotkey, as MyReviser does today |
+| Platform                | How the user reaches Plume                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| Android                 | `ACTION_PROCESS_TEXT` in the selection menu, plus the IME panel                                           |
+| iOS                     | Keyboard extension (`UIInputViewController` + `UITextDocumentProxy`); no selection-menu equivalent exists |
+| Windows / macOS / Linux | Tray icon and a global hotkey, as MyReviser does today                                                    |
 
 `EditorBridge` is the seam. `InputConnectionBridge` (Android) is joined by a
 `TextDocumentProxyBridge` (iOS) and a clipboard-and-synthetic-keys bridge (desktop).
@@ -41,7 +41,7 @@ costs **15–20 MB** before Skia allocates anything.
 
 So the iOS keyboard's UI is **native SwiftUI**: a title, two buttons, a language row, a spinner. It
 calls the shared `ImePanelController` through KMP. Compose Multiplatform is still used for the iOS
-*container app* (settings), where there is no such ceiling.
+_container app_ (settings), where there is no such ceiling.
 
 This is the one place the "share the UI" story is knowingly abandoned, and it is abandoned on
 purpose.
@@ -70,58 +70,135 @@ JVM needs a dynamic library, so it becomes `cdylib`, loaded through **JNA** — 
 functions to a Kotlin interface directly and supports the `void(*)(const char*)` hotkey callback
 without any hand-written glue. No C shim, no JNI boilerplate.
 
+`panic` also moves from `abort` to `unwind`. The hotkey callbacks already wrap themselves in
+`catch_unwind`, which `panic = "abort"` makes dead code. Inside the JVM that would take the whole
+app down with no stack trace.
+
+### What MyReviser got wrong, and what Plume does instead
+
+Carrying the crate over meant reading it, and the clipboard dance had real defects. They are worth
+naming because every one of them is invisible in the happy path and ruins the user's text when it
+misfires.
+
+**A copy that never landed is indistinguishable from a successful one.** The Go processor saved the
+clipboard, simulated copy, slept 150 ms, then read the clipboard. If the copy did not land — the app
+was busy, focus moved, the Wayland grab was slow — the clipboard still held _its previous contents_,
+so the processor cheerfully revised whatever was there before and pasted it over the user's
+selection. No sleep length fixes this, because nothing is being checked.
+
+Plume clears the clipboard before simulating the copy and then polls until it changes, with a
+deadline. "The copy landed" becomes observable instead of assumed, and the empty-selection case
+reports honestly rather than mangling unrelated text.
+
+**Restore silently discarded non-text clipboard contents.** `save` stored `Option<String>`, so a
+clipboard holding an image saved as `None`, and `restore` treated `None` as "nothing to do" — which
+left _Plume's_ text on the clipboard after having destroyed the image. Plume distinguishes empty
+from foreign content and clears rather than leaving its own text behind, so a borrow can never
+become a silent overwrite.
+
+**The hotkey's own modifiers leaked into the synthetic keystrokes.** Triggering on Ctrl+Alt+R and
+then simulating Ctrl+A while Alt is still physically held sends Ctrl+Alt+A. The 250 ms sleep at the
+top of each operation was a hope that the user had let go. The simulator now releases held modifiers
+first, and releases Control even if the letter keystroke fails, so a failure cannot leave the
+desktop with a stuck modifier.
+
+**A Tokio runtime was built and destroyed on every clipboard call** — to await a lock that never
+yields. Beyond the waste on a latency-sensitive path, `block_on` panics if the calling thread
+already drives a runtime; the JVM calls in from whatever thread it likes. The clipboard is plain
+synchronous code now and the Tokio dependency is gone.
+
+**Re-entrancy was a single bool.** Plume serialises desktop actions and refuses a second one while
+the first holds the clipboard, since two overlapping runs fight over one global resource.
+
 **The flow is the same as Android's, with a different bridge.** There is no `InputConnection` on the
-desktop, so the `EditorBridge` implementation is: save clipboard → simulate select-all and copy →
-read clipboard → send to the model → set clipboard → simulate paste → restore clipboard. MyReviser's
-processor already sequences this, including the sleeps that make it reliable.
+desktop, so the `EditorBridge` implementation is: save clipboard → clear → simulate select-all and
+copy → wait for the clipboard to actually change → send to the model → set clipboard → simulate
+paste → restore clipboard.
 
 ### Desktop needs platform permissions, and they need UI
 
 None of this works silently, and each platform fails differently. The desktop settings must state
 plainly where it stands and how to fix it — the same treatment the Android keyboard checklist gets.
 
-| Platform | Requirement | Failure mode without it |
-|---|---|---|
-| macOS | Accessibility permission (TCC) | Hotkeys never fire; must be granted in System Settings |
-| Linux / Wayland | User in the `input` group (`rdev` grabs via evdev) | Hotkeys never fire until re-login after `usermod` |
-| Linux / X11 | None | Works out of the box |
-| Windows | None | Works out of the box |
+| Platform        | Requirement                                        | Failure mode without it                                |
+| --------------- | -------------------------------------------------- | ------------------------------------------------------ |
+| macOS           | Accessibility permission (TCC)                     | Hotkeys never fire; must be granted in System Settings |
+| Linux / Wayland | User in the `input` group (`rdev` grabs via evdev) | Hotkeys never fire until re-login after `usermod`      |
+| Linux / X11     | None                                               | Works out of the box                                   |
+| Windows         | None                                               | Works out of the box                                   |
 
 MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_DISPLAY`, and picks
 `start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
 "open Accessibility preferences" deep link. All of that is carried over.
 
-### Desktop-only settings
+### Desktop-only settings and features
 
 Things the Android build has no concept of, which the desktop needs:
 
-- **Hotkey bindings** — one for "revise selection", one for "select all and revise"; MyReviser's
-  defaults are a sensible start, and a translate binding is new.
+- **Hotkey bindings** — revise selection, revise the whole field, and translate; MyReviser's
+  defaults are a sensible start, and the translate binding is new. Each is rebindable, and a
+  binding already taken by another action is rejected rather than silently shadowing it.
 - **Permission status** — granted / not granted, with the button that fixes it.
 - **Start on login**, **start minimised**, **close to tray**.
 - **Character limit and timeout** already exist and stay shared.
+
+Beyond parity, a few things only make sense once there is a always-running tray process:
+
+- **A result notification.** On Android the replacement happens under the user's eyes. On the
+  desktop the hotkey fires into whatever app has focus, so success, failure and "nothing was
+  selected" have to be visible without stealing focus — a tray notification, not a window.
+- **A translate target chosen without a window.** The tray menu carries the pinned languages, so
+  translating does not mean opening settings.
+- **History of the last few runs**, with the original text. This is the desktop's version of undo:
+  the paste went into someone else's app and Plume cannot reach into it, but it can always tell the
+  user what the original text was so they can put it back.
+- **A visible busy state.** A reasoning model can take a minute, and a hotkey that appears to do
+  nothing for a minute reads as broken. The tray icon reflects it.
 
 ### Secrets differ everywhere
 
 `SecretStore` becomes `expect`/`actual`:
 
-| Platform | Backing |
-|---|---|
-| Android | Tink + Android Keystore (already built) |
-| iOS | Keychain |
-| macOS | Keychain |
-| Windows | DPAPI / Credential Manager |
-| Linux | Secret Service (libsecret), falling back to an encrypted file |
+| Platform | Backing                                                       |
+| -------- | ------------------------------------------------------------- |
+| Android  | Tink + Android Keystore (already built)                       |
+| iOS      | Keychain                                                      |
+| macOS    | Keychain                                                      |
+| Windows  | DPAPI / Credential Manager                                    |
+| Linux    | Secret Service (libsecret), falling back to an encrypted file |
 
 ### Smaller seams
 
-- **HTTP** — OkHttp gives way to Ktor, one engine per platform.
-- **Settings storage** — DataStore supports KMP, but officially only *Preferences*. Plume uses a
-  typed store with a custom serializer, so this needs the okio-based `DataStoreFactory` or a small
-  hand-rolled JSON store.
-- **`Languages`** — `java.util.Locale` is JVM-only; display names need an `expect`/`actual` or a
-  multiplatform locale library.
+- **HTTP** — OkHttp gives way to Ktor (3.5.2), one engine per platform: OkHttp on Android and the
+  JVM, Darwin on iOS. Tests move to Ktor's `MockEngine`, which runs in `commonTest` rather than
+  only on the JVM as MockWebServer did.
+- **Settings storage** — DataStore supports KMP, but officially only _Preferences_. Plume uses a
+  typed store with a custom serializer, so it goes through `datastore-core-okio`, whose
+  `OkioSerializer` works on every target. Only the file location is `expect`/`actual`.
+- **`Languages`** — `java.util.Locale` is JVM-only; display names need an `expect`/`actual`.
 - **Clipboard** — trivial but platform-specific.
+
+### Compose Multiplatform is pinned to 1.11.x, and compileSdk stays at 36
+
+CMP 1.12 bundles Jetpack Compose 1.12, which refuses to be consumed below **compileSdk 37**. That
+in turn needs **AGP 9**, and AGP 9 is not a version bump — it removes the separate Kotlin plugin in
+favour of built-in Kotlin, and it rejects `com.android.library` on a Kotlin Multiplatform module
+outright, requiring `com.android.kotlin.multiplatform.library` and its different DSL.
+
+That is a migration in its own right, and stacking it on top of this one would mean debugging two
+unrelated things at once. CMP **1.11.1** resolves to Jetpack Compose 1.11.4, which is current — this
+is a sequencing decision, not a stale dependency. The AGP 9 move is worth doing on its own branch,
+where a failure is legible.
+
+### Material icons are a dead end, so Plume ships its own
+
+JetBrains stopped publishing `org.jetbrains.compose.material:material-icons-extended` after
+**1.7.3**, and androidx deprecated its equivalent: shipping a few thousand pre-bundled icons fights
+resource shrinking, and Material 3 is meant to be icon-agnostic. Pinning the last release against a
+1.12 runtime is exactly the kind of stale dependency worth avoiding.
+
+Plume uses 29 icons. They become `ImageVector` definitions in the shared module — no dependency, no
+deprecation, identical on all five platforms, and a fraction of the size.
 
 ## Platform-specific UI, not just platform-specific API
 
@@ -135,36 +212,161 @@ Sharing the settings screens does not mean pretending the platforms are the same
 - **iOS** gets its own enable-the-keyboard walkthrough, including the "Allow Full Access" step that
   network access depends on.
 
+## Modules
+
+```
+shared/     commonMain: ai, data, panel, ui (settings screens, theme, icons)
+            androidMain / desktopMain / iosMain: secrets, locale, HTTP engine, platform stores
+app/        Android: activities, the IME service, the selection-menu entries
+desktop/    Compose Desktop: tray, shortcuts, window, packaging
+native/     the Rust hotkey/clipboard/keystroke library
+iosApp/     Xcode targets: container app + SwiftUI keyboard extension
+```
+
+The settings screens are one copy, driven by `SettingsNavHost` in `commonMain`. Each platform
+passes in the rows and screens only it has — the companion keyboard on Android, shortcuts and
+history on the desktop, the Full Access walkthrough on iOS — and shares everything else.
+
 ## Stages
 
-Each stage leaves the Android app shipping and its tests green. That constraint is the point: the
-Android app is device-verified today and must not spend weeks broken to reach a second platform.
+Each stage left the Android app shipping and its tests green. That constraint was the point: the
+Android app is device-verified and must not spend weeks broken to reach a second platform.
 
-1. **Logic to `commonMain`.** Create `:shared`, move `ai/` and `data/` and the panel controller,
-   swap OkHttp for Ktor, move the tests to `commonTest`. Android UI untouched.
-2. **Secrets and settings behind `expect`/`actual`.** Still Android-only, but the seams exist.
-3. **Compose Multiplatform for the shared UI.** Move the settings screens to
-   `org.jetbrains.compose`. Android continues to consume them.
-4. **Desktop app.** Tray, hotkey (prototype first), packaging to dmg/msi/deb/rpm via
-   `nativeDistributions`. This is where MyReviser is retired.
-5. **iOS.** Container app in Compose Multiplatform; keyboard extension in SwiftUI over the shared
-   controller.
+1. **Logic to `commonMain`.** `:shared` with `ai/`, `data/` and the panel controller, OkHttp
+   swapped for Ktor, tests moved to `commonTest`. Done.
+2. **Secrets and settings per platform.** `SecretStore` is an interface with a Keystore, Keychain,
+   DPAPI and Secret Service implementation behind it; settings moved to okio-backed DataStore.
+   Done.
+3. **Compose Multiplatform for the shared UI.** Settings screens, theme and icons in `commonMain`.
+   Done.
+4. **Desktop app.** Tray, shortcuts, history, `.deb` built and verified. Done.
+5. **iOS.** Container app over the shared screens; keyboard extension in SwiftUI over the shared
+   controller. Written, not compiled — see below.
 
 ## What this machine can and cannot build
 
-Worth stating plainly, because it shapes how the work can be verified:
+Worth stating plainly, because it shapes what can be claimed:
 
-- **iOS and macOS targets cannot be compiled here.** Kotlin/Native for Apple platforms requires
-  macOS and Xcode; this is a Linux VM. Apple-target code can be written, but not built or tested
-  without a Mac.
-- **Installers are host-specific.** `nativeDistributions` uses jpackage, which only produces
-  packages for the OS it runs on: `.deb`/`.rpm` here, `.msi` on Windows, `.dmg` on macOS. Shipping
-  all five means CI with a runner per OS.
-
-Android and a Linux desktop build are fully verifiable on this machine, including on the connected
-device.
+- **Android**: fully built and tested here, including on the connected device.
+- **Linux desktop**: built, tested, and packaged to a real `.deb`. The Rust library builds and its
+  symbols are exercised through JNA by a test.
+- **`.rpm`**: needs `rpmbuild`, which is not installed here. The Gradle configuration is in place.
+- **Windows and macOS**: `nativeDistributions` uses jpackage, which only produces packages for the
+  host it runs on, so `.msi` and `.dmg` need a runner per OS. The Rust crate also has to be built
+  per platform.
+- **iOS**: Kotlin/Native for Apple targets requires macOS and Xcode. The Apple targets are declared
+  only on a macOS host, so nothing under `iosMain/` or `iosApp/` has been compiled. It is written
+  against the documented APIs and should be treated as unverified until it builds on a Mac.
 
 ## Packaging
 
-`nativeDistributions` covers `.dmg`/`.pkg`, `.exe`/`.msi` and `.deb`/`.rpm` through jpackage, so
-Linux packaging is a build-config exercise rather than new code.
+`nativeDistributions` covers `.dmg`/`.pkg`, `.exe`/`.msi` and `.deb`/`.rpm` through jpackage.
+
+The Rust library travels inside the jar at JNA's own resource prefix
+(`linux-x86-64/libplume_native.so` and so on) rather than beside the binary. That way one mechanism
+covers `gradlew run`, the app image and every installer, with no library path to set and nothing
+for the jpackage step to drop.
+
+The Xcode project is generated by XcodeGen from `iosApp/project.yml` rather than committed: a
+`.pbxproj` is thousands of lines of generated state that merges badly and hides mistakes.
+
+### The icon has three separate jobs, and they fail independently
+
+`iconFile` in `nativeDistributions` only reaches the launcher and the desktop entry. It says
+nothing about the running window or the tray, and each of those was wrong in its own way.
+
+**The window and the taskbar** read `java.awt.Window.iconImages`, a *set*. Handing over a single
+bitmap through Compose's `icon` parameter leaves the dock and the switcher to resample it, which is
+the "large image squeezed into a small view" look. `WindowIcon.kt` draws 16 through 256 px, each
+from the path data, and the set is applied again on `windowOpened`: the effect runs before the
+window is realised, and X11 reads the icon when the peer is created. Until that lands the window
+advertises Duke, the JDK's own default frame icon.
+
+**The launcher and the dash** read the freedesktop icon theme. jpackage installs one 256 px icon
+and leaves every desktop to shrink it. `generate.py` renders a `hicolor` set instead, and the
+`.deb` rewrite packages it — dpkg then owns those files and removes them, rather than a maintainer
+script copying them in and having to remember to take them away.
+
+**The tray** takes the mark as an `ImageVector`, which the library fits to a 192 px scene and then
+resamples to what the platform's panel wants: 24 px on Linux, 32 on Windows, 44 on macOS.
+`IconRenderProperties.withoutScalingAndAliasing()` reads like the right call and is the wrong one —
+it sets the target equal to the scene, handing the panel the whole 192 px image.
+
+The artwork is drawn from path data rather than loaded from a resource because ProGuard dropped the
+PNG from the minified jar: the icon worked from Gradle and vanished in the installed package, which
+is the worst way for it to fail.
+
+Rebuilding the `.deb` needs `dpkg-deb --root-owner-group`. Unpacking as an ordinary user rewrites
+every file to that user and rebuilding records it, so the installed application would be owned by
+whoever holds uid 1000 on the target machine rather than by root.
+
+### CI is where Windows and macOS actually get built
+
+`.github/workflows/build-desktop.yml` runs on every push to `feature/multiplatform`, across
+`ubuntu-latest`, `windows-latest`, `macos-latest` and `macos-15-intel`. Each job builds the Rust
+crate natively, runs the tests, and packages for its own host. `fail-fast` is off — the point is
+finding out which platforms work, not stopping at the first that does not.
+
+**Two Macs, not one.** jpackage builds for the host and bundles a JVM for that architecture, and
+the Rust library is compiled for it as well, so nothing it produces is universal. `macos-latest` is
+Apple silicon, so for a while the only DMG on offer would not open on an Intel Mac at all. Intel
+needs its own runner: `macos-13` was retired in December 2025, and `macos-15-intel` is the
+replacement. Artifacts are named by architecture rather than by "macOS" so the two cannot be
+confused for one another.
+
+Three things it has to get right, none of them obvious:
+
+- **`shell: bash` for every step.** Windows runners default to PowerShell, where `./gradlew` picks
+  the extensionless shell script and fails.
+- **WiX 3, pinned.** jpackage shells out to `candle.exe` and `light.exe`, which exist only in WiX 3
+  — it does not support 4 or 5 (JDK-8319457). The binaries are downloaded rather than taken from
+  the runner image, so a change to that image cannot break the build quietly.
+- **AppImage is not a jpackage target.** `.github/scripts/build-appimage.sh` wraps the jpackage app
+  image instead, since `.deb` and `.rpm` both need a package manager and root, and an AppImage is
+  the one Linux format a user can simply download and run.
+
+The Rust crate's Windows and macOS builds were verified from Linux with `cargo check --target`
+before any of this ran: `enigo`'s `wayland`/`x11rb` features and `arboard`'s `wayland-data-control`
+look Linux-only, but both crates gate those dependencies by target, so enabling them elsewhere is
+harmless. That was the assumption most likely to break the other two platforms.
+
+### Where the download size goes
+
+A self-contained desktop app carries its own runtime, and that is most of it. Uncompressed:
+
+| | Size |
+|---|---|
+| Bundled JVM (`lib/modules` + `libjvm.so`) | 68 MB |
+| Skia, via `libskiko-linux-x64.so` | 28 MB |
+| Compose and Kotlin jars | ~15 MB |
+| Plume, including the Rust library | ~4 MB |
+
+So roughly three quarters is the JVM and Skia, neither of which packaging choices can touch. The
+jlink module set is already minimal — `java.base`, `java.datatransfer`, `java.desktop`,
+`java.logging`, `java.prefs`, `java.xml`, `jdk.crypto.ec` — and `java.desktop` is the large one
+Compose cannot do without.
+
+`packageRelease*` runs ProGuard over the app's own jars and takes the `.deb` from 60 MB to 45 MB.
+**Optimisation is disabled** in `desktop/proguard-rules.pro`, and not out of caution: with it on,
+ProGuard rewrote `okio`'s `Okio__JvmOkioKt.source` to return `okio.Source` where the signature
+says `InputStreamSource`, and the JVM threw `VerifyError: Bad return type` the first time DataStore
+read the settings file — on a background thread, so the app started and simply had no settings.
+Shrinking alone is where the size comes from.
+
+### The desktop app has been run, not just built
+
+Under `Xvfb` with `SKIKO_RENDER_API=SOFTWARE`, both the plain and minified Linux builds start,
+load settings, load the Rust library through JNA, register all three hotkeys, detect the X11
+session, and render the settings window. That covers the whole chain end to end on Linux. Windows
+and macOS are still only compiled, not run.
+
+The window icon is checked the same way, by reading `_NET_WM_ICON` off the running window with
+`xprop` rather than by looking at the code. It is worth doing literally: the property is the only
+place that shows which of the competing icons actually won, and every reading taken before the
+window had finished composing was of the JDK default instead — under software rendering that takes
+around twenty-five seconds, long enough to make a passing check look like a failing one.
+
+The desktop's key storage falls back to the encrypted file whenever the platform store fails a
+write-read-delete probe at startup. "The tool is installed" is not "the tool works" — a locked
+keychain or a refusing keyring daemon fails on write, and saving a key is fire-and-forget from the
+UI, so the user would only find out when their provider stopped being configured.

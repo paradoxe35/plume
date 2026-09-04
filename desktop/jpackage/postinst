@@ -1,0 +1,53 @@
+#!/bin/sh
+#
+# Registers Plume with the desktop.
+#
+# jpackage's own script calls `xdg-desktop-menu install`, which exits non-zero when there is no
+# writable menu directory — and a failing postinst leaves the package half-configured, so the files
+# land but nothing appears in the launcher. That is what "the app installs but has no icon" was.
+#
+# This installs the desktop entry directly, and treats every optional step as optional: an unusual
+# desktop must not fail the installation. The icons themselves are packaged files.
+set -e
+
+APP_DIR=/opt/plume
+DESKTOP_SOURCE="$APP_DIR/lib/plume-Plume.desktop"
+APPLICATIONS=/usr/share/applications
+
+case "$1" in
+    configure)
+        if [ -f "$DESKTOP_SOURCE" ]; then
+            mkdir -p "$APPLICATIONS"
+            # Point the entry at the themed icon by name rather than by absolute path. Both are
+            # allowed by the spec, but a name is what desktops look up reliably and what survives
+            # their icon caching; an absolute path is handled inconsistently.
+            sed 's|^Icon=.*|Icon=plume|' "$DESKTOP_SOURCE" > "$APPLICATIONS/plume.desktop"
+            chmod 644 "$APPLICATIONS/plume.desktop"
+        fi
+
+        # StartupWMClass lets the desktop match the running window to this entry, so the dock shows
+        # one Plume rather than the launcher and an "unknown" window side by side.
+        if ! grep -q "^StartupWMClass=" "$APPLICATIONS/plume.desktop" 2>/dev/null; then
+            echo "StartupWMClass=me-pngwasi-plume-desktop-MainKt" >> "$APPLICATIONS/plume.desktop"
+        fi
+
+        # A lowercase name on PATH, so `plume` works from a terminal. jpackage installs the
+        # launcher as /opt/plume/bin/Plume and puts nothing on PATH at all, which also means there
+        # is no easy way to run it and watch its output.
+        ln -sf "$APP_DIR/bin/Plume" /usr/bin/plume
+
+        # Caches. Missing tools are normal on a minimal system and are not a failure.
+        update-desktop-database "$APPLICATIONS" >/dev/null 2>&1 || true
+        gtk-update-icon-cache --force --quiet /usr/share/icons/hicolor >/dev/null 2>&1 || true
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

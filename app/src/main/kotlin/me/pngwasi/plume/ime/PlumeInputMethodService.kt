@@ -5,12 +5,12 @@ import android.os.Build
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
@@ -20,28 +20,28 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import me.pngwasi.plume.MainActivity
+import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
 import me.pngwasi.plume.data.ThemeCache
 import me.pngwasi.plume.data.ThemeMode
+import me.pngwasi.plume.panel.PanelController
+import me.pngwasi.plume.panel.PanelState
+import me.pngwasi.plume.panel.TranslationSubject
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 /**
- * Plume's companion keyboard: an action panel rather than a keyboard.
- *
- * An IME holds an [android.view.inputmethod.InputConnection], which is the only way to read and
- * rewrite a whole text field without a selection and without any permission. The user switches to
- * it for a moment, runs an action, and switches straight back to their real keyboard.
- *
- * It is optional and disabled by default — see [KeyboardComponent].
+ * Plume's companion keyboard: an action panel rather than a keyboard. Being an IME is what grants
+ * the [android.view.inputmethod.InputConnection] needed to rewrite a whole field with no selection
+ * and no permission. Optional and disabled by default — see [KeyboardComponent].
  */
 class PlumeInputMethodService : android.inputmethodservice.InputMethodService() {
 
     private val owner = ImeViewOwner()
     private var scope: CoroutineScope? = null
-    private lateinit var controller: ImePanelController
-    // Compose state, not a plain field: a var read inside setContent never triggers recomposition,
-    // so the panel would keep whatever theme it was built with.
+    private lateinit var controller: PanelController
+    // Compose state, not a plain var: a plain field read in setContent never recomposes, so the
+    // panel would keep whatever theme it was built with.
     private var themeMode by mutableStateOf(ThemeMode.System)
     private var themeJob: Job? = null
 
@@ -52,10 +52,10 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         val serviceScope = MainScope()
         scope = serviceScope
 
-        val repository = SettingsRepository.get(this)
-        val secrets = SecretStore(this)
+        val repository = PlumeStores.settings(this)
+        val secrets = PlumeStores.secrets(this)
 
-        controller = ImePanelController(
+        controller = PanelController(
             scope = serviceScope,
             bridge = InputConnectionBridge { currentInputConnection },
             loadSettings = { repository.current() },
@@ -64,9 +64,8 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
             clipboard = AndroidClipboardSource(this),
         )
 
-        // The panel is drawn over other apps' input areas, so it follows the same theme setting as
-        // the rest of Plume rather than the host app's. Seeded synchronously to avoid a flash, then
-        // collected rather than read once: this service outlives any single settings change.
+        // Follows Plume's theme, not the host app's. Seeded synchronously to avoid a flash, then
+        // collected because the service outlives any single settings change.
         themeMode = ThemeCache.read(this)
         themeJob = serviceScope.launch {
             runCatching {
@@ -90,7 +89,7 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
                         onTranslate = controller::startTranslate,
                         onReadClipboard = controller::startReadClipboard,
                         onPickLanguage = { code ->
-                            val picking = controller.state.value as? ImeState.PickLanguage
+                            val picking = controller.state.value as? PanelState.PickLanguage
                             if (picking?.subject == TranslationSubject.Clipboard) {
                                 controller.readClipboard(code)
                             } else {
@@ -108,16 +107,13 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
             }
         }
 
-        // Compose resolves its recomposer from the window's *root* view, not from the ComposeView,
-        // so the owners have to live on the IME window's decor as well. Attaching them only to the
-        // view returned here throws "ViewTreeLifecycleOwner not found from ...parentPanel" the
-        // first time the panel is shown — and since the IME shares the app's process, that takes
-        // the whole app down with it.
+        // Compose resolves its recomposer from the window's root view, so the owners must be on the
+        // IME decor too; attaching only to `view` crashes the process with "ViewTreeLifecycleOwner
+        // not found from ...parentPanel" on first show.
         window?.window?.decorView?.let(owner::attachTo)
         owner.attachTo(view)
 
-        // Composition only runs once the lifecycle is resumed, and onCreateInputView can be
-        // followed by a show before onStartInputView lands.
+        // Composition only runs once resumed, and a show can land before onStartInputView.
         owner.onStart()
         return view
     }
@@ -128,11 +124,7 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         controller.refresh()
     }
 
-    /**
-     * Fires whenever the cursor, selection or text changes in the host app. Without this the panel
-     * shows whatever the field held when it opened, so typing or selecting leaves the actions
-     * disabled against text that is plainly there.
-     */
+    /** The only signal that the host field changed; without it the panel stays stale after typing. */
     override fun onUpdateSelection(
         oldSelStart: Int,
         oldSelEnd: Int,
@@ -152,10 +144,7 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         owner.onStop()
     }
 
-    /**
-     * Fullscreen ("extract") mode replaces the host app's field with one owned by the IME, which
-     * would hide the very text the user is acting on. The panel is short enough not to need it.
-     */
+    /** Fullscreen ("extract") mode would replace the host field, hiding the text being acted on. */
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onDestroy() {
@@ -166,12 +155,8 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
     }
 
     /**
-     * Returns the user to whichever keyboard they type with.
-     *
-     * Android's own switching history is tried first, since it knows exactly where the user came
-     * from. It can come up empty — notably on the first switch after a restart — so the keyboard
-     * Plume noted for itself stands behind it. If neither knows, the picker is shown: guessing at a
-     * keyboard the user never chose would be worse than asking.
+     * Returns the user to their typing keyboard. Android's switch history is tried first but comes
+     * up empty after a restart, so the remembered keyboard backs it; the picker is the last resort.
      */
     private fun switchAway() {
         if (switchToPrevious()) return
@@ -186,9 +171,10 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             switchToPreviousInputMethod()
         } else {
-            @Suppress("DEPRECATION")
             val token = window?.window?.attributes?.token
             val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            // The pre-28 equivalent, and the only one those versions have.
+            @Suppress("DEPRECATION")
             token != null && imm?.switchToLastInputMethod(token) == true
         }
     }.getOrDefault(false)
@@ -206,7 +192,6 @@ class PlumeInputMethodService : android.inputmethodservice.InputMethodService() 
         true
     }.getOrDefault(false)
 
-    /** Puts the translated message on the clipboard so it can be kept or shared. */
     private fun copyToClipboard(text: String) {
         val manager = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
         manager?.setPrimaryClip(android.content.ClipData.newPlainText("Plume", text))
