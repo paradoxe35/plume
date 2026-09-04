@@ -5,7 +5,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.Test
 
-/** Scope resolution — the rule that decides what an action operates on. */
 class EditorTextTest {
 
     @Test

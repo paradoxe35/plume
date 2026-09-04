@@ -4,7 +4,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.Test
 
-/** Which provider runs which action, including what happens when one is deleted. */
 class ProviderRoutingTest {
 
     private val base = AppSettings(
@@ -35,7 +34,6 @@ class ProviderRoutingTest {
         assertEquals("gemini", settings.providerIdFor(Action.Translate))
     }
 
-    /** A stale override must not strand the action on a provider that no longer exists. */
     @Test
     fun `an override pointing at a deleted provider falls back to the default`() {
         val settings = base.copy(reviseProvider = "ghost")

@@ -5,10 +5,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Whether an action can run.
- *
- * The desktop now decides whether to start in the tray from this, so a wrong answer either hides an
- * app that cannot work or shows a settings window at every login to someone whose setup is fine.
+ * The desktop decides whether to start in the tray from this, so a wrong answer either hides an app
+ * that cannot work or opens settings at every login for a setup that is fine.
  */
 class ReadinessTest {
 
@@ -27,10 +25,8 @@ class ReadinessTest {
         assertTrue(settings.isReady(Action.Revise, keyedProviders = setOf("local")))
     }
 
-    /**
-     * The regression this was written for: Ollama and LM Studio take no credentials, so demanding a
-     * key left a working setup reporting "Setup needed" with nothing the user could do about it.
-     */
+    /** Regression: Ollama and LM Studio take no credentials, and demanding a key left a working
+     *  setup stuck on "Setup needed". */
     @Test
     fun `a provider that needs no key is ready without one`() {
         val settings = settings(configured.copy(authRequired = false))
@@ -53,7 +49,6 @@ class ReadinessTest {
         assertFalse(AppSettings(defaultProvider = "gone", providers = emptyMap()).isReady(Action.Revise, emptySet()))
     }
 
-    /** Both actions have to be ready: one of them silently failing is the case worth surfacing. */
     @Test
     fun `fully configured means every action`() {
         val settings = AppSettings(

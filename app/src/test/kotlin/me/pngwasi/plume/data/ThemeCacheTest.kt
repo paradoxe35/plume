@@ -7,10 +7,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
-/**
- * The cache exists purely so the first frame of an overlay is already the right theme, so the
- * behaviour that matters is what a cold read returns.
- */
+/** The cache exists so the first overlay frame is already the right theme; cold reads matter most. */
 @RunWith(RobolectricTestRunner::class)
 class ThemeCacheTest {
 

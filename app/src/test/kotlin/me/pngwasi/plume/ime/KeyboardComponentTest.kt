@@ -8,11 +8,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Matching an input-method id against our component.
- *
- * The system writes ids with `flattenToShortString`, which abbreviates a class name that shares the
- * package prefix. Comparing that against `flattenToString` output silently never matches — which
- * left the setup checklist stuck on "not done" no matter what the user did in Android settings.
+ * The system stores input-method ids via `flattenToShortString`, which abbreviates the class name;
+ * comparing those against `flattenToString` never matches and pins the setup checklist at "not done".
  */
 @RunWith(RobolectricTestRunner::class)
 class KeyboardComponentTest {
@@ -22,7 +19,6 @@ class KeyboardComponentTest {
         "me.pngwasi.plume.ime.PlumeInputMethodService",
     )
 
-    /** The form the platform actually stores and returns. */
     @Test
     fun `the short form the system uses is recognised`() {
         assertTrue(KeyboardComponent.matches("me.pngwasi.plume/.ime.PlumeInputMethodService", target))

@@ -49,8 +49,8 @@ fun WorkingPanel(note: String, onCancel: () -> Unit) {
 }
 
 /**
- * Shown when the result cannot be written back — the selection came from a read-only surface, so
- * copying is the only way to get the text out. The copy action is primary for exactly that reason.
+ * A null [onReplace] means the selection came from a read-only surface; copy becomes the primary
+ * action because it is then the only way to get the text out.
  */
 @Composable
 fun ResultPanel(

@@ -4,11 +4,8 @@ import io.ktor.http.Url
 import kotlinx.serialization.Serializable
 
 /**
- * Wire shape of a provider's HTTP API.
- *
- * Only two exist because almost the entire ecosystem — OpenRouter, Groq, Mistral, DeepSeek,
- * Together, Ollama, vLLM — speaks OpenAI's chat-completions format. Gemini is the one common
- * exception worth its own client.
+ * Wire shape of a provider's HTTP API. Only two, because nearly the whole ecosystem speaks OpenAI's
+ * chat-completions format; Gemini is the one common exception worth its own client.
  */
 @Serializable
 enum class ProviderKind { OpenAiCompatible, Gemini }
@@ -17,24 +14,17 @@ enum class ProviderKind { OpenAiCompatible, Gemini }
 enum class ThemeMode { System, Light, Dark }
 
 /**
- * How much the model should be asked to deliberate.
- *
- * Correcting a sentence or translating one is not a reasoning problem, and reasoning models left on
- * their defaults can spend a long time and a lot of tokens thinking before they answer. [Low] asks
- * for the least deliberation the provider will accept; [ProviderDefault] sends nothing at all,
- * which is the escape hatch for anything that dislikes the parameter.
+ * [Low] asks for the least deliberation the provider accepts, since revising or translating a
+ * sentence is not a reasoning problem. [ProviderDefault] sends no parameter at all, the escape
+ * hatch for endpoints that reject it.
  */
 @Serializable
 enum class ReasoningMode { Low, ProviderDefault }
 
 /**
- * Which reasoning parameter a provider understands.
- *
- * [Auto] infers it from the provider kind and host, which is right for the built-ins and for
- * gateways served from a recognisable domain. It cannot be right for everything: a self-hosted
- * proxy — LiteLLM, Helicone, an internal gateway — may speak OpenRouter's dialect from a domain
- * that says nothing about it. Without an override such a provider silently loses reasoning control,
- * because the request is rejected once and then permanently sent without the parameter.
+ * Which reasoning parameter a provider understands. [Auto] infers it from kind and host, which
+ * cannot work for self-hosted proxies speaking another dialect from an anonymous domain — without
+ * an override they lose reasoning control silently, since one rejection drops the parameter forever.
  */
 @Serializable
 enum class ReasoningDialect { Auto, OpenAi, OpenRouter, Gemini }
@@ -53,24 +43,18 @@ data class ProviderConfig(
     val reasoning: ReasoningMode = ReasoningMode.Low,
     /** Only meaningful for custom providers; the built-ins are always correctly detected. */
     val reasoningDialect: ReasoningDialect = ReasoningDialect.Auto,
-    /**
-     * Whether this endpoint needs credentials at all. Local runtimes — Ollama, LM Studio, llama.cpp
-     * — accept anything or nothing, and demanding a key would block a perfectly valid setup.
-     */
+    /** Local runtimes (Ollama, LM Studio, llama.cpp) take any key or none, so a key cannot be forced. */
     val authRequired: Boolean = true,
 ) {
     /** API keys never live here — they are held encrypted by [SecretStore], keyed by provider id. */
     fun isConfigured(): Boolean = baseUrl.isNotBlank() && model.isNotBlank()
 }
 
-/**
- * Loopback and private-range addresses, where a local model runtime almost certainly lives and an
- * API key is almost certainly not wanted.
- */
+/** Loopback and private-range addresses, where a local runtime lives and no API key is wanted. */
 fun isLocalEndpoint(baseUrl: String): Boolean {
     val trimmed = baseUrl.trim()
-    // Ktor's URL builder defaults a missing host to "localhost", so anything that is not plainly
-    // a URL has to be rejected before parsing or an empty field would read as a local endpoint.
+    // Ktor defaults a missing host to "localhost", so non-URL input must be rejected before parsing
+    // or an empty field reads as a local endpoint.
     if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) return false
     val host = runCatching {
         Url(trimmed).host
@@ -101,7 +85,6 @@ data class TranslateSettings(
     val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
     /** Pinned targets, shown first in the picker. User adds and removes these. */
     val favorites: List<String> = emptyList(),
-    /** Most-recently-used targets, maintained automatically. */
     val recents: List<String> = emptyList(),
     /** Skips the picker entirely when set — for people who always translate one way. */
     val defaultTarget: String? = null,
@@ -110,29 +93,19 @@ data class TranslateSettings(
 }
 
 /**
- * Desktop-only preferences.
- *
- * They live in the shared settings document rather than a second store: one file is one thing to
- * back up and one thing to keep consistent, and the mobile builds simply never read these.
- *
- * The hotkey defaults are MyReviser's, so anyone moving over keeps their muscle memory. The
- * translate binding is new.
+ * Desktop-only preferences, kept in the shared settings document so there is one file to back up;
+ * mobile builds never read them. Hotkey defaults match MyReviser's to preserve muscle memory.
  */
 @Serializable
 data class DesktopSettings(
-    /** Revise whatever is selected. */
     val reviseSelection: String = "",
-    /** Select the whole field first, then revise it. */
+    /** Selects the whole field first, then revises it. */
     val reviseAll: String = "",
-    /** Translate whatever is selected. */
     val translateSelection: String = "",
     val startOnLogin: Boolean = false,
     val startMinimised: Boolean = true,
     val closeToTray: Boolean = true,
-    /**
-     * The hotkey fires into another app, so the outcome is invisible without this. Off means
-     * silent success and, worse, silent failure.
-     */
+    /** The hotkey fires into another app, so off means silent success and silent failure alike. */
     val notifyOnFinish: Boolean = true,
 ) {
     fun reviseSelectionOrDefault(defaults: HotkeyDefaults) =
@@ -151,10 +124,7 @@ data class HotkeyDefaults(
     val translateSelection: String,
 )
 
-/**
- * Two actions on the same binding means one of them silently never fires, so this is rejected at
- * the point of editing rather than discovered later.
- */
+/** Two actions on one binding means one silently never fires, so duplicates are rejected on edit. */
 fun duplicateHotkeys(bindings: List<String>): Set<String> {
     val seen = mutableSetOf<String>()
     val duplicates = mutableSetOf<String>()
@@ -174,8 +144,8 @@ fun normaliseHotkey(binding: String): String =
         .joinToString("+")
 
 /**
- * A binding needs at least one modifier and one key, or it would fire on ordinary typing.
- * Modifier-only combinations are allowed because MyReviser shipped them and they work.
+ * A binding needs two keys including a modifier, or it fires on ordinary typing. Modifier-only
+ * combinations stay legal because MyReviser shipped them and they work.
  */
 fun validateHotkey(binding: String): String? {
     val parts = binding.split('+').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -199,25 +169,17 @@ data class AppSettings(
     val revise: ReviseSettings = ReviseSettings(),
     val translate: TranslateSettings = TranslateSettings(),
     val theme: ThemeMode = ThemeMode.System,
-    /**
-     * Opt-in companion keyboard. Off by default: it adds an entry to the user's system keyboard
-     * list, which nobody should get without asking for it.
-     */
+    /** Off by default: enabling adds an entry to the system keyboard list, never done unasked. */
     val keyboardEnabled: Boolean = false,
     /**
-     * Whether a leading `@provider` routes one request to a named provider.
-     *
-     * On by default, as in MyReviser: it costs nothing when unused, and an unknown mention is left
-     * as ordinary text rather than swallowed.
+     * Whether a leading `@provider` routes one request to a named provider. On by default: free
+     * when unused, and an unknown mention stays ordinary text rather than being swallowed.
      */
     val providerMentions: Boolean = true,
     /** Ignored on mobile, where there are no hotkeys and no tray. */
     val desktop: DesktopSettings = DesktopSettings(),
 ) {
-    /**
-     * Resolves which provider runs [action], falling back to the default when the override points
-     * at a provider that has since been deleted.
-     */
+    /** Falls back to the default when the override points at a since-deleted provider. */
     fun providerIdFor(action: Action): String {
         val override = when (action) {
             Action.Revise -> reviseProvider
@@ -250,10 +212,7 @@ data class AppSettings(
 }
 
 const val DEFAULT_CHARACTER_LIMIT = 4000
-/**
- * Generous on purpose. Reasoning models can deliberate for a minute or more before emitting a
- * token, and a timeout that fires first looks to the user like a broken provider.
- */
+/** Generous on purpose: reasoning models can deliberate a minute or more before the first token. */
 const val DEFAULT_TIMEOUT_SECONDS = 120
 const val MAX_TIMEOUT_SECONDS = 300
 const val MAX_RECENT_TARGETS = 5
@@ -303,12 +262,7 @@ fun validateCustomProviderName(name: String, existing: Set<String>): String? {
     }
 }
 
-/**
- * Field-level validation for the provider editor.
- *
- * A provider is only usable with all three of a base URL, a model and a key, so each is reported
- * individually rather than as one vague "not configured" — the user needs to know which is missing.
- */
+/** Per-field so the editor can say which of base URL, model or key is missing. */
 data class ProviderValidation(
     val label: String? = null,
     val baseUrl: String? = null,
@@ -334,6 +288,5 @@ fun validateProvider(
     apiKey = if (config.authRequired && apiKey.isBlank()) "API key is required" else null,
 )
 
-/** Moves [code] to the front, removing any earlier copy, and caps the list. */
 fun List<String>.withRecentTarget(code: String, max: Int = MAX_RECENT_TARGETS): List<String> =
     (listOf(code) + filterNot { it.equals(code, ignoreCase = true) }).take(max)

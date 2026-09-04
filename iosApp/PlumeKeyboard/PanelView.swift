@@ -1,11 +1,8 @@
 import SwiftUI
 import PlumeShared
 
-/// The keyboard panel, mirroring the Android one screen for screen.
-///
-/// It switches on `snapshot.kind` rather than on a Kotlin sealed type: Kotlin/Native exports those
-/// as a class hierarchy that Swift can only handle with `as?` chains, and the flattened snapshot
-/// keeps this readable.
+/// The keyboard panel, mirroring the Android one. Switches on `snapshot.kind` because Kotlin/Native
+/// exports sealed types as a class hierarchy Swift can only match with `as?` chains.
 struct PanelView: View {
 
     @ObservedObject var model: PanelModel
@@ -90,8 +87,7 @@ struct PanelView: View {
                 .disabled(snapshot?.hasText != true)
             }
 
-            // Kept visible but disabled: hiding it would make the panel jump and would never teach
-            // anyone the feature exists.
+            // Disabled rather than hidden: hiding it makes the panel jump and hides the feature.
             Button(action: actions.readClipboard) {
                 Label(
                     snapshot?.hasClipboard == true ? "Translate copied text" : "No copied text",
@@ -139,8 +135,7 @@ struct PanelView: View {
         }
     }
 
-    /// Reading never writes to the field: the user is looking at someone else's message while a
-    /// half-typed reply may be sitting there.
+    /// Never writes to the field: a half-typed reply may be sitting there.
     private var reading: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {

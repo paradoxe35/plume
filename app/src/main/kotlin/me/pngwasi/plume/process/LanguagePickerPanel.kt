@@ -32,11 +32,8 @@ import me.pngwasi.plume.data.Languages
 import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
- * Asks which language to translate into.
- *
- * Ordering is the whole design: recents first (the strongest predictor of the next pick), then
- * pinned favourites, then search over the full catalogue. In the common case the target is one tap
- * away and the keyboard never opens.
+ * Asks which language to translate into. Ordering is the design: recents, then pinned favourites,
+ * then search, so the common target is one tap away and the keyboard never opens.
  */
 @Composable
 fun LanguagePickerPanel(

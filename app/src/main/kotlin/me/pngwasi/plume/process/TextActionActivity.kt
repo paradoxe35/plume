@@ -30,10 +30,8 @@ import me.pngwasi.plume.ime.TypingKeyboard
 import me.pngwasi.plume.ui.theme.PlumeTheme
 
 /**
- * Shared plumbing for the two activities that appear in the text-selection toolbar.
- *
- * Both launch cold from another app's process, so this keeps the startup path short: no dependency
- * graph, no eager settings read, and nothing blocking before the sheet can draw.
+ * Shared plumbing for the two text-selection toolbar activities. Both always launch cold, so the
+ * startup path must stay short: no dependency graph and nothing blocking before the sheet draws.
  */
 abstract class TextActionActivity : ComponentActivity() {
 
@@ -58,8 +56,7 @@ abstract class TextActionActivity : ComponentActivity() {
         }
         request = parsed
 
-        // A selection action runs while the user's own keyboard is selected, so this is a reliable
-        // place to learn which one it is.
+        // Runs while the user's own keyboard is still selected, the one reliable moment to note it.
         TypingKeyboard.noteCurrent(this)
 
         setContent {
@@ -85,9 +82,8 @@ abstract class TextActionActivity : ComponentActivity() {
     }
 
     /**
-     * Seeded from the synchronous cache so the very first frame is already the user's theme —
-     * defaulting to System here would render the wrong scheme and then snap, a visible flash on a
-     * surface that is only ever seen cold. The real setting still wins, and refreshes the cache.
+     * Seeded from the synchronous cache so the first frame is already the right scheme; on a surface
+     * only ever seen cold, defaulting to System would flash. The stored setting still wins.
      */
     @Composable
     private fun rememberThemeMode(): State<ThemeMode> {
@@ -129,7 +125,6 @@ abstract class TextActionActivity : ComponentActivity() {
         finish()
     }
 
-    /** Result rendering is identical across actions; only the title differs. */
     @Composable
     protected fun DoneContent(output: String) {
         ResultPanel(

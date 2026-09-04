@@ -9,10 +9,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/**
- * The contract with the host app. Getting the readonly flag or the result extra wrong silently
- * breaks replacement in every app at once, so it is worth pinning down.
- */
+/** The host-app contract: a wrong readonly flag or result extra breaks replacement everywhere at once. */
 @RunWith(RobolectricTestRunner::class)
 class ProcessTextRequestTest {
 
@@ -37,7 +34,6 @@ class ProcessTextRequestTest {
         assertFalse(request!!.editable)
     }
 
-    /** Apps that omit the extra are treated as editable, matching the platform default. */
     @Test
     fun `a missing readonly extra defaults to editable`() {
         assertTrue(ProcessTextRequest.from(intent("Bonjour"))!!.editable)

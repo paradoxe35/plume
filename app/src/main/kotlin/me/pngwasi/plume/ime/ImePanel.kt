@@ -41,11 +41,8 @@ import me.pngwasi.plume.panel.pickerOptions
 import me.pngwasi.plume.ui.icons.PlumeIcons
 
 /**
- * The keyboard panel.
- *
- * Everything renders inline — an IME owns its own window, so dialogs and bottom sheets either fail
- * to show or appear behind it. Fixed height, because a panel that resizes as its state changes
- * makes the host app's layout jump under the user.
+ * The keyboard panel. Everything renders inline: an IME owns its own window, so dialogs and bottom
+ * sheets either fail to show or appear behind it. Fixed height so the host app's layout cannot jump.
  */
 @Composable
 fun ImePanel(
@@ -95,7 +92,6 @@ private fun Header(
     onBackToKeyboard: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // Only meaningful while there is something in the field to clear.
     val canClear = (state as? PanelState.Ready)?.scope != null
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -188,8 +184,8 @@ private fun ReadyBody(
             }
         }
 
-        // Kept visible but disabled when nothing is copied. Hiding it would make the panel jump and
-        // would never teach anyone the feature exists; a greyed button with a reason does both.
+        // Disabled rather than hidden when the clipboard is empty: hiding it makes the panel jump
+        // and hides the feature.
         OutlinedButton(
             onClick = onReadClipboard,
             enabled = state.hasClipboard,
@@ -213,10 +209,8 @@ private fun ReadyBody(
 }
 
 /**
- * A translated incoming message.
- *
- * Shown in the panel and never written to the field: the user is reading what someone sent them,
- * not editing their own reply, and overwriting a half-typed answer would be the opposite of useful.
+ * A translated incoming message. Shown in the panel and never written to the field, so a half-typed
+ * reply is not overwritten.
  */
 @Composable
 private fun ReadingBody(
@@ -324,10 +318,8 @@ private fun PickerBody(
     onPick: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
-    // Recents first: in a keyboard the target is nearly always one the user just used, and there is
-    // no room for a search field without pushing the actions off screen. Falling back to the device
-    // defaults matters — a user who unpinned everything would otherwise reach a dead end here, with
-    // no way to translate and no way to open settings from inside the picker.
+    // Recents first: there is no room for a search field. The device-default fallback inside
+    // pickerOptions is what stops a user who unpinned everything from reaching a dead end here.
     val options = remember(state) { pickerOptions(state.recents, state.favorites) }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {

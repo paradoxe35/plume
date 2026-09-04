@@ -6,19 +6,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * "How Plume works" on the desktop.
- *
- * This page was Android's text on every platform, which told desktop users to tap an entry in a
- * selection toolbar that does not exist and blamed the Android Keystore for keys held by DPAPI.
- * Wrong help is worse than none: it sends someone looking for a setting that was never there.
+ * Desktop help text used to be Android's, pointing users at a selection toolbar and a Keystore that
+ * do not exist on their system. Each OS must only be shown its own instructions.
  */
 class PlatformCopyTest {
 
     private fun prose(os: DesktopOs): String =
         desktopCopy(os).about.flatMap { it.paragraphs + it.steps }.joinToString(" ")
 
-    /** Every string the seam carries, not just the page: the same wording leaked into the API key
-     *  field, which told desktop users their key was in the Android Keystore. */
+    /** Every string the seam carries, not just the page: the Android wording also leaked into the
+     *  API key field. */
     private fun allCopy(os: DesktopOs): String = with(desktopCopy(os)) {
         listOf(prose(os), aboutSubtitle, replacementNote, keyStorageNote, themeNote).joinToString(" ")
     }
@@ -40,8 +37,6 @@ class PlatformCopyTest {
         assertTrue(desktopCopy(DesktopOs.Linux).keyStorageNote.contains("keyring"))
     }
 
-    /** The permission that has to be granted is different on each, and naming the wrong one wastes
-     *  exactly the time of someone whose shortcuts are not working. */
     @Test
     fun `each system is told how its own shortcuts are unblocked`() {
         assertTrue(prose(DesktopOs.MacOs).contains("Accessibility"))
@@ -56,7 +51,6 @@ class PlatformCopyTest {
         assertTrue(prose(DesktopOs.Linux).contains("Secret Service"))
     }
 
-    /** macOS has a menu bar, Windows a notification area, Linux a tray that may not be there. */
     @Test
     fun `each system is told where Plume goes when the window closes`() {
         assertTrue(prose(DesktopOs.MacOs).contains("menu bar"))

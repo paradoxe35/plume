@@ -5,11 +5,8 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * The window and dock icon.
- *
- * It used to be a PNG read from the classpath, which ProGuard dropped from the minified build — so
- * it worked from Gradle and was missing in the installed package, where nobody would connect the
- * two. Drawing it means it cannot be shrunk away, and these check it actually draws.
+ * The icon is drawn rather than loaded from the classpath, because ProGuard strips the resource
+ * from the minified build and it goes missing only in the installed package.
  */
 class WindowIconTest {
 
@@ -28,7 +25,6 @@ class WindowIconTest {
         assertTrue(opaque > 128 * 128 * 0.7, "the icon is mostly empty")
     }
 
-    /** The teal ground and the pale quill both have to be there, or it is a plain block. */
     @Test
     fun `the icon carries both the background and the quill`() {
         val pixels = renderAppIcon(128).toPixelMap()
