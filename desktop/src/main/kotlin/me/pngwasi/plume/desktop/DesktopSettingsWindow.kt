@@ -93,7 +93,7 @@ fun DesktopSettingsWindow(
             SettingsRow(
                 title = "Logs",
                 subtitle = "What Plume did, and what went wrong",
-                icon = PlumeIcons.Info,
+                icon = PlumeIcons.Description,
                 showChevron = true,
                 onClick = { push(Destination.Diagnostics) },
             )

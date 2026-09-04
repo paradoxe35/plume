@@ -63,6 +63,14 @@ compose.desktop {
     application {
         mainClass = mainClassName
 
+        // Java2D's OpenGL pipeline is the default on macOS up to JDK 18, and its CGLLayer turns any
+        // Java exception during a layer draw into an uncatchable NSException that kills the process.
+        // Metal is the default from JDK 19. Set on the launcher as well as in `main`, so it is in
+        // place before the JVM starts. Only reaches the macOS package: jpackage builds on the host.
+        if (jnaResourcePrefix.startsWith("darwin")) {
+            jvmArgs += "-Dsun.java2d.metal=true"
+        }
+
         // Minification is opt-in, through the `packageRelease*` tasks. Most of the download is the
         // bundled JVM and Skia, neither of which ProGuard can touch, so this trims our own jars
         // rather than transforming the size.
