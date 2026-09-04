@@ -15,6 +15,7 @@ import me.pngwasi.plume.data.AppSettings
 import me.pngwasi.plume.data.PlumeStores
 import me.pngwasi.plume.data.SecretStore
 import me.pngwasi.plume.data.SettingsRepository
+import kotlin.system.exitProcess
 
 /**
  * Owns the long-lived desktop pieces: the hotkey listener, the clipboard bridge, and the settings
@@ -151,11 +152,20 @@ class DesktopController(
         systemInput?.setClipboardText(text)
     }
 
-    /** Starts a fresh copy and stops this one, so the listener is wired with the new privileges. */
+    /**
+     * Stops this copy so a fresh one can start with the new privileges.
+     *
+     * Ends the process rather than the window: the replacement waits for this pid to disappear
+     * before it launches, and closing the application loop would leave the JVM up — which is how a
+     * restart used to end with two Plumes running.
+     */
     fun restart(): Boolean {
-        if (!AppRelaunch.relaunch()) return false
+        if (!AppRelaunch.relaunch()) {
+            PlumeLog.error("No installed launcher to restart; quit and start Plume again")
+            return false
+        }
         shutdown()
-        return true
+        exitProcess(0)
     }
 
     /** Called from the tray, the window and a restart, so it has to survive being called twice. */
