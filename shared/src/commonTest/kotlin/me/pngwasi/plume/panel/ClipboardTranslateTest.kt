@@ -41,7 +41,13 @@ class ClipboardTranslateTest {
     }
 
     private class FakeClipboard(var content: String? = null) : ClipboardSource {
-        override fun read() = content
+        /** Counted, because the panel must not read the clipboard just to draw itself. */
+        var reads = 0
+        override fun hasText() = !content.isNullOrBlank()
+        override fun read(): String? {
+            reads++
+            return content
+        }
     }
 
     @BeforeTest
@@ -299,6 +305,7 @@ class ClipboardTranslateTest {
     @Test
     fun `a clipboard that throws is treated as empty rather than crashing`() {
         val hostile = object : ClipboardSource {
+            override fun hasText(): Boolean = throw SecurityException("no access")
             override fun read(): String = throw SecurityException("no access")
         }
         val controller = controller(FakeEditor("draft"), hostile)
@@ -306,5 +313,21 @@ class ClipboardTranslateTest {
         controller.refresh()
 
         assertFalse((controller.state.value as PanelState.Ready).hasClipboard)
+    }
+
+    /**
+     * iOS 16 prompts the user for any programmatic clipboard read and Android 12 warns about it, so
+     * showing the panel must ask only whether text exists — never what it is.
+     */
+    @Test
+    fun `showing the panel does not read the clipboard`() {
+        val clip = FakeClipboard("something copied")
+        val controller = controller(FakeEditor("draft"), clip)
+
+        controller.refresh()
+        controller.refresh()
+
+        assertTrue((controller.state.value as PanelState.Ready).hasClipboard)
+        assertEquals(0, clip.reads, "the clipboard was read just to draw the panel")
     }
 }

@@ -17,11 +17,8 @@ import me.pngwasi.plume.data.Languages
 enum class ActionScope { Selection, WholeField }
 
 /**
- * Which text a translation is for.
- *
- * [Field] rewrites what the user is writing. [Clipboard] translates what someone sent them and
- * shows it in the panel — it must never touch the input field, or replying would overwrite the
- * message they were trying to read.
+ * [Field] rewrites what the user is writing. [Clipboard] only displays its result: writing it back
+ * would overwrite the draft reply with the message being read.
  */
 enum class TranslationSubject { Field, Clipboard }
 
@@ -41,10 +38,7 @@ sealed interface PanelState {
         val subject: TranslationSubject = TranslationSubject.Field,
     ) : PanelState
 
-    /**
-     * A translated incoming message, shown in the panel rather than written anywhere. Reading is
-     * the whole point here; the user is mid-conversation and has not asked to change their draft.
-     */
+    /** A translated incoming message, shown in the panel and never written to the field. */
     data class Reading(
         val original: String,
         val translated: String,
@@ -68,10 +62,8 @@ sealed interface PanelState {
 }
 
 /**
- * Drives the keyboard panel: reads the field, runs an action, writes the result back.
- *
- * Deliberately free of Android UI types — the service owns the view, this owns the behaviour, and
- * the split is what makes the flow testable against a fake editor and a local HTTP server.
+ * Drives the keyboard panel: reads the field, runs an action, writes the result back. Kept free of
+ * Android UI types so the flow is testable against a fake editor and a local HTTP server.
  */
 class PanelController(
     private val scope: CoroutineScope,
@@ -89,31 +81,30 @@ class PanelController(
 
     private var running: Job? = null
 
-    /**
-     * Re-reads the field. Called whenever the panel is shown or the input target changes, so the
-     * scope indicator always describes the field the user is actually looking at.
-     */
+    /** Re-reads the field so the scope indicator describes the field currently in focus. */
     fun refresh(confirmation: String? = null) {
         running?.cancel()
         _state.value = readyState(confirmation)
     }
 
     private fun readyState(confirmation: String? = null): PanelState.Ready {
-        val copied = runCatching { clipboard?.read() }.getOrNull()
+        // Availability only. Reading here would prompt the user on iOS, and warn them on Android,
+        // every single time the panel was shown.
+        val copied = runCatching { clipboard?.hasText() }.getOrNull() == true
         val text = bridge.read()
         if (text == null || text.isEmpty) {
             return PanelState.Ready(
                 scope = null,
                 preview = "",
                 confirmation = confirmation,
-                hasClipboard = !copied.isNullOrBlank(),
+                hasClipboard = copied,
             )
         }
         return PanelState.Ready(
             scope = if (text.hasSelection) ActionScope.Selection else ActionScope.WholeField,
             preview = text.target.collapseWhitespace(),
             confirmation = confirmation,
-            hasClipboard = !copied.isNullOrBlank(),
+            hasClipboard = copied,
         )
     }
 
@@ -133,8 +124,8 @@ class PanelController(
                     recents = settings.translate.recents,
                 )
             } else {
-                // Executed inline rather than delegating to translate(), which would cancel the very
-                // job this is running in and leave the action orphaned from `running`.
+                // Inline rather than translate(), which would cancel the very job this runs in and
+                // orphan the action from `running`.
                 recordTarget(preset)
                 execute("Translating", PanelState.Retry.Translate(preset)) { engine, text ->
                     engine.translate(text, preset)
@@ -168,28 +159,21 @@ class PanelController(
                     subject = TranslationSubject.Clipboard,
                 )
             } else {
-                // Executed inline rather than through readClipboard(), which begins by cancelling
-                // `running` — and `running` is this job. Cancelling itself here left the outcome
-                // depending on which coroutine won the race, so the pinned-target path passed on a
-                // fast machine and failed under CI load.
+                // Inline rather than readClipboard(), which cancels `running` — this job. Self-
+                // cancelling made the pinned-target path a race that failed under CI load.
                 recordTarget(preset)
                 readClipboardInto(preset)
             }
         }
     }
 
-    /**
-     * Translates the clipboard and shows the result in the panel.
-     *
-     * Deliberately never writes: the user is reading someone else's message, not editing their own
-     * draft, and replacing their half-typed reply would be the opposite of helpful.
-     */
+    /** Shows the translation in the panel and never writes it back over the user's draft reply. */
     fun readClipboard(code: String) {
         running?.cancel()
         running = scope.launch { readClipboardInto(code) }
     }
 
-    /** The body, so callers already inside [running] can run it without cancelling themselves. */
+    /** Split out so callers already inside [running] can run it without cancelling themselves. */
     private suspend fun readClipboardInto(code: String) {
         val copied = runCatching { clipboard?.read() }.getOrNull()
         if (copied.isNullOrBlank()) {
@@ -226,22 +210,17 @@ class PanelController(
         }
     }
 
-    /** Empties the field the user is writing in. */
     fun clearField() {
         running?.cancel()
         bridge.clearAll()
         refresh()
     }
 
-    /** Leaves the picker without running anything. */
     fun cancelPicker() = refresh()
 
     /**
-     * Re-reads the field after the host app reports a change, without disturbing work in progress
-     * or a picker the user is looking at.
-     *
-     * The confirmation is carried over: replacing text is itself a selection change, so clearing it
-     * here would make "Revised" flash and vanish the instant it appeared.
+     * The confirmation is carried over because replacing text is itself a selection change, and
+     * clearing it here would make "Revised" flash and vanish the instant it appeared.
      */
     fun onFieldChanged() {
         val current = _state.value
@@ -249,14 +228,13 @@ class PanelController(
         refresh(confirmation = current.confirmation)
     }
 
-    /** Leaves the translated message and returns to the actions. */
     fun closeReading() = refresh()
 
     private suspend fun recordTarget(code: String) {
         runCatching { onTargetUsed(code) }
     }
 
-    /** Visible for tests: the action currently in flight, so a test can await it. */
+    /** Visible for tests, which await the in-flight action. */
     internal val inFlight: Job? get() = running
 
     private fun launchAction(

@@ -88,10 +88,15 @@ class IosPanel(
 }
 
 /**
- * A keyboard extension may only read the pasteboard with Full Access granted; without it this is
- * empty and the clipboard action simply is not offered.
+ * A keyboard extension may only reach the pasteboard with Full Access granted; without it there is
+ * nothing here and the clipboard action is simply not offered.
+ *
+ * `hasStrings` reports whether text is present without reading it, which is what keeps iOS 16's
+ * "Allow Paste?" prompt tied to the moment the user asks for the clipboard.
  */
 private class IosClipboardSource : ClipboardSource {
+    override fun hasText(): Boolean = UIPasteboard.generalPasteboard.hasStrings
+
     override fun read(): String? = UIPasteboard.generalPasteboard.string?.takeIf { it.isNotBlank() }
 }
 

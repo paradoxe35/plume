@@ -19,7 +19,18 @@ actual fun platformCopy(): PlatformCopy = PlatformCopy(
                     "keyboard extension is the one place the system lets Plume both read what you " +
                     "typed and replace it, so that is where it lives.",
                 "It only ever sees the field you are typing in, and only while the Plume keyboard " +
-                    "is the one on screen.",
+                    "is on screen.",
+            ),
+        ),
+        AboutSection(
+            title = "How much Plume can see",
+            paragraphs = listOf(
+                "iOS hands a keyboard only the text near the cursor — a few hundred characters, " +
+                    "often cut at a sentence boundary — and there is no way to ask for the rest. " +
+                    "Selecting the text you want is what makes the difference: a selection is " +
+                    "given in full, and it is replaced exactly.",
+                "Without a selection Plume works on what it was shown, which is what the panel " +
+                    "previews before you tap. Anything further up the field is left untouched.",
             ),
         ),
         AboutSection(
@@ -28,8 +39,8 @@ actual fun platformCopy(): PlatformCopy = PlatformCopy(
                 "Add it in Settings → General → Keyboard → Keyboards → Add New Keyboard, then " +
                     "choose Plume.",
                 "Then open Plume under that list and turn on Allow Full Access. Without it iOS " +
-                    "blocks the keyboard from reaching the network, so the provider can never be " +
-                    "called and every action fails.",
+                    "blocks the keyboard from reaching the network and the clipboard, so every " +
+                    "action fails.",
             ),
         ),
         AboutSection(
@@ -38,6 +49,8 @@ actual fun platformCopy(): PlatformCopy = PlatformCopy(
                 "Your text goes to the AI provider you configured, and nowhere else. Plume has no " +
                     "backend and no analytics. API keys are held in the iOS Keychain and never " +
                     "leave the device.",
+                "iOS asks before any app reads the clipboard, so Plume only reads it when you " +
+                    "choose the clipboard action — never to decide whether to offer it.",
             ),
         ),
     ),
