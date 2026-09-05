@@ -27,7 +27,7 @@ class InputConnectionBridge(
         val current = read() ?: return false
 
         ic.beginBatchEdit()
-        try {
+        return try {
             // A composing region left by the previous keyboard would otherwise swallow the edit.
             ic.finishComposingText()
             if (current.hasSelection) {
@@ -42,7 +42,6 @@ class InputConnectionBridge(
         } finally {
             ic.endBatchEdit()
         }
-        return true
     }
 
     override fun clearAll(): Boolean {

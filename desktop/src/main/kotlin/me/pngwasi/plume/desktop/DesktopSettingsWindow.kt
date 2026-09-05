@@ -55,7 +55,7 @@ fun DesktopSettingsWindow(
             availability = controller.availability,
             permissions = permissions,
             missingAtLaunch = controller.permissionsMissingAtLaunch,
-            onGrant = MacPermissions::request,
+            onGrant = { MacPermissions.openSettings(it) },
             onRestart = { controller.restart() },
         ),
         platformRows = { push ->

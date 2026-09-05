@@ -2,6 +2,7 @@ package me.pngwasi.plume.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.pngwasi.plume.ai.AiException
 import me.pngwasi.plume.ai.ModelCatalog
 import me.pngwasi.plume.ai.TextEngine
@@ -81,10 +83,14 @@ open class SettingsViewModel(
 
     protected suspend fun refreshKeyed() {
         val ids = repository.current().providers.keys
-        _keyed.value = ids.filter { secrets.hasKey(it) && secrets.getKey(it).isNotBlank() }.toSet()
+        _keyed.value = withContext(Dispatchers.IO) {
+            ids.filterTo(mutableSetOf()) { secrets.hasKey(it) && secrets.getKey(it).isNotBlank() }
+        }
     }
 
-    fun apiKey(providerId: String): String = secrets.getKey(providerId)
+    /** A desktop keychain read is a subprocess, and a locked one prompts. Never on the UI thread. */
+    suspend fun apiKey(providerId: String): String =
+        withContext(Dispatchers.IO) { secrets.getKey(providerId) }
 
     fun setDefaultProvider(id: String) = viewModelScope.launch {
         repository.setDefaultProvider(id)
@@ -96,13 +102,13 @@ open class SettingsViewModel(
 
     fun saveProvider(id: String, config: ProviderConfig, apiKey: String?) = viewModelScope.launch {
         repository.putProvider(id, config)
-        apiKey?.let { secrets.setKey(id, it) }
+        apiKey?.let { key -> withContext(Dispatchers.IO) { secrets.setKey(id, key) } }
         refreshKeyed()
     }
 
     fun deleteProvider(id: String) = viewModelScope.launch {
         repository.deleteProvider(id)
-        secrets.removeKey(id)
+        withContext(Dispatchers.IO) { secrets.removeKey(id) }
         refreshKeyed()
     }
 
@@ -178,15 +184,17 @@ open class SettingsViewModel(
             reviseProvider = null,
             translateProvider = null,
         )
-        _probe.value = try {
-            val engine = TextEngine(scoped, secrets)
-            ProbeState.Ok(engine.translate("Bonjour", Languages.resolve("en").code).take(80))
-        } catch (e: AiException) {
-            ProbeState.Failed(e.message ?: "Failed")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            ProbeState.Failed(e.message ?: "Failed")
+        _probe.value = withContext(Dispatchers.IO) {
+            try {
+                val engine = TextEngine(scoped, secrets)
+                ProbeState.Ok(engine.translate("Bonjour", Languages.resolve("en").code).take(80))
+            } catch (e: AiException) {
+                ProbeState.Failed(e.message ?: "Failed")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ProbeState.Failed(e.message ?: "Failed")
+            }
         }
     }
 

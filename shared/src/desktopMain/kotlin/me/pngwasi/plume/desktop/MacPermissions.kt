@@ -2,8 +2,6 @@ package me.pngwasi.plume.desktop
 
 import com.sun.jna.Library
 import com.sun.jna.Native
-import com.sun.jna.NativeLibrary
-import com.sun.jna.Pointer
 import me.pngwasi.plume.data.DesktopOs
 
 /** The two macOS privileges Plume's shortcuts depend on. They are granted separately. */
@@ -55,27 +53,9 @@ object MacPermissions {
     )
 
     /**
-     * Asks macOS for the permission, where macOS allows asking.
-     *
-     * Input Monitoring has a real prompt. Accessibility's needs a `CFDictionary` of options, which
-     * is more interop than it is worth, so it opens the pane instead — which is where the user ends
-     * up anyway, since the switch has to be flicked by hand.
+     * Opens the pane holding the switch. No system dialog: the card on screen already says what is
+     * needed, and macOS's own prompt is a second window saying it again.
      */
-    fun request(permission: MacPermission) {
-        when (permission) {
-            MacPermission.Accessibility -> {
-                runCatching { promptForAccessibility() }
-                openSettings(permission)
-            }
-            MacPermission.InputMonitoring -> {
-                // The prompt that also puts Plume in the list, so there is something to switch on.
-                runCatching { applicationServices?.CGRequestListenEventAccess() }
-                    .onFailure { runCatching { ioKit?.IOHIDRequestAccess(REQUEST_LISTEN_EVENT) } }
-                openSettings(permission)
-            }
-        }
-    }
-
     fun openSettings(permission: MacPermission): Boolean = runCatching {
         val pane = when (permission) {
             MacPermission.Accessibility -> "Privacy_Accessibility"
@@ -89,68 +69,20 @@ object MacPermissions {
     private interface ApplicationServices : Library {
         fun AXIsProcessTrusted(): Boolean
 
-        /** With the prompt option, this is also what puts Plume in the Accessibility list. */
-        fun AXIsProcessTrustedWithOptions(options: Pointer?): Boolean
-
         /** The question an event tap actually asks. macOS 10.15 and later. */
         fun CGPreflightListenEventAccess(): Boolean
-        fun CGRequestListenEventAccess(): Boolean
-    }
-
-    private interface CoreFoundation : Library {
-        fun CFDictionaryCreate(
-            allocator: Pointer?,
-            keys: Array<Pointer?>,
-            values: Array<Pointer?>,
-            numValues: Long,
-            keyCallBacks: Pointer?,
-            valueCallBacks: Pointer?,
-        ): Pointer?
-
-        fun CFRelease(cf: Pointer?)
     }
 
     private interface IOKit : Library {
         /** 0 granted, 1 denied, 2 not yet asked. */
         fun IOHIDCheckAccess(request: Int): Int
-        fun IOHIDRequestAccess(request: Int): Boolean
     }
 
     private const val REQUEST_LISTEN_EVENT = 1
     private const val ACCESS_GRANTED = 0
 
     private val applicationServices: ApplicationServices? by lazy { load("ApplicationServices") }
-    private val coreFoundation: CoreFoundation? by lazy { load("CoreFoundation") }
 
-    /** The address of a framework global; `dereference` for the ones holding a pointer. */
-    private fun global(framework: String, symbol: String, dereference: Boolean): Pointer? =
-        runCatching {
-            val address = NativeLibrary.getInstance(framework).getGlobalVariableAddress(symbol)
-            if (dereference) address.getPointer(0) else address
-        }.getOrNull()
-
-    /** The prompt is the only thing that adds Plume to the Accessibility list; opening the pane is not. */
-    private fun promptForAccessibility(): Boolean {
-        val services = applicationServices ?: return false
-        val cf = coreFoundation ?: return false
-        val promptKey = global("ApplicationServices", "kAXTrustedCheckOptionPrompt", true)
-            ?: return false
-        val yes = global("CoreFoundation", "kCFBooleanTrue", true) ?: return false
-        val keyCallbacks = global("CoreFoundation", "kCFTypeDictionaryKeyCallBacks", false)
-            ?: return false
-        val valueCallbacks = global("CoreFoundation", "kCFTypeDictionaryValueCallBacks", false)
-            ?: return false
-
-        val options = cf.CFDictionaryCreate(
-            null, arrayOf(promptKey), arrayOf(yes), 1, keyCallbacks, valueCallbacks,
-        ) ?: return false
-        return try {
-            services.AXIsProcessTrustedWithOptions(options)
-        } finally {
-            // CFDictionaryCreate returns it retained; the keys and values are constants we borrow.
-            cf.CFRelease(options)
-        }
-    }
     private val ioKit: IOKit? by lazy { load("IOKit") }
 
     private inline fun <reified T : Library> load(framework: String): T? {

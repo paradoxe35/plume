@@ -8,6 +8,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 /**
  * Where a desktop API key actually lives.
@@ -134,15 +136,18 @@ internal class MacKeychainBackend : KeyringBackend {
         return if (code == 0 && out.isNotEmpty()) out else null
     }
 
+    /**
+     * -U updates in place; without it a second save fails with "already exists".
+     *
+     * Over stdin first, since `ps` shows every argument to every process on the machine. Not every
+     * macOS reads the prompt that way, so the write is read back rather than assumed.
+     */
     override fun set(entry: String, value: String): Boolean {
-        // -U updates in place; without it a second save fails with "already exists".
-        val (code, _) = run(
-            listOf(
-                "/usr/bin/security", "add-generic-password",
-                "-s", SERVICE, "-a", entry, "-w", value, "-U",
-            ),
+        val base = listOf(
+            "/usr/bin/security", "add-generic-password", "-s", SERVICE, "-a", entry, "-U",
         )
-        return code == 0
+        if (run(base + "-w", stdin = value).first == 0 && get(entry) == value) return true
+        return run(base + listOf("-w", value)).first == 0
     }
 
     override fun remove(entry: String) {
@@ -251,16 +256,35 @@ internal class EncryptedFileBackend(directory: String) : KeyringBackend {
     }
 }
 
-/** Runs a command, returning its exit code and trimmed stdout. */
+/**
+ * Runs a command, returning its exit code and trimmed stdout.
+ *
+ * Stdout is drained on its own thread: a keyring prompt holds the pipe open, so reading to EOF here
+ * would outlast the timeout below rather than be bounded by it.
+ */
 private fun run(command: List<String>, stdin: String? = null): Pair<Int, String> {
-    val process = ProcessBuilder(command).redirectErrorStream(false).start()
-    stdin?.let { process.outputStream.use { out -> out.write(it.encodeToByteArray()) } }
-        ?: process.outputStream.close()
-    val out = process.inputStream.bufferedReader().readText()
-    // Bounded: a keyring prompt can hang, and hanging the settings screen is worse than failing.
-    if (!process.waitFor(20, TimeUnit.SECONDS)) {
+    val process = ProcessBuilder(command)
+        // Never read, and an undrained pipe filling up would wedge the child.
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start()
+
+    val out = AtomicReference("")
+    val reader = thread(isDaemon = true, name = "plume-secret-read") {
+        out.set(runCatching { process.inputStream.bufferedReader().readText() }.getOrDefault(""))
+    }
+
+    runCatching {
+        stdin?.let { process.outputStream.use { pipe -> pipe.write(it.encodeToByteArray()) } }
+            ?: process.outputStream.close()
+    }
+
+    if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
         process.destroyForcibly()
         return -1 to ""
     }
-    return process.exitValue() to out.trim()
+    reader.join(READ_GRACE_MILLIS)
+    return process.exitValue() to out.get().trim()
 }
+
+private const val TIMEOUT_SECONDS = 20L
+private const val READ_GRACE_MILLIS = 500L

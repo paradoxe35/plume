@@ -21,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -147,10 +148,13 @@ fun SettingsNavHost(
                         // Deleted while open; there is nothing to show.
                         LaunchedEffect(id) { pop() }
                     } else {
-                        ProviderEditScreen(
+                        // Null until the key has been read; the editor seeds its field from it once
+                        // and must not be built with a placeholder.
+                        val apiKey by produceState<String?>(null, id) { value = viewModel.apiKey(id) }
+                        if (apiKey != null) ProviderEditScreen(
                             providerId = id,
                             initial = config,
-                            initialApiKey = remember(id) { viewModel.apiKey(id) },
+                            initialApiKey = apiKey.orEmpty(),
                             isDefault = settings.defaultProvider == id,
                             probe = probe,
                             models = models,

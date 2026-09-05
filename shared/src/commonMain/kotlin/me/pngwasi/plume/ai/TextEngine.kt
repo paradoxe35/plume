@@ -33,7 +33,7 @@ class TextEngine(
         val config = requireUsable(providerId)
         val input = validate(mention.text, settings.revise.characterLimit)
         val provider = build(providerId, config, settings.revise.timeoutSeconds)
-        return finish(provider.complete(settings.revise.promptOrDefault(), input))
+        return finish(provider.complete(settings.revise.promptOrDefault(), input), mention.text)
     }
 
     suspend fun translate(text: String, targetCode: String): String {
@@ -44,7 +44,7 @@ class TextEngine(
         val provider = build(providerId, config, settings.translate.timeoutSeconds)
         val target = Languages.resolve(targetCode).promptName()
         val prompt = Prompts.renderTranslate(settings.translate.promptOrDefault(), target)
-        return finish(provider.complete(prompt, input))
+        return finish(provider.complete(prompt, input), mention.text)
     }
 
     /** `@openai fix this` sends one request to a named provider without changing any setting. */
@@ -87,12 +87,18 @@ class TextEngine(
         return trimmed
     }
 
-    private fun finish(raw: String): String {
+    /**
+     * The model is sent trimmed text, but the reply replaces the selection as it was — so the
+     * selection's own edges go back on, or "word " returns as "word" and runs into the next one.
+     */
+    private fun finish(raw: String, original: String): String {
         val cleaned = ResponseCleaner.clean(raw)
         if (cleaned.isBlank()) {
             throw AiException(AiException.Kind.Empty, "The model returned an empty result.")
         }
-        return cleaned
+        return original.takeWhile(Char::isWhitespace) +
+            cleaned +
+            original.takeLastWhile(Char::isWhitespace)
     }
 
     private fun build(providerId: String, config: ProviderConfig, timeoutSeconds: Int): AiProvider {

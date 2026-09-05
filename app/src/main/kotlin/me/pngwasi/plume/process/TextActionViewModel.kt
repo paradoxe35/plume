@@ -45,10 +45,18 @@ class TextActionViewModel(app: Application) : AndroidViewModel(app) {
 
     private var settings: AppSettings? = null
     private var running: Job? = null
+    private var started = false
 
     /** Set once a target is chosen, so Retry re-runs the same translation. */
     var chosenTarget: String? = null
         private set
+
+    /** The overlay is rebuilt on rotation; the request behind it must not be started again. */
+    fun startOnce(block: TextActionViewModel.() -> Unit) {
+        if (started) return
+        started = true
+        block()
+    }
 
     fun revise(text: String) {
         run("Revising") { engine -> engine.revise(text) }
