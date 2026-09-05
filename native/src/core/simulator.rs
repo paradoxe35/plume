@@ -20,7 +20,14 @@ mod macos_native {
     const KCG_KEY_V: i64 = 9;
     const KCG_FLAGMASK_COMMAND: u64 = 1 << 20;
 
+    /// Live hardware modifier state, which is not the same as the flags on a posted event.
+    const KCG_EVENT_SOURCE_STATE_COMBINED_SESSION: u32 = 0;
+    const MODIFIER_FLAGS: u64 = (1 << 17) | (1 << 18) | (1 << 19) | (1 << 20);
+    const HELD_MODIFIER_TIMEOUT_MS: u64 = 400;
+
     extern "C" {
+        fn CGEventSourceFlagsState(state_id: u32) -> u64;
+
         fn CGEventCreateKeyboardEvent(
             source: *mut c_void,
             virtual_key: u16,
@@ -64,6 +71,27 @@ mod macos_native {
         Ok(())
     }
 
+    /// Waits for the shortcut's own modifiers to come up before anything is simulated.
+    ///
+    /// A physically held key cannot be released by posting an event, and macOS merges the live
+    /// hardware flags into whatever is posted — so Cmd+A sent while Ctrl+Option are still down
+    /// arrives as Ctrl+Option+Cmd+A and selects nothing. Waiting is the only option; it returns as
+    /// soon as the user lets go, rather than sleeping a fixed guess.
+    pub fn await_modifiers_released() {
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_millis(HELD_MODIFIER_TIMEOUT_MS);
+        while std::time::Instant::now() < deadline {
+            if unsafe { CGEventSourceFlagsState(KCG_EVENT_SOURCE_STATE_COMBINED_SESSION) }
+                & MODIFIER_FLAGS
+                == 0
+            {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        tracing::info!("Modifiers still held after {HELD_MODIFIER_TIMEOUT_MS}ms; going ahead");
+    }
+
     pub fn simulate_select_all() -> Result<()> {
         unsafe { send_key_combo(KCG_KEY_A as u16, true) }
     }
@@ -91,6 +119,7 @@ impl KeySimulator {
     pub fn release_modifiers(&mut self) -> Result<()> {
         #[cfg(target_os = "macos")]
         {
+            macos_native::await_modifiers_released();
             Ok(())
         }
 
