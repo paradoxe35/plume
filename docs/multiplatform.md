@@ -127,19 +127,10 @@ from foreign content and clears rather than leaving its own text behind, so a bo
 become a silent overwrite.
 
 **The hotkey's own modifiers leaked into the synthetic keystrokes.** Triggering on Ctrl+Alt+R and
-then simulating Ctrl+A while Alt is still physically held sends Ctrl+Alt+A. MyReviser slept 250 ms
-at the top of each operation and hoped the user had let go.
-
-On Linux and Windows the simulator releases the held modifiers instead, and releases Control even if
-the letter keystroke fails, so a failure cannot leave the desktop with a stuck modifier.
-
-macOS cannot do that: a physically held key is not released by posting an event, and the system
-merges the live hardware flags into whatever is posted — Cmd+A sent while Ctrl+Option are still down
-arrives as Ctrl+Option+Cmd+A and selects nothing. This was written as a no-op returning `Ok`, which
-read as "handled" and was not: "revise everything" quietly selected nothing and reported that the
-copy never landed, while "translate" — which sends no Cmd+A — worked. It now reads the live modifier
-flags and waits for them to clear, returning the moment the user lets go rather than sleeping a
-fixed guess, and giving up after 400 ms so a stuck modifier cannot hang the action.
+then simulating Ctrl+A while Alt is still physically held sends Ctrl+Alt+A. The 250 ms sleep at the
+top of each operation was a hope that the user had let go. The simulator now releases held modifiers
+first, and releases Control even if the letter keystroke fails, so a failure cannot leave the
+desktop with a stuck modifier.
 
 **A Tokio runtime was built and destroyed on every clipboard call** — to await a lock that never
 yields. Beyond the waste on a latency-sensitive path, `block_on` panics if the calling thread

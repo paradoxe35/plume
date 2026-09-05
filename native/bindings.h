@@ -29,10 +29,6 @@ typedef void (*plume_HotkeyCallback)(const char*);
 
 typedef void *plume_SimulatorHandle;
 
-#if defined(PLUME_MACOS)
-extern uint64_t CGEventSourceFlagsState(uint32_t state_id);
-#endif
-
 /**
  * NULL when there is no error; otherwise a string the caller must free with `plume_free_string`.
  */
