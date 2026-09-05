@@ -41,6 +41,15 @@ object MacDock {
     val isSupported: Boolean get() = DesktopOs.current == DesktopOs.MacOs && runtime != null
 
     /**
+     * What the window says the Dock should show. Read on the main queue rather than captured when
+     * the work is enqueued: closing and reopening dispatches both a hide and a show, and the queue
+     * does not promise they arrive in that order. A stale hide landing last is what leaves the app
+     * with no Dock icon and its window on screen.
+     */
+    @Volatile
+    private var wanted: Long = POLICY_ACCESSORY
+
+    /**
      * Window on screen: show in the Dock, and bring it to the front.
      *
      * Activation is dispatched separately so it lands on the run-loop turn after the policy change.
@@ -48,22 +57,33 @@ object MacDock {
      * with an inert menu bar until the user clicks that icon.
      */
     fun showInDock() {
-        onMainThread { applyPolicy(POLICY_REGULAR) }
-        onMainThread { activate() }
+        wanted = POLICY_REGULAR
+        onMainThread { applyWanted() }
+        onMainThread { if (wanted == POLICY_REGULAR) activate() }
     }
 
     /** Window closed: back to a menu-bar-only app. */
-    fun hideFromDock() = onMainThread { applyPolicy(POLICY_ACCESSORY) }
+    fun hideFromDock() {
+        wanted = POLICY_ACCESSORY
+        onMainThread { applyWanted() }
+    }
 
-    private fun applyPolicy(policy: Long) {
-        setActivationPolicy(policy)
+    private fun applyWanted() {
+        val policy = wanted
         if (activationPolicy() == policy) return
+
+        setActivationPolicy(policy)
+        val settled = activationPolicy()
+        if (settled == policy) {
+            PlumeLog.info("Dock: activation policy is now $policy")
+            return
+        }
 
         val transform = if (policy == POLICY_REGULAR) TRANSFORM_FOREGROUND else TRANSFORM_UI_ELEMENT
         val status = transformProcessType(transform)
         PlumeLog.error(
-            "macOS did not take activation policy $policy (now ${activationPolicy()}); " +
-                "TransformProcessType returned $status",
+            "macOS did not take activation policy $policy (now $settled); " +
+                "TransformProcessType returned $status, policy now ${activationPolicy()}",
         )
     }
 
