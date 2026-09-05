@@ -1,6 +1,8 @@
 package me.pngwasi.plume.desktop
 
+import me.pngwasi.plume.data.DesktopOs
 import me.pngwasi.plume.native.PlumeNative
+import me.pngwasi.plume.native.PlumeNativeLibrary
 import me.pngwasi.plume.native.lastError
 import java.io.File
 import kotlin.test.BeforeTest
@@ -102,5 +104,64 @@ class NativeBindingTest {
         // CI log is expected rather than a problem.
         library.plume_clipboard_free(library.plume_clipboard_new())
         library.plume_simulator_free(library.plume_simulator_new())
+    }
+
+    private val ignored = PlumeNativeLibrary.HotkeyCallback {}
+
+    private fun <T> withManager(block: (PlumeNativeLibrary, com.sun.jna.Pointer) -> T): T? {
+        if (!libraryBuilt()) return null
+        val library = PlumeNative.library ?: return null
+        val manager = library.plume_hotkey_manager_new() ?: return null
+        return try {
+            block(library, manager)
+        } finally {
+            library.plume_hotkey_manager_free(manager)
+        }
+    }
+
+    /**
+     * Every key the recorder can save must be one the listener can match.
+     *
+     * The two tables are in different languages and neither compiler can see the other, so a name
+     * only one of them knows saves cleanly and then never fires — which on macOS is exactly what a
+     * withheld permission looks like.
+     */
+    @Test
+    fun `every key the recorder can save is one the listener accepts`() {
+        val labels = listOf(
+            "Spacebar", "Enter", "Numpad Enter", "Escape", "Tab", "Backspace", "Delete",
+            "Forward Delete", "Insert", "Home", "End", "Page Up", "Page Down",
+            "Left Arrow", "Right Arrow", "Up Arrow", "Down Arrow",
+            "Key A", "Key Z", "Key 0", "Key 9", "F1", "F12",
+        )
+
+        withManager { library, manager ->
+            labels.forEach { label ->
+                val binding = "ctrl+alt+" + HotkeyRecorder.keyName(label)
+                assertEquals(
+                    0,
+                    library.plume_hotkey_register(manager, binding, "revise_all", ignored),
+                    "the listener refused $binding: ${library.lastError()}",
+                )
+            }
+        }
+    }
+
+    /** The bindings Plume ships on each system, checked against the listener that has to match them. */
+    @Test
+    fun `every shipped default is a binding the listener accepts`() {
+        withManager { library, manager ->
+            DesktopOs.entries.forEach { os ->
+                val defaults = hotkeyDefaultsFor(os)
+                listOf(defaults.reviseSelection, defaults.reviseAll, defaults.translateSelection)
+                    .forEach { binding ->
+                        assertEquals(
+                            0,
+                            library.plume_hotkey_register(manager, binding, "revise_all", ignored),
+                            "$os ships $binding, which the listener refused: ${library.lastError()}",
+                        )
+                    }
+            }
+        }
     }
 }

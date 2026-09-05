@@ -14,11 +14,33 @@ mod macos_native {
     use super::*;
     use std::ffi::c_void;
     use std::ptr;
+    use std::thread::sleep;
+    use std::time::{Duration, Instant};
 
-    const KCG_KEY_A: i64 = 0;
-    const KCG_KEY_C: i64 = 8;
-    const KCG_KEY_V: i64 = 9;
-    const KCG_FLAGMASK_COMMAND: u64 = 1 << 20;
+    const KEY_A: u16 = 0x00;
+    const KEY_C: u16 = 0x08;
+    const KEY_V: u16 = 0x09;
+
+    /// Left and right of each modifier: the flags say a modifier is down, never which side.
+    const MODIFIER_KEYS: [u16; 8] = [
+        0x37, // Command
+        0x36, // Right Command
+        0x38, // Shift
+        0x3C, // Right Shift
+        0x3A, // Option
+        0x3D, // Right Option
+        0x3B, // Control
+        0x3E, // Right Control
+    ];
+
+    const FLAG_COMMAND: u64 = 1 << 20;
+    const HID_EVENT_TAP: u32 = 0;
+    const HID_SYSTEM_STATE: i32 = 1;
+
+    /// Long enough for a shortcut the user is still holding, short enough not to feel stuck.
+    const RELEASE_TIMEOUT: Duration = Duration::from_millis(600);
+    const POLL_INTERVAL: Duration = Duration::from_millis(15);
+    const KEY_HOLD: Duration = Duration::from_millis(10);
 
     extern "C" {
         fn CGEventCreateKeyboardEvent(
@@ -29,51 +51,72 @@ mod macos_native {
 
         fn CGEventSetFlags(event: *mut c_void, flags: u64);
         fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGEventSourceKeyState(state_id: i32, key: u16) -> bool;
         fn CFRelease(cf: *mut c_void);
     }
 
-    const KCG_HID_EVENT_TAP: u32 = 0;
-
-    pub unsafe fn send_key_combo(key_code: u16, with_command: bool) -> Result<()> {
-        let event_down = CGEventCreateKeyboardEvent(ptr::null_mut(), key_code, true);
-        if event_down.is_null() {
-            return Err(anyhow::anyhow!("Failed to create key down event"));
+    fn post(key_code: u16, key_down: bool, flags: u64) -> Result<()> {
+        unsafe {
+            let event = CGEventCreateKeyboardEvent(ptr::null_mut(), key_code, key_down);
+            if event.is_null() {
+                return Err(anyhow::anyhow!("Failed to create key event"));
+            }
+            CGEventSetFlags(event, flags);
+            CGEventPost(HID_EVENT_TAP, event);
+            CFRelease(event);
         }
-
-        if with_command {
-            CGEventSetFlags(event_down, KCG_FLAGMASK_COMMAND);
-        }
-
-        CGEventPost(KCG_HID_EVENT_TAP, event_down);
-        CFRelease(event_down);
-
-        std::thread::sleep(std::time::Duration::from_millis(10));
-
-        let event_up = CGEventCreateKeyboardEvent(ptr::null_mut(), key_code, false);
-        if event_up.is_null() {
-            return Err(anyhow::anyhow!("Failed to create key up event"));
-        }
-
-        if with_command {
-            CGEventSetFlags(event_up, KCG_FLAGMASK_COMMAND);
-        }
-
-        CGEventPost(KCG_HID_EVENT_TAP, event_up);
-        CFRelease(event_up);
-
         Ok(())
     }
 
-    pub fn simulate_select_all() -> Result<()> {
-        unsafe { send_key_combo(KCG_KEY_A as u16, true) }
+    fn any_modifier_held() -> bool {
+        MODIFIER_KEYS
+            .iter()
+            .any(|key| unsafe { CGEventSourceKeyState(HID_SYSTEM_STATE, *key) })
     }
 
-    pub fn simulate_copy() -> Result<()> {
-        unsafe { send_key_combo(KCG_KEY_C as u16, true) }
+    /// Drops the modifiers the triggering shortcut left down.
+    ///
+    /// A posted event is merged with the modifiers the keyboard is still holding, so simulating
+    /// Cmd+A during ctrl+option+space arrives as ctrl+option+cmd+A and selects nothing — the copy
+    /// then finds an empty selection. Setting the event's own flags does not help, because the
+    /// hardware state is added afterwards.
+    ///
+    /// So the release is asked for and then waited for: the posted key-ups clear a stale flag, and
+    /// the poll covers the half of the state that belongs to the user's fingers.
+    pub fn release_modifiers() -> Result<()> {
+        debug!("Releasing held modifiers");
+        for key in MODIFIER_KEYS {
+            post(key, false, 0)?;
+        }
+
+        let deadline = Instant::now() + RELEASE_TIMEOUT;
+        while any_modifier_held() {
+            if Instant::now() >= deadline {
+                debug!("A modifier is still held; simulating anyway");
+                break;
+            }
+            sleep(POLL_INTERVAL);
+        }
+        Ok(())
     }
 
-    pub fn simulate_paste() -> Result<()> {
-        unsafe { send_key_combo(KCG_KEY_V as u16, true) }
+    fn command_combo(key_code: u16) -> Result<()> {
+        post(key_code, true, FLAG_COMMAND)?;
+        sleep(KEY_HOLD);
+        // The key must come up even if the press failed, or it stays logically held.
+        post(key_code, false, FLAG_COMMAND)
+    }
+
+    pub fn select_all() -> Result<()> {
+        command_combo(KEY_A)
+    }
+
+    pub fn copy() -> Result<()> {
+        command_combo(KEY_C)
+    }
+
+    pub fn paste() -> Result<()> {
+        command_combo(KEY_V)
     }
 }
 
@@ -87,11 +130,11 @@ impl KeySimulator {
     }
 
     /// Drops modifiers still held from the triggering hotkey, so Ctrl+A does not arrive as
-    /// Ctrl+Alt+A. macOS needs nothing: its events carry an explicit flag mask.
+    /// Ctrl+Alt+A.
     pub fn release_modifiers(&mut self) -> Result<()> {
         #[cfg(target_os = "macos")]
         {
-            Ok(())
+            macos_native::release_modifiers()
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -121,7 +164,8 @@ impl KeySimulator {
 
         #[cfg(target_os = "macos")]
         {
-            macos_native::simulate_select_all()
+            macos_native::release_modifiers()?;
+            macos_native::select_all()
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -135,7 +179,8 @@ impl KeySimulator {
 
         #[cfg(target_os = "macos")]
         {
-            macos_native::simulate_copy()
+            macos_native::release_modifiers()?;
+            macos_native::copy()
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -149,7 +194,8 @@ impl KeySimulator {
 
         #[cfg(target_os = "macos")]
         {
-            macos_native::simulate_paste()
+            macos_native::release_modifiers()?;
+            macos_native::paste()
         }
 
         #[cfg(not(target_os = "macos"))]
