@@ -73,7 +73,8 @@ fun HotkeysScreen(
             SettingsCard {
                 SettingsRow(
                     title = rejectedBindings.joinToString(", "),
-                    subtitle = "The system refused these, usually because another app has them.",
+                    subtitle = "Plume could not register these, so the default is in use. " +
+                        "Record them again, or another app may already have them.",
                     icon = PlumeIcons.ErrorOutline,
                 )
             }

@@ -124,20 +124,14 @@ class NativeBindingTest {
      *
      * The two tables are in different languages and neither compiler can see the other, so a name
      * only one of them knows saves cleanly and then never fires — which on macOS is exactly what a
-     * withheld permission looks like.
+     * withheld permission looks like. Driven from the recorder's own table so adding a key there
+     * without teaching the listener about it fails here.
      */
     @Test
     fun `every key the recorder can save is one the listener accepts`() {
-        val labels = listOf(
-            "Spacebar", "Enter", "Numpad Enter", "Escape", "Tab", "Backspace", "Delete",
-            "Forward Delete", "Insert", "Home", "End", "Page Up", "Page Down",
-            "Left Arrow", "Right Arrow", "Up Arrow", "Down Arrow",
-            "Key A", "Key Z", "Key 0", "Key 9", "F1", "F12",
-        )
-
         withManager { library, manager ->
-            labels.forEach { label ->
-                val binding = "ctrl+alt+" + HotkeyRecorder.keyName(label)
+            HotkeyRecorder.keyNames().forEach { name ->
+                val binding = "ctrl+alt+$name"
                 assertEquals(
                     0,
                     library.plume_hotkey_register(manager, binding, "revise_all", ignored),

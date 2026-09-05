@@ -132,15 +132,16 @@ top of each operation was a hope that the user had let go. The simulator now rel
 first, and releases Control even if the letter keystroke fails, so a failure cannot leave the
 desktop with a stuck modifier.
 
-**On macOS that release was a no-op, and only macOS noticed.** Its simulator posts CGEvents with an
-explicit flag mask instead of pressing keys, so `release_modifiers` had nothing to do and returned
-`Ok(())`. But a posted event is merged with the modifiers the keyboard is _still holding_: firing on
-ctrl+option+space and then posting Cmd+A delivers ctrl+option+cmd+A, which selects nothing, so the
-copy came back empty and revise-everything reported that it could not read the selection. Setting
-the event's own flags does not help, because the hardware state is added after they are set. macOS
-now posts a key-up for each modifier and then polls `CGEventSourceKeyState` until the keyboard
-agrees they are up, with a deadline — MyReviser's blind 250 ms sleep, made observable. This is why
-the same Rust layer worked in MyReviser and not here: the sleep was doing the work.
+**On macOS that release was a no-op.** Its simulator posts CGEvents with an explicit flag mask
+instead of pressing keys, so `release_modifiers` had nothing to do and returned `Ok(())`. But a
+posted event is merged with the modifiers the keyboard is _still holding_, and setting the event's
+own flags does not help because the hardware state is added after they are set — which is what
+MyReviser's 250 ms sleep was really buying. macOS now posts a key-up per modifier and polls
+`CGEventSourceKeyState` until the keyboard agrees they are up, with a deadline: the same guarantee
+the other platforms get from `control_combo`, and adaptive rather than a flat quarter second.
+
+This was not what made `ctrl+option+space` dead on macOS — see below — and it has not been run on
+Apple hardware. It closes a guarantee this document already claimed.
 
 **A Tokio runtime was built and destroyed on every clipboard call** — to await a lock that never
 yields. Beyond the waste on a latency-sensitive path, `block_on` panics if the calling thread
@@ -369,6 +370,34 @@ Rebuilding the `.deb` needs `dpkg-deb --root-owner-group`. Unpacking as an ordin
 every file to that user and rebuilding records it, so the installed application would be owned by
 whoever holds uid 1000 on the target machine rather than by root.
 
+### The recorded shortcut was the macOS glyph for the space bar
+
+`ctrl+option+space` never fired on macOS, `ctrl+option+g` did, and the Shortcuts screen showed
+`ctrl+option+␣`. The binding really was `ctrl+option+␣`, and the listener has no key by that name.
+
+The capture field read the key it had just received with
+
+```kotlin
+HotkeyRecorder.keyName(event.key.toString().removePrefix("Key: "))
+```
+
+and Compose Desktop's `Key.toString()` is `"Key: " + KeyEvent.getKeyText(nativeKeyCode)`.
+`getKeyText` is a **localised, platform-specific display string**: macOS answers `␣` for the space
+bar, a French system answers `Espace`. It is what you put in front of a user, and it was being used
+as the identifier that has to survive a round trip through settings into a Rust matcher. Letters
+came back as `"G"` and worked, which is why everything looked fine until someone recorded a key
+whose name is drawn rather than spelled.
+
+The recorder is keyed on the Compose `Key` now — a stable value, the same on every machine — through
+one table that also decides what the field displays, so the screen reads `ctrl+option+space` in every
+language. A key the table does not know returns null and is ignored while recording, rather than
+being saved under whatever the platform happened to call it.
+
+A binding already stored under a glyph cannot be repaired by any of that, so a binding the listener
+refuses now falls back to the platform default and says so on the Shortcuts screen. It used to map
+to `"unknown"` and register successfully, which is the worst of both: nothing works and nothing says
+why.
+
 ### A modifier-only shortcut cannot fire while it is still held
 
 `ctrl+cmd` is the macOS revise-selection default, and it fired the moment both keys were down. That
@@ -391,14 +420,13 @@ inside the system's own event callback.
 
 ### The recorder and the listener kept two lists of key names
 
-`HotkeyRecorder.keyName` could produce `insert`, `home`, `end`, `pageup` and `pagedown`. The Rust
-listener's table had none of them and mapped anything unknown to `"unknown"`, so those five saved
-cleanly, registered successfully, and never fired — indistinguishable from a listener the system
-refused, which is the worst thing for them to look like.
+The same fault twice over: the recorder could produce `insert`, `home`, `end`, `pageup` and
+`pagedown`, and the Rust listener's table had none of them.
 
-The listener has one table now, read in both directions: naming a key it cannot match fails
-registration, so the Shortcuts screen says so instead of the binding quietly doing nothing. A test
-on each side walks every name the recorder can produce through the real library.
+Each side has one table now, and the listener's is read in both directions — naming a key it cannot
+match fails registration instead of firing nothing. A test walks every name the recorder can produce
+through the real library on all three CI runners, so neither table can grow a key the other has
+never heard of.
 
 ### Opening the Shortcuts screen switched the shortcuts off
 

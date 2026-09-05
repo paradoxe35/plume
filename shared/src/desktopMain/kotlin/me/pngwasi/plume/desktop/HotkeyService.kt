@@ -19,6 +19,12 @@ enum class HotkeyAction(val id: String) {
     }
 }
 
+fun HotkeyDefaults.forAction(action: HotkeyAction): String = when (action) {
+    HotkeyAction.ReviseSelection -> reviseSelection
+    HotkeyAction.ReviseAll -> reviseAll
+    HotkeyAction.TranslateSelection -> translateSelection
+}
+
 /** Whether hotkeys can work here, and what the user must do if not. */
 sealed interface HotkeyAvailability {
     data object Ready : HotkeyAvailability

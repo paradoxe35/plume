@@ -99,7 +99,7 @@ Tests:
 
 ```bash
 ./gradlew :shared:desktopTest :desktop:test :shared:testDebugUnitTest   # 653
-cargo test --manifest-path native/Cargo.toml                            # 26
+cargo test --manifest-path native/Cargo.toml                            # 28
 ```
 
 CI runs the suite on Linux, Windows and macOS for every pull request. Tagging `v*` builds every
