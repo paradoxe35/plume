@@ -45,7 +45,12 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val viewModel: AndroidSettingsViewModel = viewModel()
+            // Built here rather than by the default factory, which can only call a no-argument
+            // constructor: the shared SettingsViewModel is not an AndroidViewModel, so nothing
+            // hands it the Application it needs.
+            val viewModel: AndroidSettingsViewModel = viewModel {
+                AndroidSettingsViewModel(application)
+            }
             val settings by viewModel.settings.collectAsStateWithLifecycle()
 
             PlumeTheme(mode = settings?.theme ?: ThemeMode.System) {
