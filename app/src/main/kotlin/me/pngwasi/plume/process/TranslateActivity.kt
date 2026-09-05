@@ -24,7 +24,7 @@ class TranslateActivity : TextActionActivity() {
 
     @Composable
     override fun Content(viewModel: TextActionViewModel, state: ActionState) {
-        LaunchedEffect(Unit) { viewModel.prepareTranslation(request.text) }
+        LaunchedEffect(Unit) { viewModel.startOnce { prepareTranslation(request.text) } }
 
         // Set synchronously by translate() before the state moves on, so this is never stale.
         val target = viewModel.chosenTarget

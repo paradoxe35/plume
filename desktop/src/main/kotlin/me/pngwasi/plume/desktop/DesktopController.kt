@@ -121,8 +121,10 @@ class DesktopController(
                     HotkeyAction.ReviseSelection -> actions.reviseSelection()
                     HotkeyAction.ReviseAll -> actions.reviseEverything()
                     HotkeyAction.TranslateSelection -> {
-                        val target = settings.translate.defaultTarget
-                            ?: settings.translate.favorites.firstOrNull()
+                        // Read now. This listener is built once, so a captured snapshot would go on
+                        // translating into whatever language was set when Plume started.
+                        val translate = runCatching { repository.current().translate }.getOrNull()
+                        val target = translate?.defaultTarget ?: translate?.favorites?.firstOrNull()
                         if (target == null) _openRequests.tryEmit(Unit)
                         else actions.translateSelection(target)
                     }

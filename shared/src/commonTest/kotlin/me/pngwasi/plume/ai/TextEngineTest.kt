@@ -78,6 +78,22 @@ class TextEngineTest {
         assertEquals("jai manger une pomme", messages[1].jsonObject["content"]!!.jsonPrimitive.content)
     }
 
+    /**
+     * The reply replaces the selection as it was, so dropping the edges would run the corrected
+     * word into the next one.
+     */
+    @Test
+    fun `revise keeps the whitespace around the selection`() = runTest {
+        server.enqueue(openAiReply("pomme"))
+
+        val result = engine().revise("  pomme \n")
+
+        assertEquals("  pomme \n", result)
+        val body = Json.parseToJsonElement(server.takeRequest().body).jsonObject
+        val messages = body["messages"]!!.jsonArray
+        assertEquals("pomme", messages[1].jsonObject["content"]!!.jsonPrimitive.content)
+    }
+
     @Test
     fun `revise sends the model and temperature from settings`() = runTest {
         server.enqueue(openAiReply("ok"))

@@ -98,6 +98,8 @@ class SingleInstance(private val directory: File) {
             ServerSocket(0, BACKLOG, InetAddress.getLoopbackAddress())
         }.getOrElse {
             PlumeLog.error("No local listener, so a second launch cannot reach this one", it)
+            // A port left from an earlier run would send the next launch to another process.
+            runCatching { portPath.delete() }
             return
         }
         server = socket

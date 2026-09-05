@@ -148,7 +148,7 @@ fun hotkeyAvailability(
                     // What happens if they are not granted. The how is a button now, so repeating
                     // "open System Settings" here would just be noise beside it.
                     instruction = "Until both are allowed, the shortcuts cannot fire and nothing " +
-                        "will happen when you press one.",
+                        "will happen when you press one. If Plume is not in the list, add it with +.",
                 )
             }
         }

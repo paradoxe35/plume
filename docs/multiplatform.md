@@ -169,8 +169,17 @@ plainly where it stands and how to fix it — the same treatment the Android key
 | Windows         | None                                               | Works out of the box                                   |
 
 MyReviser detects the session with `XDG_SESSION_TYPE`, falling back to `WAYLAND_DISPLAY`, and picks
-`start_grab_listen` on Wayland versus `listen` on X11. It also has a macOS permission prompt and a
-"open Accessibility preferences" deep link. All of that is carried over.
+`start_grab_listen` on Wayland versus `listen` on X11, and deep-links into the right System Settings
+pane. Both are carried over. Its Accessibility prompt is not.
+
+**No system prompt, on either permission.** The card on screen names what is missing, says what
+breaks without it, and its button opens the pane at the switch. `AXIsProcessTrustedWithOptions`
+would put a second window in front of that saying the same thing, and macOS retires it after one
+press — so from the second press on it is a button that does nothing. MyReviser already takes this
+route for Input Monitoring, where its check creates a throwaway event tap and releases it; the
+attempt is what lists the app. Plume's shortcut listener creates a real one at launch, so the same
+holds without a probe. The checks stay non-prompting: `AXIsProcessTrusted` and
+`CGPreflightListenEventAccess`.
 
 ### One process, and the restart that keeps it that way
 

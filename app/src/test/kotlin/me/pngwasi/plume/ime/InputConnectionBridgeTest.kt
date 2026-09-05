@@ -1,6 +1,7 @@
 package me.pngwasi.plume.ime
 
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnectionWrapper
 import android.widget.EditText
 import me.pngwasi.plume.panel.EditorBridge
 import me.pngwasi.plume.panel.EditorText
@@ -107,6 +108,18 @@ class InputConnectionBridgeTest {
         editor.bridge.apply("ça va très bien 🙂")
 
         assertEquals("ça va très bien 🙂", editor.content)
+    }
+
+    /** An editor that refuses the write used to be reported as a successful revision. */
+    @Test
+    fun `a write the editor refuses is a failure`() {
+        val view = EditText(RuntimeEnvironment.getApplication()).apply { setText("bonjour") }
+        val refusing = object :
+            InputConnectionWrapper(view.onCreateInputConnection(EditorInfo()), true) {
+            override fun commitText(text: CharSequence?, newCursorPosition: Int) = false
+        }
+
+        assertFalse(InputConnectionBridge { refusing }.apply("anything"))
     }
 
     /** Every entry point must cope with the connection having gone away between frames. */

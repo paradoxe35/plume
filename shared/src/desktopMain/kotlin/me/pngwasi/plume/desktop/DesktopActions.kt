@@ -2,6 +2,7 @@ package me.pngwasi.plume.desktop
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -115,82 +116,87 @@ class DesktopActions(
             return
         }
 
-        _outcome.value = ActionOutcome.Working(label)
+        // The clipboard is borrowed from here on. `replaceSelection` gives it back itself; every
+        // other way out of this block, cancellation included, goes through the finally.
+        var handedBack = false
+        try {
+            _outcome.value = ActionOutcome.Working(label)
 
-        // The clipboard calls block, and they must not sit on whichever thread the hotkey callback
-        // arrived on.
-        val captured = withContext(Dispatchers.IO) {
-            if (selectAll) capture.captureAll() else capture.captureSelection()
-        }
+            // The clipboard calls block, and they must not sit on whichever thread the hotkey
+            // callback arrived on.
+            val captured = withContext(Dispatchers.IO) {
+                if (selectAll) capture.captureAll() else capture.captureSelection()
+            }
 
-        val text = when (captured) {
-            is Capture.Text -> captured.value
-            Capture.NothingSelected -> {
-                PlumeLog.info("$label: nothing was selected")
-                _outcome.value = ActionOutcome.Failed("Select some text first.")
+            val text = when (captured) {
+                is Capture.Text -> captured.value
+                Capture.NothingSelected -> {
+                    PlumeLog.info("$label: nothing was selected")
+                    _outcome.value = ActionOutcome.Failed("Select some text first.")
+                    return
+                }
+                Capture.CopyFailed -> {
+                    PlumeLog.error("$label: the copy never landed")
+                    _outcome.value = ActionOutcome.Failed(
+                        "Plume could not copy from that window. Some applications block it.",
+                    )
+                    return
+                }
+                is Capture.Failed -> {
+                    PlumeLog.error("$label: ${captured.reason}")
+                    _outcome.value = ActionOutcome.Failed(captured.reason)
+                    return
+                }
+            }
+
+            val settings: AppSettings = try {
+                repository.current()
+            } catch (e: Exception) {
+                PlumeLog.error("$label: could not read settings", e)
+                _outcome.value = ActionOutcome.Failed("Could not read Plume settings.")
                 return
             }
-            Capture.CopyFailed -> {
-                PlumeLog.error("$label: the copy never landed")
-                _outcome.value = ActionOutcome.Failed(
-                    "Plume could not copy from that window. Some applications block it.",
-                )
+
+            val result = try {
+                block(TextEngine(settings, secrets), text)
+            } catch (e: AiException) {
+                PlumeLog.error("$label: ${e.kind} from the provider", e)
+                // A desktop failure is reported in a system notification, which has nothing to
+                // click, so the way out is spelled out here rather than in the shared message.
+                val hint = if (e.kind == AiException.Kind.Auth || e.kind == AiException.Kind.NotConfigured) {
+                    " Open Plume to fix it."
+                } else {
+                    ""
+                }
+                _outcome.value = ActionOutcome.Failed((e.message ?: "Something went wrong.") + hint)
+                return
+            } catch (e: Exception) {
+                PlumeLog.error("$label failed", e)
+                _outcome.value = ActionOutcome.Failed(e.message ?: "Unexpected error.")
                 return
             }
-            is Capture.Failed -> {
-                PlumeLog.error("$label: ${captured.reason}")
-                _outcome.value = ActionOutcome.Failed(captured.reason)
+
+            val written = withContext(Dispatchers.IO) { capture.replaceSelection(result) }
+            handedBack = true
+            if (!written) {
+                PlumeLog.error("$label: could not paste the result back")
+                _outcome.value = ActionOutcome.Failed("Could not paste the result back.")
                 return
             }
-        }
 
-        val settings: AppSettings = try {
-            repository.current()
-        } catch (e: Exception) {
-            withContext(Dispatchers.IO) { capture.abandon() }
-            PlumeLog.error("$label: could not read settings", e)
-            _outcome.value = ActionOutcome.Failed("Could not read Plume settings.")
-            return
-        }
-
-        val result = try {
-            block(TextEngine(settings, secrets), text)
-        } catch (e: AiException) {
-            withContext(Dispatchers.IO) { capture.abandon() }
-            PlumeLog.error("$label: ${e.kind} from the provider", e)
-            // A desktop failure is reported in a system notification, which has nothing to click,
-            // so the way out is spelled out here rather than in the shared message.
-            val hint = if (e.kind == AiException.Kind.Auth || e.kind == AiException.Kind.NotConfigured) {
-                " Open Plume to fix it."
-            } else {
-                ""
+            PlumeLog.info("$label finished")
+            remember(HistoryEntry(label, text, result))
+            _outcome.value = ActionOutcome.Done(label, text, result)
+        } finally {
+            // NonCancellable, or a cancelled action would leave the user's clipboard holding their
+            // selection instead of what they had.
+            if (!handedBack) {
+                withContext(NonCancellable + Dispatchers.IO) { capture.abandon() }
             }
-            _outcome.value = ActionOutcome.Failed((e.message ?: "Something went wrong.") + hint)
-            return
-        } catch (e: Exception) {
-            withContext(Dispatchers.IO) { capture.abandon() }
-            PlumeLog.error("$label failed", e)
-            _outcome.value = ActionOutcome.Failed(e.message ?: "Unexpected error.")
-            return
         }
-
-        val written = withContext(Dispatchers.IO) { capture.replaceSelection(result) }
-        if (!written) {
-            PlumeLog.error("$label: could not paste the result back")
-            _outcome.value = ActionOutcome.Failed("Could not paste the result back.")
-            return
-        }
-
-        PlumeLog.info("$label finished")
-        remember(HistoryEntry(label, text, result))
-        _outcome.value = ActionOutcome.Done(label, text, result)
     }
 
     private fun remember(entry: HistoryEntry) {
         _history.value = (listOf(entry) + _history.value).take(maxHistory)
-    }
-
-    fun clearOutcome() {
-        _outcome.value = ActionOutcome.Idle
     }
 }

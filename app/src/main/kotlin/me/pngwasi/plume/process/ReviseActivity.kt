@@ -17,7 +17,7 @@ class ReviseActivity : TextActionActivity() {
 
     @Composable
     override fun Content(viewModel: TextActionViewModel, state: ActionState) {
-        LaunchedEffect(Unit) { viewModel.revise(request.text) }
+        LaunchedEffect(Unit) { viewModel.startOnce { revise(request.text) } }
 
         when (state) {
             is ActionState.Preparing -> WorkingPanel("Revising", ::cancel)
