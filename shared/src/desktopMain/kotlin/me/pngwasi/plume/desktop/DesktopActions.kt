@@ -86,7 +86,9 @@ class DesktopActions(
         block: suspend (TextEngine, String) -> String,
     ) {
         if (!running.compareAndSet(false, true)) {
-            _outcome.value = ActionOutcome.Failed("Plume is already working on something.")
+            // Not reported as a failure: the tray already says what is running, and overwriting its
+            // outcome turns a shortcut pressed twice into an error about the action that is fine.
+            PlumeLog.info("$label ignored while another action holds the clipboard")
             return
         }
         scope.launch {

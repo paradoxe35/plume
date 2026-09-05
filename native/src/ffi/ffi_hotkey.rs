@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
 use std::sync::Arc;
 use std::thread;
@@ -32,6 +33,336 @@ fn is_wayland() -> bool {
 /// Receives the action string the binding was registered with.
 pub type HotkeyCallback = extern "C" fn(*const c_char);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Modifier {
+    Ctrl,
+    Alt,
+    Shift,
+    Meta,
+}
+
+impl Modifier {
+    fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "ctrl" | "control" => Some(Self::Ctrl),
+            "alt" | "option" => Some(Self::Alt),
+            "shift" => Some(Self::Shift),
+            "meta" | "cmd" | "super" | "win" => Some(Self::Meta),
+            _ => None,
+        }
+    }
+
+    fn from_key(key: &Key) -> Option<Self> {
+        match key {
+            Key::ControlLeft | Key::ControlRight => Some(Self::Ctrl),
+            Key::Alt | Key::AltGr => Some(Self::Alt),
+            Key::ShiftLeft | Key::ShiftRight => Some(Self::Shift),
+            Key::MetaLeft | Key::MetaRight => Some(Self::Meta),
+            _ => None,
+        }
+    }
+}
+
+/// Which modifiers are down. Resolved once when a binding is registered rather than re-derived
+/// from strings on every key press, because this runs inside the system's own event callback.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct Modifiers {
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    meta: bool,
+}
+
+impl Modifiers {
+    fn is_empty(self) -> bool {
+        !self.ctrl && !self.alt && !self.shift && !self.meta
+    }
+
+    fn get(self, modifier: Modifier) -> bool {
+        match modifier {
+            Modifier::Ctrl => self.ctrl,
+            Modifier::Alt => self.alt,
+            Modifier::Shift => self.shift,
+            Modifier::Meta => self.meta,
+        }
+    }
+
+    fn set(&mut self, modifier: Modifier, down: bool) {
+        match modifier {
+            Modifier::Ctrl => self.ctrl = down,
+            Modifier::Alt => self.alt = down,
+            Modifier::Shift => self.shift = down,
+            Modifier::Meta => self.meta = down,
+        }
+    }
+
+    fn merged(self, other: Self) -> Self {
+        Self {
+            ctrl: self.ctrl || other.ctrl,
+            alt: self.alt || other.alt,
+            shift: self.shift || other.shift,
+            meta: self.meta || other.meta,
+        }
+    }
+}
+
+/// The only keys a binding can name, and the names it uses for them.
+///
+/// One table for both directions: a name the recorder can produce but the listener cannot match is
+/// a binding that saves cleanly and then never fires, which is indistinguishable from a refused
+/// listener. Registering an unknown name fails instead.
+const KEYS: &[(Key, &str)] = &[
+    (Key::KeyA, "a"),
+    (Key::KeyB, "b"),
+    (Key::KeyC, "c"),
+    (Key::KeyD, "d"),
+    (Key::KeyE, "e"),
+    (Key::KeyF, "f"),
+    (Key::KeyG, "g"),
+    (Key::KeyH, "h"),
+    (Key::KeyI, "i"),
+    (Key::KeyJ, "j"),
+    (Key::KeyK, "k"),
+    (Key::KeyL, "l"),
+    (Key::KeyM, "m"),
+    (Key::KeyN, "n"),
+    (Key::KeyO, "o"),
+    (Key::KeyP, "p"),
+    (Key::KeyQ, "q"),
+    (Key::KeyR, "r"),
+    (Key::KeyS, "s"),
+    (Key::KeyT, "t"),
+    (Key::KeyU, "u"),
+    (Key::KeyV, "v"),
+    (Key::KeyW, "w"),
+    (Key::KeyX, "x"),
+    (Key::KeyY, "y"),
+    (Key::KeyZ, "z"),
+    (Key::Num0, "0"),
+    (Key::Num1, "1"),
+    (Key::Num2, "2"),
+    (Key::Num3, "3"),
+    (Key::Num4, "4"),
+    (Key::Num5, "5"),
+    (Key::Num6, "6"),
+    (Key::Num7, "7"),
+    (Key::Num8, "8"),
+    (Key::Num9, "9"),
+    (Key::Space, "space"),
+    (Key::Return, "return"),
+    (Key::KpReturn, "return"),
+    (Key::Escape, "escape"),
+    (Key::Tab, "tab"),
+    (Key::Backspace, "backspace"),
+    (Key::Delete, "delete"),
+    (Key::Insert, "insert"),
+    (Key::Home, "home"),
+    (Key::End, "end"),
+    (Key::PageUp, "pageup"),
+    (Key::PageDown, "pagedown"),
+    (Key::UpArrow, "up"),
+    (Key::DownArrow, "down"),
+    (Key::LeftArrow, "left"),
+    (Key::RightArrow, "right"),
+    (Key::F1, "f1"),
+    (Key::F2, "f2"),
+    (Key::F3, "f3"),
+    (Key::F4, "f4"),
+    (Key::F5, "f5"),
+    (Key::F6, "f6"),
+    (Key::F7, "f7"),
+    (Key::F8, "f8"),
+    (Key::F9, "f9"),
+    (Key::F10, "f10"),
+    (Key::F11, "f11"),
+    (Key::F12, "f12"),
+];
+
+fn key_name(key: &Key) -> Option<&'static str> {
+    KEYS.iter().find(|(known, _)| known == key).map(|(_, name)| *name)
+}
+
+fn canonical_key_name(name: &str) -> Option<&'static str> {
+    KEYS.iter().find(|(_, known)| *known == name).map(|(_, name)| *name)
+}
+
+/// A binding is modifiers, then optionally one key: `ctrl+alt+space`, or `ctrl+cmd` on its own.
+///
+/// A modifier is required. Without one the binding would fire on ordinary typing.
+fn parse_binding(binding: &str) -> Result<(Modifiers, Option<&'static str>), String> {
+    let parts: Vec<&str> = binding
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
+    let Some((last, leading)) = parts.split_last() else {
+        return Err("binding is empty".to_string());
+    };
+
+    let mut modifiers = Modifiers::default();
+    for part in leading {
+        let name = part.to_lowercase();
+        let modifier =
+            Modifier::from_name(&name).ok_or_else(|| format!("'{}' is not a modifier", part))?;
+        modifiers.set(modifier, true);
+    }
+
+    let name = last.to_lowercase();
+    let key = match Modifier::from_name(&name) {
+        Some(modifier) => {
+            modifiers.set(modifier, true);
+            None
+        }
+        None => Some(canonical_key_name(&name).ok_or_else(|| format!("unknown key '{}'", last))?),
+    };
+
+    if modifiers.is_empty() {
+        return Err("binding needs a modifier".to_string());
+    }
+    Ok((modifiers, key))
+}
+
+struct HotkeyBinding {
+    binding: String,
+    action: String,
+    callback: HotkeyCallback,
+    modifiers: Modifiers,
+    /// `None` for a modifier-only binding such as `ctrl+cmd`.
+    key: Option<&'static str>,
+}
+
+fn fire(binding: &HotkeyBinding) {
+    tracing::info!(
+        "Hotkey triggered: {} (action: {})",
+        binding.binding,
+        binding.action
+    );
+    // Lent, not handed over: `into_raw` leaked one allocation per key press. The host copies
+    // during the call.
+    if let Ok(action) = CString::new(binding.action.as_str()) {
+        (binding.callback)(action.as_ptr());
+    }
+}
+
+/// What the listener remembers between events.
+///
+/// A binding with a key fires the moment that key goes down. A modifier-only binding cannot: at
+/// the moment `ctrl+cmd` is complete the user may still be reaching for the space bar, and firing
+/// there is what made `ctrl+cmd+space` revise the selection as well as open the emoji picker. So a
+/// modifier-only binding fires when the combination is released, and only if nothing else was
+/// pressed while it was held.
+#[derive(Default)]
+struct ListenerState {
+    held: Modifiers,
+    /// The largest modifier set held since the last time every modifier was up.
+    chord: Modifiers,
+    /// Something beyond the chord's own modifiers happened while it was held.
+    interrupted: bool,
+    /// The non-modifier key currently down, so auto-repeat is not read as a second press.
+    held_key: Option<&'static str>,
+    delivery_announced: bool,
+    unmatched_announced: Vec<&'static str>,
+}
+
+impl ListenerState {
+    fn process(&mut self, event: EventType, bindings: &Mutex<Vec<HotkeyBinding>>) {
+        match event {
+            EventType::KeyPress(key) => self.on_press(key, bindings),
+            EventType::KeyRelease(key) => self.on_release(key, bindings),
+            EventType::ButtonPress(_) => self.interrupted = true,
+            _ => {}
+        }
+    }
+
+    fn on_press(&mut self, key: Key, bindings: &Mutex<Vec<HotkeyBinding>>) {
+        if let Some(modifier) = Modifier::from_key(&key) {
+            if self.held.get(modifier) {
+                return;
+            }
+            // The first modifier down begins a chord, whatever was typed before it.
+            if self.held.is_empty() {
+                self.chord = Modifiers::default();
+                self.interrupted = false;
+            }
+            self.held.set(modifier, true);
+            self.chord = self.chord.merged(self.held);
+            return;
+        }
+
+        let Some(name) = key_name(&key) else {
+            self.interrupted = true;
+            return;
+        };
+        if self.held_key == Some(name) {
+            return;
+        }
+        self.held_key = Some(name);
+        self.interrupted = true;
+
+        // Once, and without naming the key: proof that key events reach us at all.
+        if !self.delivery_announced {
+            self.delivery_announced = true;
+            tracing::info!("The system is delivering key events to Plume");
+        }
+
+        let bindings = bindings.lock();
+        let mut fired = false;
+        for binding in bindings.iter() {
+            if binding.key == Some(name) && binding.modifiers == self.held {
+                fire(binding);
+                fired = true;
+            }
+        }
+        if !fired {
+            self.note_unmatched(name, &bindings);
+        }
+    }
+
+    fn on_release(&mut self, key: Key, bindings: &Mutex<Vec<HotkeyBinding>>) {
+        let Some(modifier) = Modifier::from_key(&key) else {
+            if self.held_key == key_name(&key) {
+                self.held_key = None;
+            }
+            return;
+        };
+        if !self.held.get(modifier) {
+            return;
+        }
+
+        let before = self.held;
+        self.held.set(modifier, false);
+
+        // The first modifier to come up ends the chord; releasing the rest must not fire again.
+        if !self.interrupted && before == self.chord {
+            for binding in bindings.lock().iter() {
+                if binding.key.is_none() && binding.modifiers == before {
+                    fire(binding);
+                }
+            }
+        }
+    }
+
+    /// Once per key. A bound key seen with modifiers that matched nothing is what tells a wrong
+    /// binding apart from a listener the system never delivers to.
+    fn note_unmatched(&mut self, name: &'static str, bindings: &[HotkeyBinding]) {
+        if self.held.is_empty() || self.unmatched_announced.contains(&name) {
+            return;
+        }
+        if !bindings.iter().any(|binding| binding.key == Some(name)) {
+            return;
+        }
+        self.unmatched_announced.push(name);
+        tracing::info!(
+            "Saw {} with ctrl={} alt={} shift={} meta={}, which matched no binding",
+            name,
+            self.held.ctrl,
+            self.held.alt,
+            self.held.shift,
+            self.held.meta
+        );
+    }
+}
+
 pub struct SimpleHotkeyManager {
     bindings: Arc<Mutex<Vec<HotkeyBinding>>>,
     listener_handle: Option<thread::JoinHandle<()>>,
@@ -39,14 +370,6 @@ pub struct SimpleHotkeyManager {
     /// Why the listener never started. It fails on its own thread, and the message would otherwise
     /// go to stdout — which a macOS .app bundle discards, leaving a dead shortcut and no trace.
     listen_error: Arc<Mutex<Option<String>>>,
-}
-
-struct HotkeyBinding {
-    binding: String,
-    action: String,
-    callback: HotkeyCallback,
-    modifiers: Vec<String>,
-    key: String,
 }
 
 impl SimpleHotkeyManager {
@@ -70,67 +393,15 @@ impl SimpleHotkeyManager {
         action: String,
         callback: HotkeyCallback,
     ) -> Result<(), String> {
-        // "ctrl+alt+space", or modifier-only such as "ctrl+win".
-        let parts: Vec<&str> = binding.split('+').map(|s| s.trim()).collect();
-        if parts.is_empty() {
-            return Err("Empty binding".to_string());
-        }
-
-        let mut modifiers = Vec::new();
-        let key;
-
-        if parts.len() == 1 {
-            key = parts[0].to_lowercase();
-        } else {
-            let last_part = parts[parts.len() - 1].to_lowercase();
-            let is_modifier = last_part == "ctrl"
-                || last_part == "control"
-                || last_part == "alt"
-                || last_part == "option"
-                || last_part == "shift"
-                || last_part == "meta"
-                || last_part == "cmd"
-                || last_part == "super"
-                || last_part == "win";
-
-            if is_modifier && parts.len() >= 2 {
-                modifiers = parts.iter().map(|s| s.to_lowercase()).collect();
-                key = String::new(); // Empty key means modifier-only binding
-            } else {
-                modifiers = parts[..parts.len() - 1]
-                    .iter()
-                    .map(|s| s.to_lowercase())
-                    .collect();
-                key = last_part;
-            }
-        }
-
-        let binding_obj = HotkeyBinding {
-            binding: binding.clone(),
-            action: action.clone(),
+        let (modifiers, key) = parse_binding(&binding)?;
+        tracing::info!("Registered hotkey: {} (action: {})", binding, action);
+        self.bindings.lock().push(HotkeyBinding {
+            binding,
+            action,
             callback,
-            modifiers: modifiers.clone(),
-            key: key.clone(),
-        };
-
-        if key.is_empty() {
-            tracing::info!(
-                "Registered modifier-only hotkey: {} (modifiers: {:?}, action: {})",
-                binding,
-                modifiers,
-                action
-            );
-        } else {
-            tracing::info!(
-                "Registered hotkey: {} (modifiers: {:?}, key: {}, action: {})",
-                binding,
-                modifiers,
-                key,
-                action
-            );
-        }
-
-        self.bindings.lock().push(binding_obj);
+            modifiers,
+            key,
+        });
         Ok(())
     }
 
@@ -155,146 +426,12 @@ impl SimpleHotkeyManager {
         let listen_error = self.listen_error.clone();
 
         let handle = thread::spawn(move || {
-            // Modifier changes arrive as FlagsChanged and are not gated like KeyDown, so seeing
-            // modifiers but never a key is the signature of Input Monitoring being withheld.
-            let mut seen_a_key = false;
-            let mut ctrl_pressed = false;
-            let mut alt_pressed = false;
-            let mut shift_pressed = false;
-            let mut meta_pressed = false;
-
-            // Shared by the grab and listen callbacks below.
-            let process_event = |event: &Event,
-                                 seen_key: &mut bool,
-                                 ctrl: &mut bool,
-                                 alt: &mut bool,
-                                 shift: &mut bool,
-                                 meta: &mut bool,
-                                 bindings: &Arc<Mutex<Vec<HotkeyBinding>>>,
-                                 active_flag: &Arc<Mutex<bool>>| {
+            let mut state = ListenerState::default();
+            let mut dispatch = move |event: &Event| {
                 if !*active_flag.lock() {
                     return;
                 }
-
-                match event.event_type {
-                    EventType::KeyPress(key) => {
-                        let prev_ctrl = *ctrl;
-                        let prev_alt = *alt;
-                        let prev_shift = *shift;
-                        let prev_meta = *meta;
-
-                        match key {
-                            Key::ControlLeft | Key::ControlRight => *ctrl = true,
-                            Key::Alt | Key::AltGr => *alt = true,
-                            Key::ShiftLeft | Key::ShiftRight => *shift = true,
-                            Key::MetaLeft | Key::MetaRight => *meta = true,
-                            _ => {}
-                        }
-
-                        // Once, and without naming the key: proof that key events reach us at all.
-                        if !*seen_key
-                            && !matches!(
-                                key,
-                                Key::ControlLeft
-                                    | Key::ControlRight
-                                    | Key::Alt
-                                    | Key::AltGr
-                                    | Key::ShiftLeft
-                                    | Key::ShiftRight
-                                    | Key::MetaLeft
-                                    | Key::MetaRight
-                            )
-                        {
-                            *seen_key = true;
-                            tracing::info!("The system is delivering key events to Plume");
-                        }
-
-                        // Check bindings after modifier state update
-                        let bindings_lock = bindings.lock();
-
-                        // Only for a key some binding names, and only with a modifier down, so
-                        // this cannot become a record of what the user typed.
-                        {
-                            let key_str = key_to_string(&key);
-                            let named = bindings_lock
-                                .iter()
-                                .any(|b| !b.key.is_empty() && b.key == key_str);
-                            if named && (*ctrl || *alt || *meta) {
-                                tracing::info!(
-                                    "Saw {} with ctrl={} alt={} shift={} meta={}",
-                                    key_str,
-                                    *ctrl,
-                                    *alt,
-                                    *shift,
-                                    *meta
-                                );
-                            }
-                        }
-
-                        for binding in bindings_lock.iter() {
-                            if binding.key.is_empty() {
-                                if matches_modifier_only_binding(
-                                    &binding.modifiers,
-                                    *ctrl,
-                                    *alt,
-                                    *shift,
-                                    *meta,
-                                    prev_ctrl,
-                                    prev_alt,
-                                    prev_shift,
-                                    prev_meta,
-                                ) {
-                                    tracing::info!(
-                                        "Modifier-only hotkey triggered: {} (action: {})",
-                                        binding.binding,
-                                        binding.action
-                                    );
-                                    if let Ok(action_cstr) =
-                                        std::ffi::CString::new(binding.action.clone())
-                                    {
-                                        // Lent, not handed over: `into_raw` leaked one allocation
-                                        // per key press. The host copies during the call.
-                                        (binding.callback)(action_cstr.as_ptr());
-                                    }
-                                }
-                            } else {
-                                let key_str = key_to_string(&key);
-                                if matches_binding(
-                                    &binding.modifiers,
-                                    &binding.key,
-                                    *ctrl,
-                                    *alt,
-                                    *shift,
-                                    *meta,
-                                    &key_str,
-                                ) {
-                                    tracing::info!(
-                                        "Hotkey triggered: {} (action: {})",
-                                        binding.binding,
-                                        binding.action
-                                    );
-                                    if let Ok(action_cstr) =
-                                        std::ffi::CString::new(binding.action.clone())
-                                    {
-                                        // Lent, not handed over: `into_raw` leaked one allocation
-                                        // per key press. The host copies during the call.
-                                        (binding.callback)(action_cstr.as_ptr());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    EventType::KeyRelease(key) => {
-                        match key {
-                            Key::ControlLeft | Key::ControlRight => *ctrl = false,
-                            Key::Alt | Key::AltGr => *alt = false,
-                            Key::ShiftLeft | Key::ShiftRight => *shift = false,
-                            Key::MetaLeft | Key::MetaRight => *meta = false,
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
+                state.process(event.event_type, &bindings);
             };
 
             #[cfg(target_os = "linux")]
@@ -303,16 +440,7 @@ impl SimpleHotkeyManager {
                     tracing::info!("Wayland session detected, using evdev grab for hotkeys");
                     let callback = move |event: Event| -> Option<Event> {
                         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            process_event(
-                                &event,
-                                &mut seen_a_key,
-                                &mut ctrl_pressed,
-                                &mut alt_pressed,
-                                &mut shift_pressed,
-                                &mut meta_pressed,
-                                &bindings,
-                                &active_flag,
-                            );
+                            dispatch(&event);
                         }));
                         // Always pass the event through (don't consume it)
                         Some(event)
@@ -329,16 +457,7 @@ impl SimpleHotkeyManager {
                     tracing::info!("X11 session detected, using X11 listener for hotkeys");
                     let callback = move |event: Event| {
                         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            process_event(
-                                &event,
-                                &mut seen_a_key,
-                                &mut ctrl_pressed,
-                                &mut alt_pressed,
-                                &mut shift_pressed,
-                                &mut meta_pressed,
-                                &bindings,
-                                &active_flag,
-                            );
+                            dispatch(&event);
                         }));
                     };
 
@@ -352,16 +471,7 @@ impl SimpleHotkeyManager {
             {
                 let callback = move |event: Event| {
                     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        process_event(
-                            &event,
-                            &mut seen_a_key,
-                            &mut ctrl_pressed,
-                            &mut alt_pressed,
-                            &mut shift_pressed,
-                            &mut meta_pressed,
-                            &bindings,
-                            &active_flag,
-                        );
+                        dispatch(&event);
                     }));
                 };
 
@@ -388,134 +498,6 @@ impl SimpleHotkeyManager {
         // process exits and is reused on resume.
         Ok(())
     }
-}
-
-fn key_to_string(key: &Key) -> String {
-    match key {
-        Key::KeyA => "a".to_string(),
-        Key::KeyB => "b".to_string(),
-        Key::KeyC => "c".to_string(),
-        Key::KeyD => "d".to_string(),
-        Key::KeyE => "e".to_string(),
-        Key::KeyF => "f".to_string(),
-        Key::KeyG => "g".to_string(),
-        Key::KeyH => "h".to_string(),
-        Key::KeyI => "i".to_string(),
-        Key::KeyJ => "j".to_string(),
-        Key::KeyK => "k".to_string(),
-        Key::KeyL => "l".to_string(),
-        Key::KeyM => "m".to_string(),
-        Key::KeyN => "n".to_string(),
-        Key::KeyO => "o".to_string(),
-        Key::KeyP => "p".to_string(),
-        Key::KeyQ => "q".to_string(),
-        Key::KeyR => "r".to_string(),
-        Key::KeyS => "s".to_string(),
-        Key::KeyT => "t".to_string(),
-        Key::KeyU => "u".to_string(),
-        Key::KeyV => "v".to_string(),
-        Key::KeyW => "w".to_string(),
-        Key::KeyX => "x".to_string(),
-        Key::KeyY => "y".to_string(),
-        Key::KeyZ => "z".to_string(),
-        Key::Num0 => "0".to_string(),
-        Key::Num1 => "1".to_string(),
-        Key::Num2 => "2".to_string(),
-        Key::Num3 => "3".to_string(),
-        Key::Num4 => "4".to_string(),
-        Key::Num5 => "5".to_string(),
-        Key::Num6 => "6".to_string(),
-        Key::Num7 => "7".to_string(),
-        Key::Num8 => "8".to_string(),
-        Key::Num9 => "9".to_string(),
-        Key::Space => "space".to_string(),
-        Key::Return => "return".to_string(),
-        Key::Escape => "escape".to_string(),
-        Key::F1 => "f1".to_string(),
-        Key::F2 => "f2".to_string(),
-        Key::F3 => "f3".to_string(),
-        Key::F4 => "f4".to_string(),
-        Key::F5 => "f5".to_string(),
-        Key::F6 => "f6".to_string(),
-        Key::F7 => "f7".to_string(),
-        Key::F8 => "f8".to_string(),
-        Key::F9 => "f9".to_string(),
-        Key::F10 => "f10".to_string(),
-        Key::F11 => "f11".to_string(),
-        Key::F12 => "f12".to_string(),
-        Key::Tab => "tab".to_string(),
-        Key::Backspace => "backspace".to_string(),
-        Key::Delete => "delete".to_string(),
-        Key::UpArrow => "up".to_string(),
-        Key::DownArrow => "down".to_string(),
-        Key::LeftArrow => "left".to_string(),
-        Key::RightArrow => "right".to_string(),
-        _ => "unknown".to_string(),
-    }
-}
-
-fn matches_binding(
-    binding_modifiers: &[String],
-    binding_key: &str,
-    ctrl: bool,
-    alt: bool,
-    shift: bool,
-    meta: bool,
-    pressed_key: &str,
-) -> bool {
-    if pressed_key != binding_key {
-        return false;
-    }
-
-    let has_ctrl = binding_modifiers.contains(&"ctrl".to_string())
-        || binding_modifiers.contains(&"control".to_string());
-    let has_alt = binding_modifiers.contains(&"alt".to_string())
-        || binding_modifiers.contains(&"option".to_string()); // macOS uses "option"
-    let has_shift = binding_modifiers.contains(&"shift".to_string());
-    let has_meta = binding_modifiers.contains(&"meta".to_string())
-        || binding_modifiers.contains(&"cmd".to_string())
-        || binding_modifiers.contains(&"super".to_string())
-        || binding_modifiers.contains(&"win".to_string());
-
-    ctrl == has_ctrl && alt == has_alt && shift == has_shift && meta == has_meta
-}
-
-fn matches_modifier_only_binding(
-    binding_modifiers: &[String],
-    ctrl: bool,
-    alt: bool,
-    shift: bool,
-    meta: bool,
-    prev_ctrl: bool,
-    prev_alt: bool,
-    prev_shift: bool,
-    prev_meta: bool,
-) -> bool {
-    let has_ctrl = binding_modifiers.contains(&"ctrl".to_string())
-        || binding_modifiers.contains(&"control".to_string());
-    let has_alt = binding_modifiers.contains(&"alt".to_string())
-        || binding_modifiers.contains(&"option".to_string());
-    let has_shift = binding_modifiers.contains(&"shift".to_string());
-    let has_meta = binding_modifiers.contains(&"meta".to_string())
-        || binding_modifiers.contains(&"cmd".to_string())
-        || binding_modifiers.contains(&"super".to_string())
-        || binding_modifiers.contains(&"win".to_string());
-
-    let modifiers_match =
-        ctrl == has_ctrl && alt == has_alt && shift == has_shift && meta == has_meta;
-
-    // Edge-triggered: every required modifier is now pressed, and at least one of them only just
-    // became pressed rather than all having been held already.
-    if !modifiers_match {
-        return false;
-    }
-
-    let ctrl_just_pressed = has_ctrl && ctrl && !prev_ctrl;
-    let alt_just_pressed = has_alt && alt && !prev_alt;
-    let shift_just_pressed = has_shift && shift && !prev_shift;
-    let meta_just_pressed = has_meta && meta && !prev_meta;
-
-    ctrl_just_pressed || alt_just_pressed || shift_just_pressed || meta_just_pressed
 }
 
 #[no_mangle]
@@ -642,37 +624,392 @@ pub unsafe extern "C" fn plume_hotkey_manager_free(handle: HotkeyManagerHandle) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rdev::Button;
+    use std::ffi::CStr;
 
-    /// The exact combination a macOS user reports as dead: ctrl+option+space, with Option
-    /// arriving as `Key::Alt` and the space bar as "space".
-    #[test]
-    fn ctrl_option_space_matches_once_the_state_is_right() {
-        let modifiers = vec!["ctrl".to_string(), "option".to_string()];
+    static FIRED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    static SERIAL: Mutex<()> = Mutex::new(());
 
-        assert!(matches_binding(&modifiers, "space", true, true, false, false, "space"));
-        assert!(matches_binding(
-            &["ctrl".to_string(), "option".to_string()],
-            "g",
-            true,
-            true,
-            false,
-            false,
-            "g"
-        ));
+    extern "C" fn record(action: *const c_char) {
+        let text = unsafe { CStr::from_ptr(action) }.to_string_lossy().into_owned();
+        FIRED.lock().push(text);
     }
 
-    /// Every way the state can be wrong, so a failure upstream is told apart from a bad matcher.
-    #[test]
-    fn the_matcher_refuses_anything_but_an_exact_state() {
-        let modifiers = vec!["ctrl".to_string(), "option".to_string()];
+    enum Tap {
+        Down(Key),
+        Up(Key),
+        Click,
+    }
 
-        // Option never observed — the shape of a modifier rdev did not report.
-        assert!(!matches_binding(&modifiers, "space", true, false, false, false, "space"));
-        // A stray modifier held as well.
-        assert!(!matches_binding(&modifiers, "space", true, true, false, true, "space"));
-        // The key arrived under another name.
-        assert!(!matches_binding(&modifiers, "space", true, true, false, false, "Space"));
-        assert!(!matches_binding(&modifiers, "space", true, true, false, false, "nbsp"));
+    use Tap::{Click, Down, Up};
+
+    /// Feeds `taps` to a listener holding `bindings`, and returns the actions it fired.
+    fn fired(bindings: &[(&str, &str)], taps: &[Tap]) -> Vec<String> {
+        let _serial = SERIAL.lock();
+        FIRED.lock().clear();
+
+        let mut manager = SimpleHotkeyManager::new();
+        for (binding, action) in bindings {
+            manager
+                .register(binding.to_string(), action.to_string(), record)
+                .unwrap_or_else(|e| panic!("could not register {}: {}", binding, e));
+        }
+
+        let mut state = ListenerState::default();
+        for tap in taps {
+            state.process(
+                match tap {
+                    Down(key) => EventType::KeyPress(*key),
+                    Up(key) => EventType::KeyRelease(*key),
+                    Click => EventType::ButtonPress(Button::Left),
+                },
+                &manager.bindings,
+            );
+        }
+        FIRED.lock().clone()
+    }
+
+    const MAC: &[(&str, &str)] = &[
+        ("ctrl+cmd", "revise_selection"),
+        ("ctrl+option+space", "revise_all"),
+        ("ctrl+option+g", "translate_selection"),
+    ];
+
+    /// The macOS default that never fired. Option arrives as `Key::Alt`, the space bar as "space".
+    #[test]
+    fn ctrl_option_space_revises_everything() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::Alt),
+                Down(Key::Space),
+                Up(Key::Space),
+                Up(Key::Alt),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_all"]);
+    }
+
+    #[test]
+    fn ctrl_option_g_translates() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::Alt),
+                Down(Key::KeyG),
+                Up(Key::KeyG),
+                Up(Key::Alt),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert_eq!(actions, vec!["translate_selection"]);
+    }
+
+    /// A modifier-only binding cannot fire while the combination is still held: at that moment the
+    /// user may be on their way to a longer shortcut.
+    #[test]
+    fn ctrl_cmd_fires_when_the_combination_is_released() {
+        let held = fired(MAC, &[Down(Key::ControlLeft), Down(Key::MetaLeft)]);
+        assert!(held.is_empty(), "fired while the keys were still down");
+
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+        assert_eq!(actions, vec!["revise_selection"]);
+    }
+
+    /// The bug this rule exists for: ctrl+cmd+space opens the macOS emoji picker, and used to
+    /// revise the selection on the way there.
+    #[test]
+    fn ctrl_cmd_space_leaves_the_selection_alone() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Down(Key::Space),
+                Up(Key::Space),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert!(actions.is_empty(), "fired on the way to the emoji picker");
+    }
+
+    #[test]
+    fn a_modifier_only_binding_fires_once_whatever_the_release_order() {
+        for (first, second) in [
+            (Key::MetaLeft, Key::ControlLeft),
+            (Key::ControlLeft, Key::MetaLeft),
+        ] {
+            let actions = fired(
+                MAC,
+                &[
+                    Down(Key::ControlLeft),
+                    Down(Key::MetaLeft),
+                    Up(first),
+                    Up(second),
+                ],
+            );
+            assert_eq!(actions, vec!["revise_selection"], "releasing {:?} first", first);
+        }
+    }
+
+    /// The chord begins at the first modifier. Whatever the user typed before it is not part of it.
+    #[test]
+    fn typing_before_the_chord_does_not_cancel_it() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::KeyH),
+                Up(Key::KeyH),
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_selection"]);
+    }
+
+    /// And a chord that was cancelled must not poison the next one.
+    #[test]
+    fn a_cancelled_chord_does_not_cancel_the_next() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Down(Key::Space),
+                Up(Key::Space),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_selection"]);
+    }
+
+    #[test]
+    fn an_extra_modifier_cancels_the_modifier_only_binding() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Down(Key::ShiftLeft),
+                Up(Key::ShiftLeft),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert!(actions.is_empty(), "an extra modifier still triggered it");
+    }
+
+    #[test]
+    fn a_click_cancels_the_modifier_only_binding() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Click,
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert!(actions.is_empty(), "ctrl+cmd+click triggered it");
+    }
+
+    /// Tapping the command key twice while control is held is two deliberate gestures.
+    #[test]
+    fn the_chord_can_be_repeated_without_releasing_every_modifier() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Up(Key::MetaLeft),
+                Down(Key::MetaLeft),
+                Up(Key::MetaLeft),
+                Up(Key::ControlLeft),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_selection", "revise_selection"]);
+    }
+
+    /// Holding the shortcut repeats the key press. One press was one request.
+    #[test]
+    fn holding_a_shortcut_runs_the_action_once() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::Alt),
+                Down(Key::Space),
+                Down(Key::Space),
+                Down(Key::Space),
+                Up(Key::Space),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_all"]);
+    }
+
+    #[test]
+    fn holding_a_modifier_repeats_neither_state_nor_action() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::MetaLeft),
+                Down(Key::MetaLeft),
+                Up(Key::MetaLeft),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_selection"]);
+    }
+
+    #[test]
+    fn a_stray_modifier_refuses_a_key_binding() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlLeft),
+                Down(Key::Alt),
+                Down(Key::ShiftLeft),
+                Down(Key::Space),
+            ],
+        );
+
+        assert!(actions.is_empty(), "ctrl+option+shift+space matched ctrl+option+space");
+    }
+
+    #[test]
+    fn the_right_hand_modifiers_are_the_same_modifiers() {
+        let actions = fired(
+            MAC,
+            &[
+                Down(Key::ControlRight),
+                Down(Key::AltGr),
+                Down(Key::Space),
+            ],
+        );
+
+        assert_eq!(actions, vec!["revise_all"]);
+    }
+
+    #[test]
+    fn the_linux_and_windows_defaults_still_fire() {
+        for binding in ["ctrl+super", "ctrl+win"] {
+            let actions = fired(
+                &[(binding, "revise_selection")],
+                &[
+                    Down(Key::ControlLeft),
+                    Down(Key::MetaLeft),
+                    Up(Key::MetaLeft),
+                    Up(Key::ControlLeft),
+                ],
+            );
+            assert_eq!(actions, vec!["revise_selection"], "binding {}", binding);
+        }
+
+        let actions = fired(
+            &[("ctrl+alt+space", "revise_all")],
+            &[Down(Key::ControlLeft), Down(Key::Alt), Down(Key::Space)],
+        );
+        assert_eq!(actions, vec!["revise_all"]);
+    }
+
+    #[test]
+    fn a_binding_naming_a_key_the_listener_cannot_see_is_refused() {
+        let mut manager = SimpleHotkeyManager::new();
+        let error = manager
+            .register("ctrl+alt+f13".to_string(), "revise_all".to_string(), record)
+            .expect_err("f13 is not a key the listener knows");
+
+        assert!(error.contains("f13"), "unhelpful message: {}", error);
+    }
+
+    /// Without a modifier the binding would fire on ordinary typing.
+    #[test]
+    fn a_binding_without_a_modifier_is_refused() {
+        let mut manager = SimpleHotkeyManager::new();
+        assert!(manager
+            .register("space".to_string(), "revise_all".to_string(), record)
+            .is_err());
+    }
+
+    #[test]
+    fn a_binding_that_names_two_keys_is_refused() {
+        let mut manager = SimpleHotkeyManager::new();
+        assert!(manager
+            .register("ctrl+a+b".to_string(), "revise_all".to_string(), record)
+            .is_err());
+    }
+
+    #[test]
+    fn each_platform_spells_the_same_modifier_its_own_way() {
+        let ctrl_meta = Modifiers {
+            ctrl: true,
+            meta: true,
+            ..Modifiers::default()
+        };
+        for binding in ["ctrl+cmd", "ctrl+super", "ctrl+win", "control+meta"] {
+            assert_eq!(parse_binding(binding), Ok((ctrl_meta, None)), "{}", binding);
+        }
+
+        let ctrl_alt = Modifiers {
+            ctrl: true,
+            alt: true,
+            ..Modifiers::default()
+        };
+        for binding in ["ctrl+alt+space", "ctrl+option+space"] {
+            assert_eq!(
+                parse_binding(binding),
+                Ok((ctrl_alt, Some("space"))),
+                "{}",
+                binding
+            );
+        }
+    }
+
+    /// The names `HotkeyRecorder.keyName` can produce. A name the recorder emits and the listener
+    /// cannot match saves cleanly and then never fires, which looks exactly like a refused listener.
+    #[test]
+    fn every_name_the_recorder_can_produce_is_a_key_the_listener_knows() {
+        let recorded = [
+            "space", "return", "escape", "tab", "backspace", "delete", "insert", "home", "end",
+            "pageup", "pagedown", "left", "right", "up", "down", "a", "z", "0", "9", "f1", "f12",
+        ];
+        for name in recorded {
+            assert!(
+                canonical_key_name(name).is_some(),
+                "the recorder can produce '{}' and the listener cannot match it",
+                name
+            );
+        }
     }
 
     /// Suspending and resuming happens every time a shortcut is recorded. rdev's listener cannot be
