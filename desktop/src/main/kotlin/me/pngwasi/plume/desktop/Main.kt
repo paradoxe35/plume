@@ -192,6 +192,10 @@ fun main() {
                         }
                     }
                     window.addWindowListener(opened)
+                    // Compose shows the window during composition, so on a reopen `windowOpened`
+                    // can already be past by the time the listener is added. Safe here precisely
+                    // because a showing window means the peer is made.
+                    if (window.isShowing) DockPresence.windowShown()
                     onDispose {
                         window.removeWindowListener(opened)
                         DockPresence.windowHidden()
