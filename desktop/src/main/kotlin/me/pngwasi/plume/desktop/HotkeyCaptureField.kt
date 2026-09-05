@@ -150,13 +150,9 @@ fun HotkeyCaptureField(
                                     alt = event.isAltPressed,
                                     shift = event.isShiftPressed,
                                     meta = event.isMetaPressed,
-                                    key = if (event.key.isModifier()) {
-                                        null
-                                    } else {
-                                        HotkeyRecorder.keyName(
-                                            event.key.toString().removePrefix("Key: "),
-                                        )
-                                    },
+                                    // Null for a key the listener has no name for: the
+                                    // combination stays incomplete rather than saving a dead one.
+                                    key = HotkeyRecorder.keyName(event.key),
                                 )
                             }
                         }
@@ -217,11 +213,3 @@ fun HotkeyCaptureField(
         )
     }
 }
-
-/** Modifiers arrive as key events too, but they belong in the modifier state, not the key list. */
-private fun Key.isModifier(): Boolean = this in setOf(
-    Key.CtrlLeft, Key.CtrlRight,
-    Key.AltLeft, Key.AltRight,
-    Key.ShiftLeft, Key.ShiftRight,
-    Key.MetaLeft, Key.MetaRight,
-)

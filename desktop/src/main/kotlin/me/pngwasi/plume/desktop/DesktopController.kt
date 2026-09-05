@@ -132,16 +132,26 @@ class DesktopController(
 
         val defaults = hotkeyDefaultsFor()
         PlumeLog.info("Shortcut support: ${availability::class.simpleName}")
-        rejectedBindings = service.register(
-            mapOf(
-                HotkeyAction.ReviseSelection to settings.desktop.reviseSelectionOrDefault(defaults),
-                HotkeyAction.ReviseAll to settings.desktop.reviseAllOrDefault(defaults),
-                HotkeyAction.TranslateSelection to
-                    settings.desktop.translateSelectionOrDefault(defaults),
-            ),
+        val wanted = mapOf(
+            HotkeyAction.ReviseSelection to settings.desktop.reviseSelectionOrDefault(defaults),
+            HotkeyAction.ReviseAll to settings.desktop.reviseAllOrDefault(defaults),
+            HotkeyAction.TranslateSelection to settings.desktop.translateSelectionOrDefault(defaults),
         )
+        rejectedBindings = service.register(wanted)
+
+        // A binding the listener cannot read can never fire, and leaving the action unbound hides
+        // that behind silence. An older Plume saved the space bar under the glyph macOS prints for
+        // it, so this repairs settings already written that way.
         if (rejectedBindings.isNotEmpty()) {
-            PlumeLog.error("The system refused these shortcuts: ${rejectedBindings.joinToString()}")
+            PlumeLog.error(
+                "Refused: ${rejectedBindings.joinToString()} — falling back to the defaults",
+            )
+            service.register(
+                wanted.mapValues { (action, binding) ->
+                    if (binding in rejectedBindings) defaults.forAction(action) else binding
+                },
+            )
+            forget(rejectedBindings)
         }
         if (!service.start()) PlumeLog.error("The shortcut listener did not start")
 
@@ -151,6 +161,30 @@ class DesktopController(
             val failure = service.listenError()
             _listenerError.value = failure
             if (failure != null) PlumeLog.error("Shortcuts will not fire: $failure")
+        }
+    }
+
+    /**
+     * Drops a stored binding the listener could not read.
+     *
+     * Blank already means "use the default", which is what is running by the time this is called —
+     * so this stops the Shortcuts screen showing a shortcut that is not the one in force.
+     */
+    private fun forget(bindings: List<String>) {
+        scope.launch {
+            runCatching {
+                repository.update { settings ->
+                    val desktop = settings.desktop
+                    settings.copy(
+                        desktop = desktop.copy(
+                            reviseSelection = desktop.reviseSelection.takeUnless { it in bindings }.orEmpty(),
+                            reviseAll = desktop.reviseAll.takeUnless { it in bindings }.orEmpty(),
+                            translateSelection =
+                                desktop.translateSelection.takeUnless { it in bindings }.orEmpty(),
+                        ),
+                    )
+                }
+            }.onFailure { PlumeLog.error("Could not clear an unreadable shortcut", it) }
         }
     }
 

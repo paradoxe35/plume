@@ -1,5 +1,6 @@
 package me.pngwasi.plume.desktop
 
+import androidx.compose.ui.input.key.Key
 import me.pngwasi.plume.data.DesktopOs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -117,24 +118,39 @@ class HotkeyRecorderTest {
 
     /** These have to match what the Rust listener parses, not what Compose calls them. */
     @Test
-    fun `compose key labels map to the names the listener expects`() {
-        assertEquals("space", HotkeyRecorder.keyName("Spacebar"))
-        assertEquals("return", HotkeyRecorder.keyName("Enter"))
-        assertEquals("escape", HotkeyRecorder.keyName("Escape"))
-        assertEquals("pageup", HotkeyRecorder.keyName("Page Up"))
-        assertEquals("left", HotkeyRecorder.keyName("Left Arrow"))
+    fun `compose keys map to the names the listener expects`() {
+        assertEquals("space", HotkeyRecorder.keyName(Key.Spacebar))
+        assertEquals("return", HotkeyRecorder.keyName(Key.Enter))
+        assertEquals("escape", HotkeyRecorder.keyName(Key.Escape))
+        assertEquals("pageup", HotkeyRecorder.keyName(Key.PageUp))
+        assertEquals("left", HotkeyRecorder.keyName(Key.DirectionLeft))
+        assertEquals("r", HotkeyRecorder.keyName(Key.R))
+        assertEquals("f1", HotkeyRecorder.keyName(Key.F1))
+        assertEquals("7", HotkeyRecorder.keyName(Key.Seven))
     }
 
+    /**
+     * The bug the table exists for. `Key.toString()` is `KeyEvent.getKeyText`, which macOS answers
+     * with the glyph and a French system with "Espace" — so the space bar used to record as
+     * `ctrl+option+\u2423`, which reads correctly and can never fire.
+     */
     @Test
-    fun `an ordinary letter keeps its own name`() {
-        assertEquals("r", HotkeyRecorder.keyName("R"))
-        assertEquals("f1", HotkeyRecorder.keyName("F1"))
+    fun `the space bar records as space wherever it is pressed`() {
+        assertEquals("space", HotkeyRecorder.keyName(Key.Spacebar))
+        assertEquals(
+            "ctrl+option+space",
+            recorder(ctrl = true, alt = true)
+                .withKey(HotkeyRecorder.keyName(Key.Spacebar)!!)
+                .format(DesktopOs.MacOs),
+        )
     }
 
-    /** Compose prefixes some labels; the listener would not recognise "key r". */
+    /** A key with no name would otherwise be saved as whatever the platform happened to call it. */
     @Test
-    fun `the compose key prefix is stripped`() {
-        assertEquals("r", HotkeyRecorder.keyName("Key R"))
+    fun `a key the listener cannot match has no name`() {
+        assertEquals(null, HotkeyRecorder.keyName(Key.CapsLock))
+        assertEquals(null, HotkeyRecorder.keyName(Key.CtrlLeft))
+        assertEquals(null, HotkeyRecorder.keyName(Key.MetaLeft))
     }
 
     /** What is recorded has to pass the validation the settings screen applies to typed input. */

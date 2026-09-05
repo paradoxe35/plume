@@ -1,5 +1,6 @@
 package me.pngwasi.plume.desktop
 
+import androidx.compose.ui.input.key.Key
 import me.pngwasi.plume.data.DesktopOs
 
 /**
@@ -82,28 +83,47 @@ data class HotkeyRecorder(
         }
 
         /**
-         * Names the Rust listener expects for keys that are not a single character.
+         * The name the Rust listener knows a key by, or null for one it cannot match.
          *
-         * Compose reports these with its own labels, and a mismatch here means a binding that
-         * saves cleanly and then never fires.
+         * Keyed on the Compose [Key] and never on its label. `Key.toString()` is
+         * `KeyEvent.getKeyText(nativeKeyCode)`, which is localised and platform-specific: macOS
+         * answers `\u2423` for the space bar, a French system answers `Espace`. Recording the
+         * macOS revise-everything default that way saved `ctrl+option+\u2423` — a binding that
+         * reads correctly in the field, registers, and can never fire.
          */
-        fun keyName(composeKeyLabel: String): String = when (val key = composeKeyLabel.lowercase()) {
-            "spacebar", "space" -> "space"
-            "enter", "return", "numpad enter" -> "return"
-            "escape", "esc" -> "escape"
-            "tab" -> "tab"
-            "backspace" -> "backspace"
-            "delete", "forward delete" -> "delete"
-            "insert" -> "insert"
-            "home" -> "home"
-            "end" -> "end"
-            "page up" -> "pageup"
-            "page down" -> "pagedown"
-            "left arrow", "left" -> "left"
-            "right arrow", "right" -> "right"
-            "up arrow", "up" -> "up"
-            "down arrow", "down" -> "down"
-            else -> key.removePrefix("key ").trim()
-        }
+        fun keyName(key: Key): String? = KEY_NAMES[key]
+
+        /** Every name a recorded binding can contain, to check against the listener matching them. */
+        fun keyNames(): Set<String> = KEY_NAMES.values.toSet()
+
+        private val KEY_NAMES: Map<Key, String> = mapOf(
+            Key.A to "a", Key.B to "b", Key.C to "c", Key.D to "d", Key.E to "e",
+            Key.F to "f", Key.G to "g", Key.H to "h", Key.I to "i", Key.J to "j",
+            Key.K to "k", Key.L to "l", Key.M to "m", Key.N to "n", Key.O to "o",
+            Key.P to "p", Key.Q to "q", Key.R to "r", Key.S to "s", Key.T to "t",
+            Key.U to "u", Key.V to "v", Key.W to "w", Key.X to "x", Key.Y to "y",
+            Key.Z to "z",
+            Key.Zero to "0", Key.One to "1", Key.Two to "2", Key.Three to "3", Key.Four to "4",
+            Key.Five to "5", Key.Six to "6", Key.Seven to "7", Key.Eight to "8", Key.Nine to "9",
+            Key.F1 to "f1", Key.F2 to "f2", Key.F3 to "f3", Key.F4 to "f4", Key.F5 to "f5",
+            Key.F6 to "f6", Key.F7 to "f7", Key.F8 to "f8", Key.F9 to "f9", Key.F10 to "f10",
+            Key.F11 to "f11", Key.F12 to "f12",
+            Key.Spacebar to "space",
+            Key.Enter to "return",
+            Key.NumPadEnter to "return",
+            Key.Escape to "escape",
+            Key.Tab to "tab",
+            Key.Backspace to "backspace",
+            Key.Delete to "delete",
+            Key.Insert to "insert",
+            Key.MoveHome to "home",
+            Key.MoveEnd to "end",
+            Key.PageUp to "pageup",
+            Key.PageDown to "pagedown",
+            Key.DirectionLeft to "left",
+            Key.DirectionRight to "right",
+            Key.DirectionUp to "up",
+            Key.DirectionDown to "down",
+        )
     }
 }
