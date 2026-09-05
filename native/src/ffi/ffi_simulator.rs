@@ -70,7 +70,8 @@ pub unsafe extern "C" fn plume_simulate_paste(handle: SimulatorHandle) -> c_int 
     }
 }
 
-/// Releases modifiers still held from the triggering hotkey. Call once before any combo.
+/// Clears the way for a simulated keystroke: releases held modifiers, or on macOS, where a
+/// physically held key cannot be released, waits for the user to let go. Call once before any combo.
 #[no_mangle]
 pub unsafe extern "C" fn plume_simulate_release_modifiers(handle: SimulatorHandle) -> c_int {
     if handle.is_null() {

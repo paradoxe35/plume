@@ -29,10 +29,6 @@ typedef void (*plume_HotkeyCallback)(const char*);
 
 typedef void *plume_SimulatorHandle;
 
-#if defined(PLUME_MACOS)
-extern uint64_t CGEventSourceFlagsState(uint32_t state_id);
-#endif
-
 /**
  * NULL when there is no error; otherwise a string the caller must free with `plume_free_string`.
  */
@@ -106,7 +102,8 @@ int plume_simulate_copy(plume_SimulatorHandle handle);
 int plume_simulate_paste(plume_SimulatorHandle handle);
 
 /**
- * Releases modifiers still held from the triggering hotkey. Call once before any combo.
+ * Clears the way for a simulated keystroke: releases held modifiers, or on macOS, where a
+ * physically held key cannot be released, waits for the user to let go. Call once before any combo.
  */
 int plume_simulate_release_modifiers(plume_SimulatorHandle handle);
 

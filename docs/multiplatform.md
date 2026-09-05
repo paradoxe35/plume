@@ -133,13 +133,38 @@ at the top of each operation and hoped the user had let go.
 On Linux and Windows the simulator releases the held modifiers instead, and releases Control even if
 the letter keystroke fails, so a failure cannot leave the desktop with a stuck modifier.
 
-macOS cannot do that: a physically held key is not released by posting an event, and the system
-merges the live hardware flags into whatever is posted — Cmd+A sent while Ctrl+Option are still down
-arrives as Ctrl+Option+Cmd+A and selects nothing. This was written as a no-op returning `Ok`, which
-read as "handled" and was not: "revise everything" quietly selected nothing and reported that the
-copy never landed, while "translate" — which sends no Cmd+A — worked. It now reads the live modifier
-flags and waits for them to clear, returning the moment the user lets go rather than sleeping a
-fixed guess, and giving up after 400 ms so a stuck modifier cannot hang the action.
+macOS cannot do that: a physically held key is not released by posting an event. Its body was a
+no-op returning `Ok`, which read as "handled" and was not, so Plume simulated Cmd+A within
+milliseconds of the shortcut firing while the user still had the modifiers down. MyReviser slept
+325 ms before its own Cmd+A and did not have the problem.
+
+`CGEventSetFlags` does set the flags on the event Plume posts, so this is a race rather than a
+rule: the combined session source keeps one modifier register that the hardware and every posted
+event write to, last writer wins, and the hardware is still writing Ctrl+Option while the event is
+in flight. What the receiving application reads is whichever write landed last. That is why the
+same code appears to work and then not.
+
+Posting from `kCGEventSourceStatePrivate` would sidestep the shared register, and is the avenue not
+taken: a private source is not what the OS routes hotkeys and menu equivalents through, and the
+failure mode of getting it wrong is a keystroke the target application never sees at all.
+
+Instead it reads `CGEventSourceFlagsState` — the combined session state, which is what
+`NSEvent.modifierFlags` reflects — and waits for the modifiers to clear, returning within a 10 ms
+poll of the user letting go rather than sleeping a fixed guess. After a second it gives up and the
+action is abandoned with "let go of the shortcut keys", because going ahead fails later as "could
+not copy" and blames the application for something the user's own fingers caused.
+
+**"Revise everything" sent its two keystrokes in the same breath.** This is the separate reason that
+one action never worked on macOS while "revise selection" and "translate selection" did: it is the
+only one that sends Cmd+A *and* Cmd+C, and it sent them with nothing in between. `CGEventPost`
+queues an event; it does not wait for the application to handle it. The copy was therefore handled
+against the selection that existed before the select-all landed — which was nothing — so the
+clipboard stayed empty and the action reported "could not copy".
+
+MyReviser sleeps 100 ms between the two and does not have the problem. Plume now waits the same
+100 ms, and only when it actually selected something first, so a plain selection does not pay for
+it. This is the one delay in the capture that is not polled: the clipboard can be watched until the
+copy shows up, but nothing observable says "the selection has been made".
 
 **A Tokio runtime was built and destroyed on every clipboard call** — to await a lock that never
 yields. Beyond the waste on a latency-sensitive path, `block_on` panics if the calling thread

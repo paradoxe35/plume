@@ -4,6 +4,35 @@ use tracing::debug;
 #[cfg(not(target_os = "macos"))]
 use enigo::{Enigo, Key, Keyboard, Settings};
 
+/// Shift, Control, Option, Command. CapsLock (1 << 16) and Fn (1 << 23) are deliberately absent:
+/// neither spoils a Cmd shortcut, and including CapsLock would make every caps-locked user wait
+/// out the whole budget on every action.
+const MODIFIER_FLAGS: u64 = (1 << 17) | (1 << 18) | (1 << 19) | (1 << 20);
+
+const MODIFIER_POLL_MS: u64 = 10;
+
+/// Generous, because it is only spent while the user is actually still holding the keys, and a
+/// modifier-only shortcut such as macOS's ctrl+cmd is naturally held for a beat.
+const MODIFIER_POLLS: u32 = 100;
+
+/// Polls until no modifier is held. False when the budget ran out with one still down.
+///
+/// Separated from the platform call so it can be tested anywhere: the bug this replaced was a
+/// macOS-only body that returned success without reading anything.
+fn wait_for_modifiers(
+    mut read_flags: impl FnMut() -> u64,
+    mut pause: impl FnMut(),
+    polls: u32,
+) -> bool {
+    for _ in 0..polls {
+        if read_flags() & MODIFIER_FLAGS == 0 {
+            return true;
+        }
+        pause();
+    }
+    read_flags() & MODIFIER_FLAGS == 0
+}
+
 pub struct KeySimulator {
     #[cfg(not(target_os = "macos"))]
     enigo: Enigo,
@@ -20,13 +49,11 @@ mod macos_native {
     const KCG_KEY_V: i64 = 9;
     const KCG_FLAGMASK_COMMAND: u64 = 1 << 20;
 
-    /// Live hardware modifier state, which is not the same as the flags on a posted event.
-    const KCG_EVENT_SOURCE_STATE_COMBINED_SESSION: u32 = 0;
-    const MODIFIER_FLAGS: u64 = (1 << 17) | (1 << 18) | (1 << 19) | (1 << 20);
-    const HELD_MODIFIER_TIMEOUT_MS: u64 = 400;
+    /// What `NSEvent.modifierFlags` reflects, and read before Plume posts anything of its own.
+    const KCG_EVENT_SOURCE_STATE_COMBINED_SESSION: i32 = 0;
 
     extern "C" {
-        fn CGEventSourceFlagsState(state_id: u32) -> u64;
+        fn CGEventSourceFlagsState(state_id: i32) -> u64;
 
         fn CGEventCreateKeyboardEvent(
             source: *mut c_void,
@@ -71,25 +98,13 @@ mod macos_native {
         Ok(())
     }
 
-    /// Waits for the shortcut's own modifiers to come up before anything is simulated.
-    ///
-    /// A physically held key cannot be released by posting an event, and macOS merges the live
-    /// hardware flags into whatever is posted — so Cmd+A sent while Ctrl+Option are still down
-    /// arrives as Ctrl+Option+Cmd+A and selects nothing. Waiting is the only option; it returns as
-    /// soon as the user lets go, rather than sleeping a fixed guess.
-    pub fn await_modifiers_released() {
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_millis(HELD_MODIFIER_TIMEOUT_MS);
-        while std::time::Instant::now() < deadline {
-            if unsafe { CGEventSourceFlagsState(KCG_EVENT_SOURCE_STATE_COMBINED_SESSION) }
-                & MODIFIER_FLAGS
-                == 0
-            {
-                return;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        tracing::info!("Modifiers still held after {HELD_MODIFIER_TIMEOUT_MS}ms; going ahead");
+    /// False when the user was still holding them when the budget ran out.
+    pub fn await_modifiers_released() -> bool {
+        super::wait_for_modifiers(
+            || unsafe { CGEventSourceFlagsState(KCG_EVENT_SOURCE_STATE_COMBINED_SESSION) },
+            || std::thread::sleep(std::time::Duration::from_millis(MODIFIER_POLL_MS)),
+            MODIFIER_POLLS,
+        )
     }
 
     pub fn simulate_select_all() -> Result<()> {
@@ -115,11 +130,16 @@ impl KeySimulator {
     }
 
     /// Drops modifiers still held from the triggering hotkey, so Ctrl+A does not arrive as
-    /// Ctrl+Alt+A. macOS needs nothing: its events carry an explicit flag mask.
+    /// Ctrl+Alt+A. macOS cannot release a physically held key, so it waits for one instead.
     pub fn release_modifiers(&mut self) -> Result<()> {
         #[cfg(target_os = "macos")]
         {
-            macos_native::await_modifiers_released();
+            if !macos_native::await_modifiers_released() {
+                // Reported rather than pressed on with: the caller can say "let go of the keys",
+                // where going ahead fails later as "could not copy" and blames the application.
+                tracing::warn!("Modifiers still held; not simulating a keystroke over them");
+                return Err(anyhow::anyhow!("The shortcut keys are still held down"));
+            }
             Ok(())
         }
 
@@ -185,5 +205,62 @@ impl KeySimulator {
         {
             self.control_combo('v')
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    /// The body this replaced returned success without reading anything, so a shortcut was
+    /// simulated while the user still held the keys that triggered it.
+    #[test]
+    fn it_waits_until_the_keys_come_up() {
+        let reads = Cell::new(0);
+        let pauses = Cell::new(0);
+        let held = [MODIFIER_FLAGS, MODIFIER_FLAGS, 0];
+
+        let cleared = wait_for_modifiers(
+            || {
+                let n = reads.get();
+                reads.set(n + 1);
+                held[n.min(held.len() - 1)]
+            },
+            || pauses.set(pauses.get() + 1),
+            MODIFIER_POLLS,
+        );
+
+        assert!(cleared);
+        assert_eq!(reads.get(), 3, "it stopped reading before the keys came up");
+        assert_eq!(pauses.get(), 2);
+    }
+
+    #[test]
+    fn a_key_held_throughout_gives_up_rather_than_hanging() {
+        let pauses = Cell::new(0);
+
+        let cleared = wait_for_modifiers(
+            || MODIFIER_FLAGS,
+            || pauses.set(pauses.get() + 1),
+            MODIFIER_POLLS,
+        );
+
+        assert!(!cleared, "a held key must be reported, not waited on forever");
+        assert_eq!(pauses.get(), MODIFIER_POLLS);
+    }
+
+    #[test]
+    fn nothing_held_costs_one_read_and_no_waiting() {
+        let pauses = Cell::new(0);
+
+        assert!(wait_for_modifiers(|| 0, || pauses.set(pauses.get() + 1), MODIFIER_POLLS));
+        assert_eq!(pauses.get(), 0);
+    }
+
+    /// Caps Lock is a modifier that spoils nothing, and waiting it out would stall every action.
+    #[test]
+    fn caps_lock_is_not_something_to_wait_for() {
+        assert!(wait_for_modifiers(|| 1 << 16, || {}, MODIFIER_POLLS));
     }
 }

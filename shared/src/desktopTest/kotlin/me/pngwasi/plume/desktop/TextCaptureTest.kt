@@ -32,6 +32,8 @@ class TextCaptureTest {
 
         var copySucceeds = true
         var pasteSucceeds = true
+        /** False models macOS giving up on a shortcut key the user never let go of. */
+        var modifiersCanBeReleased = true
         /** How many polls the copy takes to show up, modelling a slow application. */
         var copyLatencyPolls = 0
 
@@ -66,7 +68,7 @@ class TextCaptureTest {
         }
 
         override fun releaseModifiers(): Boolean {
-            log += "release"; modifiersReleased++; return true
+            log += "release"; modifiersReleased++; return modifiersCanBeReleased
         }
 
         override fun selectAll(): Boolean {
@@ -92,7 +94,15 @@ class TextCaptureTest {
     }
 
     private fun capture(system: FakeSystem) =
-        TextCapture(system, TextCapture.Timing(pollIntervalMillis = 1, copyTimeoutMillis = 20, pasteSettleMillis = 1)) {}
+        TextCapture(
+            system,
+            TextCapture.Timing(
+                pollIntervalMillis = 1,
+                copyTimeoutMillis = 20,
+                selectSettleMillis = 7,
+                pasteSettleMillis = 1,
+            ),
+        ) { millis -> system.log += "slept $millis" }
 
     /**
      * The bug that mattered most. MyReviser slept and then read the clipboard, so a copy that never
@@ -222,6 +232,60 @@ class TextCaptureTest {
         val system = FakeSystem(selection = "   ")
 
         assertIs<Capture.NothingSelected>(capture(system).captureSelection())
+    }
+
+    /**
+     * "Revise everything" was the only action that never worked on macOS, and it is the only one
+     * that sends two keystrokes. MyReviser waits 100 ms between them and works; Plume sent them
+     * back to back, so the application copied the selection it had before the select-all arrived.
+     */
+    @Test
+    fun `the select-all is given time to land before the copy is sent`() {
+        val system = FakeSystem(selection = "everything typed so far")
+
+        assertIs<Capture.Text>(capture(system).captureAll())
+
+        val settled = system.log.indexOf("slept 7")
+        assertTrue(settled > system.log.indexOf("selectAll"), "no wait after the select-all")
+        assertTrue(settled < system.log.indexOf("copy"), "the copy went out in the same breath")
+    }
+
+    /** A plain selection has nothing to wait for, and the delay would be felt on every use. */
+    @Test
+    fun `capturing an existing selection does not pay the select-all wait`() {
+        val system = FakeSystem(selection = "hello")
+
+        capture(system).captureSelection()
+
+        assertFalse(system.log.contains("slept 7"))
+    }
+
+    /**
+     * The message matters as much as the stopping: blaming the application for a copy the held
+     * keys spoiled sends the user looking for a bug that is under their own fingers.
+     */
+    @Test
+    fun `keys still held stop the capture and say so`() {
+        val system = FakeSystem(clipboard = "user's own copy", selection = "hello")
+        system.modifiersCanBeReleased = false
+
+        val result = capture(system).captureSelection()
+
+        assertEquals(MODIFIERS_HELD, assertIs<Capture.Failed>(result).reason)
+        assertFalse(system.log.contains("copy"), "it copied with the shortcut still down")
+        assertEquals("user's own copy", system.clipboard)
+    }
+
+    @Test
+    fun `keys still held stop the paste rather than typing over the selection`() {
+        val system = FakeSystem(clipboard = "earlier", selection = "hello")
+        val subject = capture(system)
+        subject.captureSelection()
+        system.modifiersCanBeReleased = false
+
+        assertFalse(subject.replaceSelection("Hello."))
+        assertEquals(null, system.pasted, "it pasted while the shortcut was still down")
+        assertEquals("earlier", system.clipboard)
     }
 
     @Test

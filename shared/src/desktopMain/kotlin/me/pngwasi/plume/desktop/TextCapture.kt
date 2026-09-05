@@ -13,6 +13,8 @@ sealed interface Capture {
     data class Failed(val reason: String) : Capture
 }
 
+internal const val MODIFIERS_HELD = "Let go of the shortcut keys, then try again."
+
 /**
  * Borrowing the clipboard to read the user's selection, and giving it back.
  *
@@ -24,8 +26,9 @@ sealed interface Capture {
  * revised and pasted over the user's selection — text replaced with a correction of something
  * else entirely.
  *
- * Held modifiers are **released first**, because the hotkey that triggered this is still down and
- * Ctrl+A with Alt held is a different shortcut.
+ * The hotkey's own modifiers are **cleared first**, because the keys that triggered this are still
+ * down and Ctrl+A with Alt held is a different shortcut. Where they cannot be cleared the attempt
+ * is **abandoned**, so the user is told to let go rather than told the app blocked the copy.
  *
  * The clipboard is **verified before pasting** and restored only after the paste has had time to
  * be served, since on X11 and Wayland a paste is a negotiated transfer rather than an instant one.
@@ -43,6 +46,11 @@ class TextCapture(
     data class Timing(
         val pollIntervalMillis: Long = 15,
         val copyTimeoutMillis: Long = 900,
+        /**
+         * The one delay here that cannot be polled away: nothing observable says "the selection
+         * has been made", and a copy delivered before it has been is a copy of nothing.
+         */
+        val selectSettleMillis: Long = 100,
         val pasteSettleMillis: Long = 220,
     )
 
@@ -54,7 +62,10 @@ class TextCapture(
 
     private fun capture(selectAllFirst: Boolean): Capture {
         if (!input.saveClipboard()) return Capture.Failed("Could not read the clipboard.")
-        input.releaseModifiers()
+        if (!input.releaseModifiers()) {
+            input.restoreClipboard()
+            return Capture.Failed(MODIFIERS_HELD)
+        }
 
         // The sentinel is absence: anything on the clipboard afterwards came from this copy.
         if (!input.clearClipboard()) {
@@ -62,9 +73,15 @@ class TextCapture(
             return Capture.Failed("Could not use the clipboard.")
         }
 
-        if (selectAllFirst && !input.selectAll()) {
-            input.restoreClipboard()
-            return Capture.Failed("Could not select the text.")
+        if (selectAllFirst) {
+            if (!input.selectAll()) {
+                input.restoreClipboard()
+                return Capture.Failed("Could not select the text.")
+            }
+            // Posting a keystroke only queues it. Sending the copy in the same breath means the
+            // application handles it against the selection it had *before* the select-all landed,
+            // which is why "revise everything" came back empty while "revise selection" worked.
+            sleep(timing.selectSettleMillis)
         }
 
         if (!input.copy()) {
@@ -104,7 +121,13 @@ class TextCapture(
             return false
         }
 
-        input.releaseModifiers()
+        // Pasting with the hotkey still held sends Shift+Cmd+V ("paste and match style") or worse,
+        // so giving the clipboard back beats writing something the user did not ask for.
+        if (!input.releaseModifiers()) {
+            input.restoreClipboard()
+            return false
+        }
+
         if (!input.paste()) {
             input.restoreClipboard()
             return false
